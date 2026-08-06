@@ -1,0 +1,69 @@
+---
+title: "Anatomy of a Great Prompt"
+description: "The lecture, after the doing: why the loop works, and what separates a prompt that lands from one that doesn't."
+module: 2
+moduleTitle: "The Loop"
+lesson: 3
+duration: "12 min"
+---
+
+import LoopDiagram from '@components/LoopDiagram.astro';
+import Quiz from '@components/Quiz.astro';
+
+## 🔁 Naming the Loop You Already Ran
+
+You just ran this loop three times without anyone naming it. Here it is, named:
+
+<LoopDiagram
+  label="The vibe coding loop"
+  steps={[
+    { title: "Describe", subtitle: "Say what you want" },
+    { title: "Test", subtitle: "Run it, look closely" },
+    { title: "Refine", subtitle: "Say what's wrong" },
+    { title: "Repeat", subtitle: "Until it's right" }
+  ]}
+/>
+
+This loop is the entire method. There is no separate "advanced" technique waiting for you later in this course — people building far bigger things than an about-me page are running these same four steps, just with more rounds and bigger ideas.
+
+---
+
+## ✍️ What Makes a Prompt Land
+
+Compare the vague prompts from last lesson's Pitfall box to their specific versions. The pattern underneath the good ones has three ingredients:
+
+| Ingredient | What it means | Example |
+|---|---|---|
+| **Specificity** | Name the exact thing, not a general feeling | "Make the button green" beats "make it pop" |
+| **Context** | Say what's currently happening, not just what you want | "The counter resets to zero when clicked — it shouldn't" beats "fix the counter" |
+| **One change at a time** | Bundle too many asks and it's hard to tell what worked | Three focused rounds beat one giant wishlist |
+
+You didn't need a course to invent this pattern — you already used it instinctively in the last lesson, once you had a reason to be specific.
+
+---
+
+## 🧭 Testing Is Not Optional
+
+The "Test" step in the loop isn't a formality — skip it and refinement has nothing to work from. Testing well just means:
+
+- Actually run the app, don't just read about it
+- Interact with it the way a real user would (click it more than once)
+- Notice specifics: *not* "it feels off" but "the button text doesn't change color when I click it"
+
+The sharper your noticing, the sharper your next refinement can be. Vague noticing produces vague refinements, which produce vague results — the same problem, one step earlier.
+
+<Quiz question="You've just tested your app and something's wrong, but you can't quite describe it — it just 'feels off.' What should you do before refining?">
+<div>
+
+**Look again, more specifically — click through it slowly and name one concrete thing that's different from what you pictured.**
+
+"Feels off" isn't yet a usable refinement. Slow down on the Test step until you can point at something specific: a color, a missing piece of text, a button that does nothing. That specific observation is what makes the next Refine step actually work.
+
+</div>
+</Quiz>
+
+---
+
+## ⏭️ Up Next
+
+Time to check what's changed in how you think about a rough first draft — compare it to where Module 2 started.

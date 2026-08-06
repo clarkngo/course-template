@@ -1,0 +1,59 @@
+---
+title: "Rejoice: Errors Are Clues, Not Verdicts"
+description: "This module's guiding idea, plus a pre-test on how you currently feel about error messages."
+module: 3
+moduleTitle: "Under the Hood"
+lesson: 1
+duration: "8 min"
+---
+
+import Quiz from '@components/Quiz.astro';
+
+## 🎉 Rejoice: Errors Are Clues, Not Verdicts
+
+At some point — maybe already — your app is going to fully break. Not "the color's wrong," but a blank screen, or a wall of red text, or a message full of words you don't recognize.
+
+For most beginners, that moment feels like a verdict: *"I've hit the edge of what I can do without really learning to code."* It isn't. It's information. A specific, useful clue about exactly one thing that needs to change — nothing more.
+
+**An error message is the AI telling you precisely where to look next.** That's not a punishment for doing something wrong. It's closer to a smoke detector: unpleasant to hear, genuinely useful, and not something you're expected to interpret on your own — you just report it.
+
+> This module's rejoice moment: **the scarier the error looks, the more precisely it's telling you what to fix. Ugly text is not the same as an unsolvable problem.**
+
+You're about to prove this by breaking your own app on purpose.
+
+---
+
+## 📋 Pre-Test: How Do You Feel About Errors?
+
+<Quiz
+  questions={[
+    {
+      question: "Your app shows a big red error message you don't understand. What's the correct next step?",
+      options: [
+        "Panic and close the tab — something is seriously wrong",
+        "Try to learn programming first before continuing",
+        "Copy the exact error message and give it to the AI, describing what you were doing when it happened",
+        "Ignore it and hope it fixes itself"
+      ],
+      correctIndex: 2,
+      explanation: "You don't need to translate the error yourself. Handing it over with context is the whole move — and you'll practice exactly this in the next lesson."
+    },
+    {
+      question: "If the AI's first attempt at fixing an error doesn't actually fix it, what does that mean?",
+      options: [
+        "The AI is broken and can't help you",
+        "You should trust its explanation completely without checking",
+        "It's worth testing again and reporting back what's still wrong, just like any other refinement",
+        "There's nothing more you can do"
+      ],
+      correctIndex: 2,
+      explanation: "A fix attempt is still a step in the loop from Module 2, not a final word. AI explanations can also be confidently wrong — worth keeping in mind before this module's lecture."
+    }
+  ]}
+/>
+
+---
+
+## ⏭️ Up Next
+
+Time to break something on purpose, and watch it get fixed twice.

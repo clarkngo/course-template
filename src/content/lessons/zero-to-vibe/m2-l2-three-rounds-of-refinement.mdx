@@ -1,0 +1,73 @@
+---
+title: "Three Rounds of Refinement"
+description: "Learning by doing: run your app through three real rounds of describe, test, and refine."
+module: 2
+moduleTitle: "The Loop"
+lesson: 2
+duration: "15 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+
+## 🛠️ Learning by Doing
+
+Open your Module 1 app again — the "about me" page, or whatever you built. You're going to make it noticeably better in three short rounds. Don't plan all three in advance; just do one, look at the result, then decide the next one.
+
+<CodeLab title="Round 1 — Fix the Thing That Bugged You">
+
+Think back to Lesson 2 of Module 1 — you noticed something that felt off but didn't fix it. Fix it now.
+
+Tell the AI exactly what's wrong and what you want instead. For example:
+
+> "The fun-fact button should never show the same fact twice in a row. Also, make the button turn a slightly darker blue when I click it, so it feels responsive."
+
+Run it. Click the button several times. Confirm both things actually changed.
+
+</CodeLab>
+
+<CodeLab title="Round 2 — Add Something New">
+
+Now add a feature that wasn't there before:
+
+> "Add a text input where I can type a new fun fact and add it to the list."
+
+Run it. Try adding a fact. Does it show up when you click the button again?
+
+</CodeLab>
+
+<CodeLab title="Round 3 — Polish">
+
+Pick one thing that's purely about *feel*, not function:
+
+> "Make the whole page feel a little more playful — rounded corners, a subtle animation when a new fact appears, maybe a small emoji."
+
+Run it one more time.
+
+</CodeLab>
+
+---
+
+## 🔍 What You Just Practiced
+
+Three rounds, same pattern every time: **describe → test → refine**. Notice you never once opened the underlying code to fix anything by hand. You stayed in the Director's seat the entire time — the AI did the Building, you did the judging.
+
+<Pitfall title="Vague Refinements Get Vague Results">
+
+"Make it better" is not a refinement — the AI has no way to know what "better" means to you. Compare:
+
+| Vague | Specific |
+|---|---|
+| "Make it better" | "Make the button bigger and change its color to green" |
+| "Fix the bug" | "The fact counter resets to zero when I click the button — it shouldn't" |
+| "Make it nicer" | "Add more spacing between the three facts so they don't feel cramped" |
+
+The AI can only act on what you actually said. Vague input produces a guess; specific input produces exactly what you pictured.
+
+</Pitfall>
+
+---
+
+## ⏭️ Up Next
+
+You just felt the difference between a vague ask and a specific one. Next lesson breaks down exactly what makes a prompt work — the anatomy of it, piece by piece.

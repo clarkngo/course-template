@@ -1,0 +1,64 @@
+---
+title: "Prove It: Module 4 Check"
+description: "A post-test on evaluating quality and privacy, plus what changed since the start of the module."
+module: 4
+moduleTitle: "Good Taste"
+lesson: 4
+duration: "8 min"
+---
+
+import Quiz from '@components/Quiz.astro';
+
+## 📈 Compare, Don't Just Answer
+
+Same questions from Module 4's pre-test, plus one new one on privacy. See what's different now that you've run the stranger test and thought through a real judgment call.
+
+<Quiz
+  questions={[
+    {
+      question: "You look at an app and something feels 'off,' but you don't know a design term for what's wrong. What should you do?",
+      options: [
+        "Say nothing — without design vocabulary, your opinion doesn't count",
+        "Describe the feeling in plain language and let the AI translate it",
+        "Assume it's fine since you can't name the problem",
+        "Learn formal design theory before giving any feedback"
+      ],
+      correctIndex: 1,
+      explanation: "You just did this in the last hands-on lesson, and it produced a real, working fix. Plain language was always enough."
+    },
+    {
+      question: "Is it possible to evaluate whether an app is well-designed without knowing how to code it?",
+      options: [
+        "No — you can't judge what you can't build",
+        "Yes — using it as a real user would is enough to judge it",
+        "Only professional designers can evaluate design quality",
+        "Only if the app has been reviewed by an expert first"
+      ],
+      correctIndex: 1,
+      explanation: "Four simple tests — 5-second, thumb, squint, silence — were enough to find and fix a real usability problem, no design background required."
+    },
+    {
+      question: "Your app collects a user's email address. Before showing it to anyone, what's the right move?",
+      options: [
+        "Nothing — if it runs without errors, it's ready",
+        "Ask directly where that data goes, who can see it, and whether it's stored securely",
+        "Trust the AI's word that it's secure without checking further",
+        "Remove the feature entirely, since collecting any data is unsafe"
+      ],
+      correctIndex: 1,
+      explanation: "Working and safe are two different questions. A confident-sounding answer about security deserves the same scrutiny as a confident-sounding bug fix."
+    }
+  ]}
+/>
+
+---
+
+## 🎉 Rejoice, Revisited
+
+Go back to this module's opening claim: you already had taste, you just needed permission to trust it. Look at the fix you directed last lesson — a real usability problem, found and solved, using nothing but your own instinct as a user. That instinct was never missing. It just hadn't been asked for yet.
+
+---
+
+## ⏭️ Up Next
+
+You've built, refined, debugged, and evaluated. Module 5 puts all four together in one original project — and this time, you ship it so someone else can actually use it.
