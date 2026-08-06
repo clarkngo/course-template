@@ -1,0 +1,64 @@
+---
+title: "Prove It: Module 2 Check"
+description: "A post-test on the loop, plus what changed since the start of the module."
+module: 2
+moduleTitle: "The Loop"
+lesson: 4
+duration: "8 min"
+---
+
+import Quiz from '@components/Quiz.astro';
+
+## 📈 Compare, Don't Just Answer
+
+Same two questions from Module 2's pre-test, reframed. See what's different now that you've actually run the loop three times.
+
+<Quiz
+  questions={[
+    {
+      question: "Your app's button doesn't do what you expected. What's the best next move?",
+      options: [
+        "Delete everything and write a much longer, more detailed prompt from scratch",
+        "Give up — the tool clearly can't do what you want",
+        "Describe exactly what's wrong and what you want instead, then check again",
+        "Try to fix the code yourself"
+      ],
+      correctIndex: 2,
+      explanation: "Describe, test, refine, repeat — you ran this three times last lesson. It's the whole method."
+    },
+    {
+      question: "Which of these refinement requests is most likely to get you what you actually pictured?",
+      options: [
+        "\"Make it better.\"",
+        "\"Make it pop more.\"",
+        "\"Make the button bigger and change its color from blue to green.\"",
+        "\"Fix it.\""
+      ],
+      correctIndex: 2,
+      explanation: "Specific, and it names both the current state and the desired one. The other three give the AI nothing concrete to act on."
+    },
+    {
+      question: "How many rounds of adjustment does a typical vibe-coded app go through before it's genuinely good?",
+      options: [
+        "Zero — a well-written first prompt should get it exactly right",
+        "Usually several, and that's completely normal",
+        "Exactly one",
+        "There's no limit, and needing more than one means you're doing something wrong"
+      ],
+      correctIndex: 1,
+      explanation: "You proved this yourself — your app got meaningfully better across three separate rounds, not one perfect attempt."
+    }
+  ]}
+/>
+
+---
+
+## 🎉 Rejoice, Revisited
+
+Look back at how you reacted the first time your Module 1 app didn't quite work, versus how you reacted during Round 1 of this module. If the second time felt more like *"okay, let's fix this"* and less like *"I did something wrong"* — that shift is the actual point of this module. The loop isn't a fallback for when things go badly. It's the normal, expected shape of building anything.
+
+---
+
+## ⏭️ Up Next
+
+So far, refining has meant telling the AI what looked wrong. Module 3 goes one level deeper: what to do when the app doesn't just *look* wrong, but actually breaks — and why that's still nothing to be afraid of.

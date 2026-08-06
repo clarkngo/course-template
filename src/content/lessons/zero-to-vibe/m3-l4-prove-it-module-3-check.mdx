@@ -1,0 +1,64 @@
+---
+title: "Prove It: Module 3 Check"
+description: "A post-test on debugging and error handling, plus what changed since the start of the module."
+module: 3
+moduleTitle: "Under the Hood"
+lesson: 4
+duration: "8 min"
+---
+
+import Quiz from '@components/Quiz.astro';
+
+## 📈 Compare, Don't Just Answer
+
+Same questions from Module 3's pre-test, reframed. See what's different now that you've actually caused and fixed two real errors.
+
+<Quiz
+  questions={[
+    {
+      question: "Your app shows a big red error message you don't understand. What's the correct next step?",
+      options: [
+        "Panic and close the tab — something is seriously wrong",
+        "Try to learn programming first before continuing",
+        "Copy the exact error message and give it to the AI, describing what you were doing when it happened",
+        "Ignore it and hope it fixes itself"
+      ],
+      correctIndex: 2,
+      explanation: "You proved this yourself: report what you did, what happened, and what you expected instead. That's the full method, no translation required."
+    },
+    {
+      question: "What's the difference between a crash and a silent bug?",
+      options: [
+        "There is no difference, they're the same thing",
+        "A crash visibly breaks something; a silent bug looks fine but quietly does the wrong thing",
+        "A silent bug is always more dangerous than a crash",
+        "Only professional developers can spot silent bugs"
+      ],
+      correctIndex: 1,
+      explanation: "A crash announces itself. A silent bug doesn't — it's why testing carefully, not just glancing at the app, matters so much."
+    },
+    {
+      question: "The AI gives a confident, technical-sounding explanation for a fix. What confirms it actually worked?",
+      options: [
+        "How technical and confident the explanation sounds",
+        "Running the app and re-checking the specific thing that was broken",
+        "Nothing — once the AI explains it, you can trust it fully",
+        "Whether the explanation uses words you don't recognize"
+      ],
+      correctIndex: 1,
+      explanation: "Fluent explanations can still be wrong. Testing the specific behavior again is the only real confirmation."
+    }
+  ]}
+/>
+
+---
+
+## 🎉 Rejoice, Revisited
+
+Think back to how a wall of red error text felt before this module, versus how it felt when you triggered it on purpose last lesson. If it went from *dread* to *mild curiosity* — that's the actual shift this module was built to produce. Errors were never a verdict on your ability. They were always just clues, waiting to be reported clearly.
+
+---
+
+## ⏭️ Up Next
+
+So far you've been building for yourself. Module 4 asks a harder question: is it actually *good* — good enough that a stranger would understand it in five seconds?

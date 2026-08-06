@@ -1,0 +1,65 @@
+---
+title: "Break It, Then Fix It"
+description: "Learning by doing: cause a real error on purpose, hand it back to the AI, and watch it get resolved — twice."
+module: 3
+moduleTitle: "Under the Hood"
+lesson: 2
+duration: "15 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+
+## 🛠️ Learning by Doing
+
+You're going to break your app on purpose, twice, and fix it both times. This removes the fear factor before a real error ever surprises you.
+
+<CodeLab title="Break #1 — Ask for Something Contradictory">
+
+Give the AI a request that doesn't quite make sense:
+
+> "Make the fun-fact button show a new fact only when I have not clicked it before, but also make it work every single time I click it."
+
+This kind of contradiction often produces a bug, a broken feature, or a confused result. Run it. Click the button. Notice specifically what happens that shouldn't.
+
+**Report it back**, describing exactly what you see:
+
+> "I clicked the button and nothing happened / it showed an error / it only worked once. Here's what I expected instead: [describe it]."
+
+</CodeLab>
+
+<CodeLab title="Break #2 — Trigger a Real Error Message">
+
+Ask for something slightly beyond what's reasonable, on purpose:
+
+> "Add a feature that fetches live weather data from an external source and displays it on the page."
+
+Depending on your tool, this may produce an actual error message, a broken preview, or a partial result. Whatever appears, don't try to interpret it yourself.
+
+**Copy the exact text you see** (or a screenshot, if that's easier in your tool) and hand it back:
+
+> "I got this error: [paste it exactly]. What happened, and can you fix it or suggest something simpler that will actually work?"
+
+Read what the AI says happened. You don't need to fully understand every word — just confirm the fix, when applied, actually resolves what you saw.
+
+</CodeLab>
+
+---
+
+## 🔍 What You Just Practiced
+
+In both cases, you didn't diagnose the problem yourself. You **reported symptoms accurately** — what you did, what you saw, what you expected instead — and let the AI do the diagnosis. That's the entire skill this lesson is building: precise reporting, not technical interpretation.
+
+<Pitfall title="Trust the Fix, But Verify It">
+
+When the AI explains what went wrong, it will sound confident — AI models generally do, even when they're not fully correct. A confident-sounding explanation is not the same as a correct one.
+
+The fix for this isn't reading the code yourself. It's the same Test step from Module 2: **run it again and check the specific thing that was broken.** If it now works the way you expected, the explanation doesn't matter much. If it still doesn't, report that too — "still broken, here's what I see now" is a completely valid next message.
+
+</Pitfall>
+
+---
+
+## ⏭️ Up Next
+
+Time for the lecture: how to actually read an error message like a detective, and why "confidently wrong" is a real pattern worth watching for.

@@ -1,0 +1,56 @@
+---
+title: "UX, Privacy, and Judgment Calls"
+description: "The lecture, after the doing: the design principles behind your instincts, plus judgment calls around privacy and trust."
+module: 4
+moduleTitle: "Good Taste"
+lesson: 3
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## 🎨 Naming What You Already Judged
+
+Every professional design principle traces back to something you just did instinctively in the last lesson. Here's the vocabulary, mapped to what you already felt:
+
+| Term | Plain-English version | What you already tested for it |
+|---|---|---|
+| **Hierarchy** | The most important thing should look the most important | The squint test |
+| **Clarity** | A stranger shouldn't have to guess what something does | The silence test |
+| **Responsiveness** | It should work no matter the screen size | The thumb test |
+| **First impression** | People decide "is this for me" almost instantly | The 5-second test |
+
+None of these require code to evaluate. They require looking honestly and describing what you see — exactly what you did last lesson.
+
+---
+
+## 🔐 A Different Kind of Judgment Call: Privacy
+
+"Evaluate" isn't only about how things look — it's also about judging what's safe to do. As you build more, especially anything with real personal information, a few judgment calls matter:
+
+- **Don't paste real secrets into a prompt** — passwords, API keys, private personal data about other people. Treat your chat with the AI the way you'd treat a message to a stranger, not a locked diary.
+- **Don't assume an app you built is automatically private.** If you add a feature that stores or shares information, ask directly: "Where does this data go, and who can see it?"
+- **Trust, but verify, applies here too.** If the AI says something is secure, that's a claim worth the same skepticism you learned to apply to bug fixes in Module 3 — a confident answer isn't automatically a correct one.
+
+<Pitfall title="Real Names, Real Data, Real Caution">
+
+It's easy to forget that a chat with an AI isn't a private, disposable space — especially once you're deep into building something and moving fast. If your app is only ever going to be seen by you, this matters less. The moment you plan to show it to someone else, or store real information about real people, it's worth pausing and asking: *would I be comfortable if this data ended up somewhere I didn't expect?*
+
+</Pitfall>
+
+<Quiz question="You're building an app that asks users for their email address. What's the right judgment call before sharing it with anyone?">
+<div>
+
+**Ask directly where that data goes, who can see it, and whether it's actually stored securely — don't assume it's handled safely just because the app works.**
+
+A working feature and a safe feature aren't the same thing. "It runs correctly" answers Module 3's question. "Is it safe to actually use with real people's data" is this module's question, and it deserves its own explicit check.
+
+</div>
+</Quiz>
+
+---
+
+## ⏭️ Up Next
+
+Check how your confidence in judging quality — and judging risk — has shifted since this module started.

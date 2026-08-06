@@ -1,0 +1,66 @@
+---
+title: "Reading Errors Like a Detective"
+description: "The lecture, after the doing: how to read an error without knowing syntax, and why AI explanations still need checking."
+module: 3
+moduleTitle: "Under the Hood"
+lesson: 3
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## 🔎 You Don't Read Errors — You Report Them
+
+Last lesson you triggered two errors and fixed both, without translating a single line of technical text yourself. That's not a shortcut you're only allowed to take as a beginner — it's the actual correct process, at any skill level, when you're directing rather than writing code by hand.
+
+A useful bug report has three parts, and you already produced all three last lesson without being told the formula:
+
+| Part | What it means | What you actually said |
+|---|---|---|
+| **What you did** | The exact action that triggered it | "I clicked the fun-fact button" |
+| **What happened** | What you actually observed | "Nothing changed" or "I got this error: [text]" |
+| **What you expected** | The outcome you wanted instead | "It should show a new fact each time" |
+
+That's the whole detective method: not decoding the error's internals, but reporting its shape precisely enough that someone else — in this case, the AI — can diagnose it.
+
+---
+
+## 🚨 Crash vs. Silent Bug
+
+Not every problem announces itself. There are two different failure shapes worth telling apart:
+
+- **A crash** — something visibly breaks: an error message, a blank screen, a feature that stops responding entirely. Loud, but easy to notice.
+- **A silent bug** — the app still runs and looks fine, but does the wrong thing. The fun-fact button that always shows the *same* fact instead of a random one is a silent bug — nothing crashed, it's just not doing what you asked.
+
+Silent bugs are actually the trickier ones, because nothing forces you to notice them. This is exactly why the Test step from Module 2 matters so much: it's your only real defense against a bug that never announces itself.
+
+---
+
+## ⚠️ Confidently Wrong Is a Real Pattern
+
+Here's the part of this lecture that matters most: AI models can explain a bug fix with total confidence and still be wrong, or only partly right. This isn't a rare glitch — it's a known pattern worth actively watching for, not something to trust blindly just because the explanation sounds fluent and technical.
+
+<Pitfall title="A Good-Sounding Explanation Isn't Proof">
+
+If an explanation uses technical language you don't recognize, it's tempting to assume that means it's correct — surely something that sounds that precise must be right. It doesn't work that way. Fluency and correctness are two different things.
+
+Your actual check is always the same one from Module 2's loop: **run it, and see if the specific thing that was broken is now fixed.** Not "does this explanation sound convincing," but "does the button now do what I asked." That's a test you're fully qualified to run, regardless of how technical the explanation sounded.
+
+</Pitfall>
+
+<Quiz question="The AI gives you a long, technical-sounding explanation for why your app broke, and says it's fixed. What should you do before trusting that it's actually resolved?">
+<div>
+
+**Run the app and specifically re-check the thing that was broken — regardless of how confident or technical the explanation sounded.**
+
+A fluent explanation is not the same as a verified fix. The only real confirmation is testing the specific behavior again, the same way you did throughout Module 2's loop.
+
+</div>
+</Quiz>
+
+---
+
+## ⏭️ Up Next
+
+Check how your relationship with error messages has shifted since this module started.
