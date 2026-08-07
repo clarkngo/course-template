@@ -1,0 +1,59 @@
+---
+// A stylized preview of the finished "about me" app that Module 1 builds.
+// Illustrative mockup (not a screenshot of any specific tool), rendered as
+// inline SVG so it stays crisp and version-controllable.
+---
+
+<svg
+  viewBox="0 0 640 430"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-label="Preview of a finished about-me web page: a soft blue page with a white card showing an avatar with the initials MC, the name Maya Chen, a short bio, a highlighted fun fact, and a blue 'Show me a fact' button"
+  style="max-width: 100%; height: auto;"
+>
+  <defs>
+    <filter id="apShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.08" />
+    </filter>
+    <clipPath id="apWindow">
+      <rect x="20" y="20" width="600" height="390" rx="14" />
+    </clipPath>
+  </defs>
+
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <!-- Browser window -->
+    <rect x="20" y="20" width="600" height="390" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#apShadow)" />
+
+    <!-- Content area (soft blue), clipped to the window shape -->
+    <g clip-path="url(#apWindow)">
+      <rect x="20" y="60" width="600" height="350" fill="#eff6ff" />
+    </g>
+
+    <!-- Top bar -->
+    <circle cx="44" cy="40" r="5" fill="#f87171" />
+    <circle cx="62" cy="40" r="5" fill="#fbbf24" />
+    <circle cx="80" cy="40" r="5" fill="#34d399" />
+    <rect x="110" y="32" width="380" height="16" rx="8" fill="#f1f5f9" />
+    <text x="122" y="44" fill="#94a3b8" font-size="11">my-about-me-page</text>
+    <line x1="20" y1="60" x2="620" y2="60" stroke="#e2e8f0" stroke-width="1.5" />
+
+    <!-- Card -->
+    <rect x="160" y="95" width="320" height="250" rx="16" fill="#ffffff" stroke="#dbeafe" stroke-width="1.5" filter="url(#apShadow)" />
+
+    <!-- Avatar -->
+    <circle cx="320" cy="150" r="34" fill="#3b82f6" />
+    <text x="320" y="158" text-anchor="middle" fill="#ffffff" font-size="22" font-weight="700">MC</text>
+
+    <!-- Name + bio -->
+    <text x="320" y="212" text-anchor="middle" fill="#1e293b" font-size="21" font-weight="700">Maya Chen</text>
+    <text x="320" y="233" text-anchor="middle" fill="#64748b" font-size="12">Loves maps, ramen, and tiny side projects</text>
+
+    <!-- Fun fact bubble -->
+    <rect x="185" y="250" width="270" height="46" rx="12" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5" />
+    <text x="320" y="278" text-anchor="middle" fill="#334155" font-size="12.5">🌍 I've set foot in 12 countries</text>
+
+    <!-- Button -->
+    <rect x="235" y="312" width="170" height="40" rx="20" fill="#3b82f6" />
+    <text x="320" y="337" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">Show me a fact</text>
+  </g>
+</svg>
