@@ -1,0 +1,101 @@
+---
+title: "What Human-Centered Systems Thinking Means"
+description: "Course overview: why treating people as parts of the system — not users standing outside it — changes what you build, and the one line every module returns to."
+module: 1
+moduleTitle: "Why Human-Centered Systems Thinking, Why Now"
+lesson: 1
+duration: "10 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Who This Course Is For
+
+This course is for anyone who designs, builds, or decides how systems behave — **designers** shaping how a product feels, **product managers** deciding what it does, and **engineers** deciding how it works. What these roles share is that the thing you ship is never used in a vacuum: it lands in the middle of someone's job, someone's day, someone's constraints.
+
+You don't need "human factors" or "UX researcher" in your title to use any of this. The techniques here apply to the next decision on your list — a workflow you're automating, a metric you're about to optimize, a screen you're about to design.
+
+---
+
+## Two Traditions, One Habit
+
+There are two mature bodies of practice that most teams keep in separate boxes.
+
+**Systems thinking** teaches you to evaluate a piece of work by how it interacts with everything around it — feedback loops, second-order effects, leverage points. Its canonical texts (Donella Meadows, Peter Senge, Russell Ackoff) are mostly about *structure*: stocks, flows, and the way parts interact.
+
+**Human-centered design** teaches you to start from the real needs, behaviors, and limits of the people you're designing for. Its canonical texts (Don Norman's *The Design of Everyday Things*, IDEO's design-thinking practice) are mostly about *people*: what they're trying to do, what confuses them, what they'll actually do versus what you hoped they'd do.
+
+Human-centered systems thinking is the habit of holding both at once:
+
+> **The people in a system are parts of that system — the most powerful, most variable parts — not users standing outside it.**
+
+The moment you model a human as a component with its own goals, feedback, and breaking points, rather than as a passive endpoint that "receives" your system's output, most of your hard design decisions change.
+
+---
+
+## Where This Idea Comes From
+
+This isn't new. In the 1950s, researchers at the Tavistock Institute studied British coal mines that had just mechanized. Eric Trist and Ken Bamforth found that the new, technically superior machinery *lowered* productivity — because it broke apart the small, self-organizing teams that miners had relied on for safety and coordination underground. The technical system was optimized; the human system was destroyed; the whole system got worse.
+
+They coined the term **sociotechnical systems** for the insight: you cannot optimize the technical part and the social part separately and expect the whole to work. The parts interact — and the human part has its own dynamics you don't get to ignore.
+
+Sixty years later this is the exact failure mode of a badly deployed automation, a metric that games itself, or a "user-friendly" feature that quietly makes a frontline worker's job harder. The coal mine keeps happening.
+
+---
+
+## Course Objectives
+
+By the end of this course, you will be able to:
+
+1. **Model people as parts of a sociotechnical system** — with their own goals and feedback — rather than as endpoints, and see why that reframing changes design decisions.
+2. **Map stakeholders and second-order human effects** before building, so the person your change hurts isn't a surprise you discover in production.
+3. **Recognize feedback loops in human systems** — reinforcing and balancing — and predict how people will adapt to, and route around, what you ship.
+4. **Diagnose metric–outcome gaps**: when a system optimizes a proxy and quietly harms the human outcome the proxy was standing in for.
+5. **Apply Checkland's Soft Systems Methodology** to problems where people disagree about what the problem even is.
+6. **Choose humane leverage points** using Meadows' hierarchy, judging interventions by their effect on the people inside the system, not just its throughput.
+
+---
+
+## The Line We Keep Returning To
+
+Every module circles back to one sentence:
+
+> **A system that works for its metrics but fails the people inside it is not a working system — it's a failure that hasn't been measured yet.**
+
+That's not an argument for niceness over rigor. It's an argument that the humans are load-bearing, so leaving them out of your model isn't simpler — it's just wrong in a way you'll pay for later.
+
+<Pitfall title="Human-Centered Is Not the Same as User-Friendly">
+
+It's easy to hear "human-centered" and think it means polished onboarding, friendly copy, and rounded corners. Those are surface features of one screen. Human-centered *systems* thinking is about whether the whole system — including the parts made of people, incentives, and workarounds — serves the humans inside it. A delightful UI sitting on top of a workflow that forces nurses to chart at midnight is not human-centered. It's a nice-looking coal mine.
+
+</Pitfall>
+
+<CodeLab title="Pick Your Running Example">
+
+Before Module 2, choose one real system you're currently shaping — a feature, a workflow you're automating, a process you're changing. Write down, in a few sentences:
+
+1. What the system is supposed to do
+2. **Who the people inside it are** — not just the end user, but everyone whose work or day is touched: the person who maintains it, the one who gets the output, the one who has to comply with it
+3. What you're currently assuming each of those people wants
+
+Keep this. Every module gives you a new lens to run this same example through, and Module 5's capstone asks you to redesign it around the people you just listed.
+
+</CodeLab>
+
+<Quiz question="A team ships a new automated approval system. It's faster and technically flawless, but approval quality drops because reviewers now rubber-stamp everything the system pre-fills. Through the lens of this lesson, what happened?">
+<div>
+
+**The technical system was optimized in isolation, and the human part of the system adapted in a way that degraded the whole — a textbook sociotechnical failure.**
+
+The reviewers are parts of the system, with their own goals (get through the queue) and their own response to what the automation makes easy (trust the pre-fill). Optimizing the technical component without modeling how the human component would react produced a system that's faster and worse — the same shape as the mechanized coal mine that lowered productivity. Nothing about the automation was broken in isolation; the failure lives in the interaction between the machine and the people.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Module 2 gets concrete about seeing the whole system: how to map the people inside it, and how to catch the second-order effects on humans that never show up in the feature spec.

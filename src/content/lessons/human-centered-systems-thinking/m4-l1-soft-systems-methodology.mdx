@@ -1,0 +1,87 @@
+---
+title: "When People Disagree About the Problem: Soft Systems"
+description: "Peter Checkland's Soft Systems Methodology for the messy problems where stakeholders don't share a definition of what's wrong — and a lightweight way to surface those worldviews before you design a fix for the wrong one."
+module: 4
+moduleTitle: "Designing With Humans in the Loop"
+lesson: 1
+duration: "12 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Hard Problems vs. Soft Problems
+
+Some problems are **hard**: there's an agreed goal and the question is how to reach it efficiently. "Reduce page load time to under 200ms." Everyone wants the same thing; it's an engineering problem.
+
+Other problems are **soft**: the people involved don't even agree on what the problem *is*, because they see the situation through different worldviews with different goals. "Fix the intake process." To the clinician it's "stop making me do data entry." To the administrator it's "capture billing codes reliably." To the patient it's "stop asking me the same question four times." There is no neutral, correct definition of the problem — only competing ones.
+
+Most systems that fail people fail because a team treated a soft problem as a hard one: they picked one stakeholder's definition (usually whoever was loudest or paying), built an efficient solution to *that* problem, and shipped it into a world where the other definitions still existed.
+
+---
+
+## Checkland's Insight
+
+In the 1970s and 80s, the British systems scientist **Peter Checkland** developed **Soft Systems Methodology (SSM)** after watching classic engineering-style systems analysis fail repeatedly on human organizations. His core insight:
+
+> A human activity system has no single objective reality. Each stakeholder holds a different *worldview* (Checkland's term was **Weltanschauung**) that makes their definition of the problem coherent — from where they stand.
+
+The job is not to find the one true problem definition. It's to **surface the competing worldviews explicitly**, so your design is a deliberate negotiation among them rather than an accidental win for whichever one you happened to absorb.
+
+---
+
+## The Lightweight Version: CATWOE
+
+SSM's full method is involved, but one tool from it is usable in an afternoon. For any proposed system, describe it from a given stakeholder's worldview using **CATWOE**:
+
+- **C — Customers:** who is affected by this system (the people on the receiving end)?
+- **A — Actors:** who carries out its activities?
+- **T — Transformation:** what does it turn an input into an output? The core change it makes.
+- **W — Worldview:** *why does this transformation matter — what belief makes it meaningful?* This is the crucial line, and the one teams skip.
+- **O — Owners:** who could stop or change it?
+- **E — Environment:** what constraints does it operate within?
+
+The move that surfaces a soft problem: **write CATWOE twice, from two different stakeholders' worldviews**, and watch the **T** and **W** diverge. When the clinician's transformation is "turn a messy visit into good care" and the administrator's is "turn a visit into billable, coded records," you've found — in writing — the actual conflict your one design has to reconcile. That conflict was always there. CATWOE just made it visible before it became a failed rollout.
+
+<Pitfall title="Consensus in the Room Is Not Agreement on the Problem">
+
+Everyone nodding in the kickoff meeting feels like alignment. Usually it's the opposite: each person heard the vague problem statement and filled it in with *their own* worldview, so all of them agree — to different things. The disagreement is real; it's just deferred to the moment the built system forces a definition. Surfacing the competing CATWOEs early feels like manufacturing conflict. You're not manufacturing it. You're paying it down now, cheaply, instead of in a launch that half your stakeholders quietly reject.
+
+</Pitfall>
+
+---
+
+## What You Do With the Conflict
+
+Surfacing competing worldviews doesn't magically resolve them. It gives you three honest options, in place of one accidental one:
+
+1. **Choose deliberately.** Decide, out loud, whose worldview the system primarily serves — and tell the others, so the trade-off is a known decision instead of a betrayal they discover later.
+2. **Reconcile in the design.** Find the transformation that serves both (capture billing codes *as a byproduct* of good clinical notes, not as a separate data-entry tax). This is the hardest and best outcome.
+3. **Split the system.** Sometimes two irreconcilable worldviews need two different tools or paths, not one compromise that serves neither.
+
+Any of these beats the default — silently encoding one worldview and calling the resulting rejection "resistance to change."
+
+<CodeLab title="Write CATWOE From Two Worldviews">
+
+For your running example, fill in CATWOE twice — once from your primary stakeholder's worldview, once from a stakeholder whose goals differ (use one you surfaced in Module 2's stakeholder map).
+
+Focus on the **T** and **W** lines. Write the two transformations side by side. If they're meaningfully different, you have a soft problem, and you now know it before building. Then pick your response: choose deliberately, reconcile, or split — and note which, and why.
+
+</CodeLab>
+
+<Quiz question="A team is asked to 'build a system to track employee productivity.' Applying soft-systems thinking, what's the most important first move?">
+<div>
+
+**Surface the competing worldviews behind the word 'productivity' — because managers, employees, and HR almost certainly mean different, conflicting things by it — before designing anything.**
+
+"Track productivity" sounds like a hard problem with a clear goal, but it's a soft one: to a manager the transformation might be "make output visible for accountability," to an employee "prove I'm working so I'm not punished," to HR "identify support needs." These worldviews imply different systems — one surveils, one protects, one develops — and they can't all be the same tool. Writing CATWOE from each worldview surfaces the conflict now, so the team chooses a definition deliberately instead of accidentally building a surveillance tool that HR wanted to be a development tool. Jumping straight to "how do we measure it" is the classic mistake of treating a soft problem as hard.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+The final technique lesson: once you understand the problem and whose worldview you're serving, *where* in the system should you intervene? Meadows' leverage points, judged by their effect on the people inside.

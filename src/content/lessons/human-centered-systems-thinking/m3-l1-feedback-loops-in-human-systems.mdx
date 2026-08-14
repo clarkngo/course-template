@@ -1,0 +1,95 @@
+---
+title: "Feedback Loops in Human Systems"
+description: "People don't just receive a system — they adapt to it, and their adaptation feeds back into it. How to spot reinforcing and balancing loops made of human behavior before they spiral or stall."
+module: 3
+moduleTitle: "Feedback, Behavior, and Unintended Consequences"
+lesson: 1
+duration: "12 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import LoopDiagram from '@components/LoopDiagram.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Systems Made of People Push Back
+
+A pipeline doesn't change its behavior because you deployed a new stage. A person does. The defining feature of the human parts of a system is that they **respond to the system's own state** — they see what's happening and adjust. That response feeds back in, and now you don't have a straight line from input to output. You have a loop.
+
+Donella Meadows, in *Thinking in Systems*, describes two kinds of feedback loop, and every human system runs on combinations of them.
+
+---
+
+## The Two Loops
+
+**Reinforcing loops** amplify. More of X leads to more of X. They're the engine of both growth and collapse: virality, addiction, burnout spirals, trust compounding, trust eroding.
+
+**Balancing loops** stabilize. They push a value toward a target and resist change: a thermostat, a person pacing themselves to not exceed a sustainable effort, a team quietly resisting a process that's too heavy.
+
+The human twist Meadows emphasizes: people are *goal-seeking* balancing loops with goals of their own. When your system's goal and a person's goal differ, their balancing loop fights yours. That's not resistance-to-change to be managed away — it's a control loop doing exactly what control loops do.
+
+---
+
+## A Reinforcing Loop You've Seen
+
+Here's a burnout spiral, drawn as the loop it is:
+
+<LoopDiagram
+  label="The quota reinforcing loop"
+  steps={[
+    { title: "Faster tool", subtitle: "Saves time" },
+    { title: "Higher quota", subtitle: "Set to match" },
+    { title: "Corners cut", subtitle: "To keep pace" },
+    { title: "More errors", subtitle: "Quality drops" },
+    { title: "More rework", subtitle: "Eats the time saved" },
+    { title: "More pressure", subtitle: "Back to cutting" },
+  ]}
+/>
+
+Each step makes the next one worse, and the loop closes back on itself. Notice that no single decision in the loop is irrational — each is a sensible local response. The dysfunction is a property of the *loop*, not any actor in it. You cannot fix it by telling people to try harder; trying harder is the pump that drives it.
+
+---
+
+## Reading a Loop Before You Build It
+
+For any change, ask two questions:
+
+1. **How will people adapt to this?** Not whether they'll comply — how they'll adjust their behavior to protect their own goals given the new system. That adaptation is the loop's second half.
+
+2. **Does that adaptation amplify or dampen what I intended?** If it amplifies in a bad direction, you've built a reinforcing loop pointed at a wall. If it dampens your intended effect, you've built a balancing loop that will quietly cancel your change and leave you wondering why the metric didn't move.
+
+<Pitfall title="'They'll Get Used to It' Is Not a Loop Analysis">
+
+The most common way teams dismiss feedback dynamics is the phrase *they'll adapt* — said as if adaptation means "eventually comply." Adaptation is not compliance. People adapt by finding the workaround, gaming the metric, routing around the control, or protecting their real goal at the expense of your intended one. "They'll get used to it" assumes the loop dampens toward your target. Half the time it reinforces away from it. Predict the *direction* of the adaptation, not just its existence.
+
+</Pitfall>
+
+---
+
+## Delays Make Loops Dangerous
+
+Meadows' other warning: loops with **delays** are where smart people cause oscillation. If the feedback about a human harm arrives slowly — burnout shows up as attrition two quarters later, eroded trust shows up as disengagement you can't trace — you'll keep pushing the lever long after you should have stopped, because the signal that says "stop" hasn't arrived yet. The longer the delay between a system's effect on people and the moment you can see that effect, the more humility the intervention deserves.
+
+<CodeLab title="Draw Your System's Loop">
+
+Take your running example and draw one feedback loop it will create, in five or six steps, closing back on itself. Start from your change, then follow how a person adapts, then how that adaptation changes the system, then how that comes back around.
+
+Label it as **reinforcing** (amplifies — spirals up or down) or **balancing** (stabilizes — pushes toward a goal). Then answer: is the goal that loop stabilizes toward *your* goal, or the person's? If it's theirs and it differs from yours, you've found where your change will get quietly canceled — and you now know to design the loop, not just the feature.
+
+</CodeLab>
+
+<Quiz question="A team adds a 'time to first response' metric to speed up customer support. Response times drop immediately, but customer satisfaction falls. What loop most likely formed?">
+<div>
+
+**A balancing loop where agents optimized the measured target (send *a* response fast) at the expense of the unmeasured real goal (actually help), canceling the intended benefit.**
+
+Agents are goal-seeking control loops. Given a new target — fast first response — they steer toward it the cheapest way: an instant, often useless acknowledgment that stops the clock without solving anything. The metric moves exactly as designed; the human outcome it was standing in for moves the other way. This is the setup for the next lesson: the loop didn't fail because people were lazy — it did precisely what optimizing a proxy does when the proxy and the outcome come apart.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+That last quiz is the whole next lesson: what happens when a system faithfully optimizes a number, and the number quietly stops meaning what you thought it meant.

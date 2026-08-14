@@ -1,0 +1,87 @@
+---
+title: "Stakeholders and Second-Order Effects on People"
+description: "The person your change hurts is usually not the person in the room. A method for finding the invisible stakeholders and the second-order human effects before they find you."
+module: 2
+moduleTitle: "Seeing the Whole System"
+lesson: 2
+duration: "11 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Person Who Isn't in the Room
+
+Most design decisions are made for the stakeholder who is loudest, closest, or paying — the primary user, the executive sponsor, the customer on the call. The person a decision *harms* is usually somewhere else: downstream, backstage, or a role away. They're not in the room, so their goal isn't in the model, so the harm doesn't surface until it's shipped.
+
+Systems thinking has a name for this: **second-order effects** — the consequences of the consequences. Human-centered systems thinking insists that you trace those effects specifically to *people*, because that's where they hurt and where they're easiest to overlook.
+
+---
+
+## First-Order vs. Second-Order
+
+- **First-order effect:** what the change does directly and on purpose. "Support agents resolve tickets 30% faster."
+- **Second-order effect:** what happens *because* the first-order effect happened. "So each agent now handles more tickets, so their quota rises to match, so the time saved is gone and the stress is higher."
+
+First-order effects are the ones in your pitch. Second-order effects are the ones in the retro six months later. The skill is pulling the second-order effect forward — asking "and then what?" one more time than feels necessary.
+
+> Russell Ackoff's warning applies exactly here: improving a part in isolation can degrade the whole. A local optimization for one stakeholder is a global change for everyone connected to them.
+
+---
+
+## A Fast Stakeholder Map
+
+You don't need a formal stakeholder-analysis workshop. You need four questions, asked out loud, about any change:
+
+1. **Who benefits directly?** (The obvious ones. Usually already in the room.)
+2. **Who does the work this creates?** Every automation, hand-off, or new capability creates labor somewhere — often for a different person than the one who benefits.
+3. **Who loses discretion, status, or context?** Systems that centralize a decision take judgment away from whoever used to make it. That person is a stakeholder whether or not you invited them.
+4. **Who has to clean up when it fails?** The maintainer, the on-call, the frontline worker who faces the customer when the automation is wrong. Design for their bad day, not just the happy path.
+
+The people surfaced by questions 2–4 are the ones your spec probably forgot. They're where second-order human harm concentrates.
+
+<Pitfall title="The Benefiting Stakeholder Is Rarely the Laboring Stakeholder">
+
+The most reliable pattern in badly designed systems: the person who *benefits* from a change and the person who *does the new work* it creates are two different people, and only the first one is consulted. Managers get a dashboard; agents get the data-entry that populates it. Customers get self-service; the remaining staff get the escalations that self-service couldn't handle, minus the routine wins that used to make the job bearable. If your design's beneficiary and its laborer are different humans, you have not finished designing — you've finished designing for one of them.
+
+</Pitfall>
+
+---
+
+## Tracing the Second Order
+
+For each stakeholder you surfaced, run the **"and then what?"** chain two steps past the obvious:
+
+- We speed up ticket resolution → *and then* quotas rise to match → *and then* agents stop doing the small quality checks that don't count toward quota → *and then* error rates climb in exactly the area the speed-up was supposed to help.
+
+Two steps is usually enough to catch the harm while it's still cheap to design around. You're not trying to predict the future perfectly. You're trying to notice the load-bearing human whose adaptation flips your win into a loss.
+
+<CodeLab title="Map the Stakeholders Your Spec Forgot">
+
+For your running example, answer the four questions:
+
+1. Who benefits directly?
+2. Who does the new work it creates?
+3. Who loses discretion, status, or context?
+4. Who cleans up when it fails?
+
+Then take the **one stakeholder you had not previously been designing for** — almost always someone from questions 2–4 — and run "and then what?" twice on how they'll be affected. Write the second-order effect you find. If it's a harm, that's a design constraint you just discovered before production did.
+
+</CodeLab>
+
+<Quiz question="A hospital rolls out a system where patients book their own appointments online. Leadership loves the efficiency. Using the four questions, which overlooked stakeholder and second-order effect is most important to trace?">
+<div>
+
+**The front-desk and nursing staff who now handle the harder residue — the confused, the non-digital, and the mis-booked patients — while losing the routine easy bookings that used to pace their day.**
+
+Question 1 (who benefits) surfaces leadership and tech-comfortable patients. But question 2 (who does the new work) and question 4 (who cleans up failures) surface the staff: self-service skims off the simple cases and leaves them a queue that is *entirely* the difficult ones, with no easy wins in between. The second-order effect — "and then the remaining work is uniformly hard, and then burnout rises even though total volume dropped" — is invisible if you only model the patient and the executive. Tracing it to the forgotten stakeholder is the whole point of the map.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Module 3 turns to behavior over time: the feedback loops that form when people adapt to your system — and what happens when a system optimizes a number instead of the human outcome the number was standing in for.
