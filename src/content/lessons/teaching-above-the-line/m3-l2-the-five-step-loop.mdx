@@ -1,0 +1,99 @@
+---
+title: "The Five-Step Loop"
+description: "A repeatable pattern — attempt, question, critique, transfer, reflect — for converting any AI-vulnerable assignment into one where the grade rewards thinking with AI instead of letting AI think instead."
+module: 3
+moduleTitle: "Redesigning Assessment"
+lesson: 2
+duration: "13 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## A Pattern You Can Reuse
+
+The last lesson argued for grading the thinking. This lesson gives you the mechanism — a five-step loop, drawn from the classroom pattern behind Estonia's AI Leap, that you can lay over almost any assignment to move it above the line. You won't always use all five steps; think of them as a menu of moves that each pull the graded evidence toward the student's own cognition.
+
+The loop, in order:
+
+1. **Attempt before assistance**
+2. **Ask for questions, not completion**
+3. **Critique the machine**
+4. **Transfer to a new context**
+5. **Reflect on the tool**
+
+---
+
+## 1. Attempt Before Assistance
+
+Require an initial, un-assisted attempt *before* the student is allowed to touch AI — a rough draft, a first-pass answer, a predicted result, a sketch of an approach. Grade the *movement* from that attempt to the final work, not just the final work.
+
+Why it works: it forces the student to load the problem into their own head first, which is where learning happens, and it makes their own starting understanding visible. AI can't retroactively manufacture a genuine first attempt. This single step also converts AI from a shortcut into a *tutor* — you consult it after you've struggled, which is exactly when it teaches instead of replaces.
+
+## 2. Ask for Questions, Not Completion
+
+Design tasks (and AI-use instructions) around getting the model to *ask*, *probe*, and *prompt* rather than *deliver*. Instead of "use AI to write the analysis," the task is "use AI to interrogate your analysis — have it surface the strongest objection to your position, then respond." Socratic prompting keeps the student in the author's chair; the machine becomes a sparring partner, not a ghostwriter.
+
+## 3. Critique the Machine
+
+Make the assignment *include an AI answer that the student must diagnose.* Hand them the model's output (or have them generate it) and grade their ability to find where it's wrong, shallow, or fabricated — and to prove it. As Module 2 established, AI above the line is fluent-but-often-false, so this task is only completable by a student who actually understands the domain. It's one of the most AI-resilient assessment forms available, because the AI can't grade its own errors for the student.
+
+## 4. Transfer to a New Context
+
+Take the skill and re-set it in a context a generic answer won't fit: *your* local dataset, this week's specific case, a constraint invented for this cohort, a combination nobody has published. AI handles textbook cases; it degrades on genuinely novel local ones. Transfer tasks measure whether the student internalized the skill or just watched the model perform it once.
+
+## 5. Reflect on the Tool
+
+Ask the student to account, metacognitively, for their own AI use: *Where did the tool help? Where did it tempt you to stop thinking? What did you accept that you should have questioned?* This builds the exact self-awareness — cognitive agency about one's own tool use — that separates thinking *with* AI from surrendering to it. And it's graded on honesty and insight, which a model can't fabricate on the student's behalf.
+
+<Pitfall title="You Don't Need All Five">
+
+The loop is a toolkit, not a checklist to bolt onto every assignment — five heavyweight steps on a small task will crush it under process. For a quick formative task, one move (attempt-first, or a single critique-the-machine prompt) is often enough. Reserve the full loop for high-stakes summative work. The goal is to move the graded evidence above the line with the *least* added scaffolding that does the job, not to maximize hoops.
+
+</Pitfall>
+
+---
+
+## Worked Conversion
+
+Watch one assignment travel through the loop.
+
+**Before (below the line):** *"Write a 1,000-word essay explaining the causes of the 2008 financial crisis."* — AI aces this. It's understand/explain. Learning evidence: none.
+
+**After (above the line):**
+1. *Attempt:* In class, sketch what you already believe caused the crisis (150 words, no AI). **(Attempt before assistance)**
+2. *Question:* Use AI to generate the three strongest counterpoints to your sketch; write which one most threatens your view and why. **(Questions, not completion)**
+3. *Critique:* Here is an AI-written 1,000-word essay on the causes. Identify its two weakest claims and one factual error, and correct them with evidence. **(Critique the machine)**
+4. *Transfer:* Apply your sharpened causal model to a *different* crisis we didn't cover in class; where does it hold and where does it break? **(Transfer)**
+5. *Reflect:* Where in this assignment did AI make you think harder, and where did it tempt you to coast? **(Reflect)**
+
+Same topic, same content knowledge required — but now every graded artifact is evidence of the student's own thinking, and running the whole thing straight through a model produces obviously worse work.
+
+<CodeLab title="Run Your Target Through the Loop">
+
+Take the artifact you've carried since Module 1. Convert it using **at least three** of the five steps. For each step you use, write one sentence:
+
+1. The exact instruction the student will see.
+2. What it makes visible that the old version didn't.
+3. Why running it through AI un-thinkingly would now produce worse work.
+
+Keep this converted version — Module 5's capstone builds the full unit around it.
+
+</CodeLab>
+
+<Quiz question="An instructor adds only step 3 (critique the machine) to a homework problem: 'Here's an AI's solution — find and fix its error.' A student says 'I'll just ask a *different* AI to find the error.' Has the design failed?">
+<div>
+
+**Not necessarily — but it reveals the fix: pair 'critique the machine' with 'attempt before assistance' or 'reflect,' so the student must show their own diagnostic reasoning, not just a corrected answer.**
+
+The loop's steps are strongest in combination. Critique-the-machine alone can sometimes be re-outsourced; but require the student to first attempt the problem themselves, or to explain *how* they found the error and why the model made it, and a second AI can't supply that — the reasoning trail and the metacognition have to come from the student. The student's workaround isn't proof the approach fails; it's a prompt to stack a second step that grades the thinking the workaround skips.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Assessment is where AI breaks courses, but activities are where learning is built. Module 4 turns to designing the day-to-day work for *productive struggle* — including what Estonia learned by building its own tutor instead of deploying a stock chatbot.

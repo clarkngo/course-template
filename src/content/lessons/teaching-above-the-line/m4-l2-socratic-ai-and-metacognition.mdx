@@ -1,0 +1,89 @@
+---
+title: "Socratic AI and Metacognition"
+description: "The skill that outlasts every model: knowing when the tool is helping you think and when it's thinking for you. How to instruct AI to run Socratically, and how to design the metacognitive reflection that builds cognitive agency."
+module: 4
+moduleTitle: "Activities for Productive Struggle"
+lesson: 2
+duration: "11 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Skill Under the Skills
+
+Every specific technique in this course serves one meta-skill: **the student's ability to know, in real time, whether they are thinking with AI or letting AI think instead.** That judgment — *is this tool helping my cognition or replacing it right now?* — is the single most durable thing you can teach, because it survives every model upgrade, every new interface, every job they'll ever have. It's cognitive agency turned on the tool itself.
+
+You build that skill two ways: by shaping *how the AI behaves* during the work (Socratic technique), and by making students *examine their own use of it* after (metacognition). This lesson covers both.
+
+---
+
+## Instructing AI to Run Socratically
+
+A Socratic tutor answers a question with a better question, draws out what the student already half-knows, and refuses to hand over conclusions the student can reach themselves. Any capable model will do this — if you tell it to. The behavior lives in the instructions, and as a designer you can *supply those instructions* to students as part of the activity.
+
+A reusable stance you can adapt and give to students (or embed in a tool):
+
+> *"Act as a Socratic tutor for [topic]. Do not give me the answer or write the solution. Instead: ask me one question at a time to draw out my reasoning; when I'm wrong, point out that something is off and let me find it; give a small hint only after I've attempted, never a full solution; and make me explain my thinking before you respond."*
+
+Design implications for your activities:
+
+- **Prescribe the AI's role, don't leave it to default.** "Use AI" is under-specified and invites the oracle. "Use AI as a Socratic tutor with these rules" specifies the productive behavior.
+- **Grade the dialogue, sometimes.** Have students submit the *transcript* of a Socratic exchange, and grade the quality of their questions and responses — this makes the thinking itself the deliverable.
+- **Teach prompting as a thinking skill.** The ability to steer a model toward coaching rather than answering *is* a higher-order skill. Designing activities that require it teaches students to be the director of the tool, not its passenger.
+
+<Pitfall title="A Socratic Prompt Isn't Self-Enforcing">
+
+Students can always start a fresh chat and just ask for the answer. The Socratic setup makes the *productive* path available and easy; it doesn't make the *shortcut* path impossible — nothing does. That's why this lesson pairs with metacognition and why Module 3's assessment loop still matters: you shape behavior with good defaults *and* you grade evidence of thinking that the shortcut can't produce. Design the honest path to be the path of least resistance, then measure the thinking, rather than trusting the prompt to police itself.
+
+</Pitfall>
+
+---
+
+## Designing the Metacognitive Layer
+
+Metacognition is thinking about your own thinking. It's what converts a one-time struggle into a transferable, self-directed skill — and it's the layer most course designs skip entirely. Adding it is cheap and high-leverage.
+
+The move is to build **reflection that targets the tool relationship specifically**, not generic "what did you learn." Prompts that build agency about AI:
+
+- *Where in this task did AI help you think, and where did it tempt you to stop thinking?*
+- *What did you accept from the model that, looking back, you should have questioned?*
+- *At what point did you struggle productively, and at what point did you bail to the answer? What triggered the bail?*
+- *If the tool vanished, which parts could you now do alone, and which were you leaning on it for?*
+- *Rewrite one prompt you used to get more coaching and less answer.*
+
+These are graded on honesty and insight — qualities a model can't fabricate on the student's behalf — and each rep makes the student a sharper monitor of their own cognition. Over a term, that self-monitoring *is* the evolutionary leap Kallas describes: a person who stays deliberately in the flow of higher thinking because they've learned to notice when they're drifting out of it.
+
+---
+
+## Putting the Module Together
+
+Module 4's whole argument, compressed: **design the moment-to-moment work to keep students in productive struggle (Socratic tools, calibrated hints, error-as-material), and design the reflection to make them conscious of their own thinking-vs-outsourcing (metacognition).** Struggle builds the skill; metacognition makes it portable and self-directed. Together they produce a student who can walk into any future tool and stay the author of their own judgments.
+
+<CodeLab title="Add the Socratic + Metacognitive Layer">
+
+Return to your redesign target. Add two things:
+
+1. **A Socratic instruction** you'll give students for the AI-assisted part — write the exact prompt-stance, in your topic's language, that tells the tool to coach rather than answer.
+2. **Two metacognitive reflection questions** specific to *this* task's tool use — not generic ones — that you'll grade for honesty and insight.
+
+You now have objectives-adjacent work, an above-the-line assessment (Module 3), productive-struggle activities, and a metacognitive layer. Module 5 assembles it all into a finished unit.
+
+</CodeLab>
+
+<Quiz question="Two reflection prompts: (A) 'What did you learn this week?' (B) 'Name one point where you accepted the AI's answer without checking, and what you'd do differently.' Why is B the one that builds cognitive agency?">
+<div>
+
+**B forces the student to monitor the specific boundary between thinking-with and letting-AI-think-instead; A can be answered without any self-examination of tool use at all.**
+
+Generic reflection ('what did you learn') invites a summary a student can produce on autopilot — and could even outsource to a model. B targets the exact judgment this course is trying to build: catching a moment of un-thinking deference and correcting it. That's cognitive agency turned on the tool itself, it's gradable on honesty in a way a model can't fake for the student, and each repetition trains the real-time self-monitoring that outlasts any particular AI. The specificity is the point — vague reflection builds vague awareness.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Module 5 pulls every lens together: rewriting learning objectives above the line, and a capstone where you assemble the redesigned unit you've been building since Module 1.
