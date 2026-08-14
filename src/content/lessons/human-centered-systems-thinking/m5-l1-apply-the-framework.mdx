@@ -1,0 +1,93 @@
+---
+title: "Capstone: Redesign a System Around Its People"
+description: "Run your real example through the whole framework at once — two halves, stakeholders, feedback loops, the proxy–outcome gap, competing worldviews, and leverage points — and produce a concrete redesign that keeps the humans at the center."
+module: 5
+moduleTitle: "Apply the Framework"
+lesson: 1
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Putting It Together
+
+Each module gave you one lens. Used alone, any of them is a useful check. Used together, in order, they're a full pass over a system that catches the human failures before production does. This capstone walks the whole sequence on one real example — yours — and ends with a concrete redesign, not a reflection.
+
+Here's the full pass, as a sequence you can run on anything:
+
+---
+
+## The Six-Step Pass
+
+**1. Split it into two halves (Module 2.1).**
+List the technical components and the human roles. For each human role, write their *real* goal — not "use the tool." You're building the social subsystem you'd otherwise leave invisible.
+
+**2. Map the stakeholders you forgot (Module 2.2).**
+Four questions: who benefits, who does the new work, who loses discretion, who cleans up failures. Pull the second-order effect two steps forward for the stakeholder you weren't already designing for.
+
+**3. Draw the feedback loop (Module 3.1).**
+How will people adapt? Does that adaptation amplify or cancel your intent? Reinforcing loops pointed the wrong way and balancing loops that quietly undo your change are both design failures you can now see before they happen.
+
+**4. Audit the proxy–outcome gap (Module 3.2).**
+Name the metric, the human outcome it stands for, and the cheapest way to game it. Pair it with a metric that catches the gaming. A green dashboard is not evidence of success.
+
+**5. Surface the competing worldviews (Module 4.1).**
+CATWOE from two stakeholders. Where the transformation (T) and worldview (W) diverge, you have a soft problem. Decide deliberately whose problem you're solving — choose, reconcile, or split.
+
+**6. Locate the leverage (Module 4.2).**
+Are your interventions parameters, structure/information, or goals? Name the deepest available leverage and what's blocking it. Prefer the humane middle lever — give a person back a signal or a decision — over tuning a number or stripping discretion.
+
+---
+
+## The Order Matters
+
+Run these in sequence, not in parallel. Each step feeds the next: the human goals from step 1 are the stakeholders in step 2, whose adaptations are the loops in step 3, which is how the metric gets gamed in step 4, which is a symptom of the worldview conflict in step 5, which you resolve by choosing the leverage in step 6. Skip step 1 and every later step is working from a model with the people left out — which is the failure this whole course exists to prevent.
+
+<Pitfall title="The Capstone's Output Is a Decision, Not a Diagram">
+
+It's satisfying to produce six neat analyses and stop — the maps *feel* like the work. They aren't. The point of the pass is to reach step 6 with enough understanding to make a specific, defensible design choice: *this* is who we're serving, *this* is the loop we're designing for, *this* is the lever we're pulling and the one we're not, and here's why. If you finish the capstone with beautiful diagrams and no changed decision, you did the homework and skipped the assignment. The humans in your system don't benefit from your analysis — they benefit from what you build differently because of it.
+
+</Pitfall>
+
+---
+
+## The Line, One Last Time
+
+Every module returned to one sentence:
+
+> **A system that works for its metrics but fails the people inside it is not a working system — it's a failure that hasn't been measured yet.**
+
+The six-step pass is how you measure it *before* it's a failure — while the fix is still a design choice instead of a post-mortem. That's the entire promise of putting "human-centered" and "systems thinking" in the same sentence: the discipline of systems, aimed deliberately at the part of the system made of people.
+
+<CodeLab title="The Full Pass on Your Example">
+
+Run all six steps on your running example, in order, and write a real artifact — a page or two, not a paragraph.
+
+1. **Two halves** — technical components and human roles with their real goals.
+2. **Stakeholder map** — the four questions; the second-order effect on the stakeholder you'd forgotten.
+3. **The loop** — one feedback loop, labeled reinforcing or balancing, with the direction of human adaptation.
+4. **Proxy audit** — metric, outcome, gaming path, paired defense metric.
+5. **Two CATWOEs** — where T and W diverge, and your chosen response (choose / reconcile / split).
+6. **Leverage** — the depth of each intervention, the deepest available lever, and your final pick.
+
+Then write the one thing that matters: **the specific design decision this pass changed.** What will you now build, cut, or measure differently than you would have before Module 1? That sentence is the deliverable. Everything above it is just how you earned the right to write it.
+
+</CodeLab>
+
+<Quiz question="You've run the full six-step pass on a workflow-automation project and produced thorough analysis at every step. What single output determines whether the exercise succeeded?">
+<div>
+
+**A specific design decision that changed because of the pass — something you'll build, cut, or measure differently than you would have without it.**
+
+The six analyses are instrumental; the course's whole argument is that a system fails the people inside it when the people were left out of the *decisions*, not out of the documentation. A capstone that ends in polished maps and an unchanged plan has diagnosed a sociotechnical system and then done nothing for its humans — which is exactly the "failure that hasn't been measured yet" the course keeps warning about. The measure of success is a decision moved, not an analysis completed.
+
+</div>
+</Quiz>
+
+---
+
+## Where To Go From Here
+
+You now have a repeatable pass you can run in an afternoon on anything you build. It won't make every system humane — some of the deepest leverage points are goals you don't yet control. But it will make the human cost of your designs *visible to you* while you can still do something about it, which is the difference between a system that happens to people and a system built with them in the loop.

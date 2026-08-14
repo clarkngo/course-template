@@ -1,0 +1,92 @@
+---
+title: "Sociotechnical Systems: The People Are In the Loop"
+description: "Why you can't optimize the technical system and the human system separately — and a simple way to draw both halves of what you're building before you commit to a design."
+module: 2
+moduleTitle: "Seeing the Whole System"
+lesson: 1
+duration: "11 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Half of the System You Keep Leaving Out
+
+When you sketch a system, you almost certainly draw the technical half: services, screens, data flows, the automation. The people show up, if at all, as a stick figure labeled "user" at the edge — the place output goes.
+
+That drawing is the bug. In any real deployment, the people are *inside* the diagram. They have goals that may not match yours. They learn. They get tired. They find the shortcut. They coordinate with each other in ways no one documented. Trist and Bamforth's coal-mine finding — that a technically superior system lowered output by wrecking the social structure — is what happens every time you optimize one half and assume the other will simply comply.
+
+The discipline of drawing **both halves** is the core skill of this module.
+
+---
+
+## The Two Halves
+
+A **sociotechnical system** has a technical subsystem and a social subsystem, and neither is subordinate to the other.
+
+| Technical subsystem | Social subsystem |
+|---|---|
+| Tools, code, machines | The people who operate and are affected |
+| Processes and rules as written | Processes as actually performed |
+| Data and interfaces | Norms, trust, informal coordination |
+| Optimized for throughput/correctness | Optimized for meaning, safety, autonomy, effort |
+
+The trap is that the technical subsystem is *legible* — you can see it, spec it, and measure it — while the social subsystem is mostly invisible until it breaks. So teams optimize what they can see and get blindsided by what they can't.
+
+---
+
+## Joint Optimization
+
+The one principle to carry out of the sociotechnical tradition is **joint optimization**: the whole performs best when the technical and social subsystems are designed *together*, each accommodating the other — not when either is maximized alone.
+
+In practice this means a technically "worse" design that fits how people actually work can beat a technically "better" one that doesn't. The mechanized coal mine was better steel and worse mining. Joint optimization would have kept the self-organizing teams *and* added the machinery.
+
+<Pitfall title="Efficiency for the System Can Be a Tax on the Human">
+
+A change that removes steps from the *system's* process often adds hidden steps to some *person's* day. Auto-filling a form saves the system a field and hands the reviewer a new job: catching the auto-fill's mistakes. Routing tickets algorithmically saves the dispatcher a decision and hands the agent a queue they can no longer reason about. Before you call something more efficient, ask: efficient for whom? Efficiency that migrates effort onto a human and calls it savings is the most common way sociotechnical systems quietly rot.
+
+</Pitfall>
+
+---
+
+## Drawing Both Halves
+
+Here's the minimum-viable version you can do in ten minutes for anything you're building.
+
+**1. List the technical components.** The services, screens, automations, and data stores. The part you'd normally draw.
+
+**2. List the human roles the system touches.** Not "the user" — the specific roles. Who operates it? Who maintains it when it breaks? Who receives its output and has to act on it? Who is measured by it? Who has to comply with it? Each is a part of the system.
+
+**3. For each human role, write one line: what does *this* person want?** Their goal is rarely "use the software." It's "get home on time," "not get blamed," "not look incompetent to my boss," "help this customer." These goals are the forces that will bend your system into a shape you didn't design.
+
+**4. Draw the interactions between the two lists.** Where does a technical component change what a human does — or where does a human's real goal push back against what the component assumes? Those crossing points are where your design will succeed or fail.
+
+The output isn't a pretty diagram. It's a list of the human goals your technical design is currently ignoring.
+
+<CodeLab title="Split Your Example Into Two Halves">
+
+Take your running example and produce two columns.
+
+- **Left column (technical):** every component, screen, automation, and data flow.
+- **Right column (social):** every human role the system touches, and one line each on what that person actually wants — their real goal, not "use the tool."
+
+Then find the two or three places where a technical component and a human goal **pull in different directions** (the automation wants completeness; the nurse wants to go home). Circle those. That's your joint-optimization problem, and the rest of the course is about solving it without sacrificing either half.
+
+</CodeLab>
+
+<Quiz question="You're automating a manual report so it generates itself nightly. Applying the two-halves method, which of these is the most important thing to check before shipping?">
+<div>
+
+**What the person who used to write the report actually used the writing process for — because that manual effort may have been doing invisible social work the automation will destroy.**
+
+The technical win (a report that generates itself) is obvious. The sociotechnical risk is that writing the report by hand may have forced the author to notice anomalies, build a mental model of the data, or have a weekly conversation with a stakeholder — social-subsystem functions that the artifact never captured. Automate the artifact and you may keep the report while losing the noticing. Joint optimization means asking what the human half was really doing before you replace it, not just whether the output looks the same.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You've split the system into its two halves. Next: mapping the full set of stakeholders — including the ones who never touch the product but absorb its second-order effects.

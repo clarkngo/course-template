@@ -1,0 +1,90 @@
+---
+title: "When Systems Optimize the Wrong Thing"
+description: "Every metric is a proxy for a human outcome you actually care about. Goodhart's Law, the proxy–outcome gap, and how to keep a number honest once people start steering by it."
+module: 3
+moduleTitle: "Feedback, Behavior, and Unintended Consequences"
+lesson: 2
+duration: "11 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Every Metric Is a Stand-In
+
+You can't measure "customers are genuinely helped," so you measure response time. You can't measure "code is healthy," so you measure test coverage. You can't measure "students learned," so you measure test scores. Every metric is a **proxy** — a measurable stand-in for a human outcome that is real but hard to see directly.
+
+This works right up until people start steering by the proxy. Then the proxy and the outcome come apart, and the system keeps optimizing the number while the thing you actually cared about degrades.
+
+---
+
+## Goodhart's Law
+
+The economist Charles Goodhart's observation, in its popular form:
+
+> **When a measure becomes a target, it ceases to be a good measure.**
+
+The reason is exactly the feedback loop from the last lesson. A metric is a decent proxy *while nobody is optimizing it*, because it correlates naturally with the outcome. The moment you make it a target, people — goal-seeking control loops — optimize the *cheapest* path to the number, which is almost never the path that also produces the outcome. The correlation you were relying on breaks precisely because you started relying on it.
+
+Faster first-response times without more help. Higher test coverage from tests that assert nothing. More closed tickets from tickets closed prematurely and reopened. The number goes green; the human outcome goes gray.
+
+---
+
+## The Proxy–Outcome Gap
+
+Keep two things separate in your head, always:
+
+- **The outcome:** the actual human thing you care about. Often unmeasurable directly. ("Patients get better care.")
+- **The proxy:** the number you can see and put on a dashboard. ("Average visit length is under 12 minutes.")
+
+The gap between them is where harm hides. A shorter visit is a fine proxy for efficiency and a terrible proxy for care — and a dashboard can't tell the difference, because a dashboard only sees the proxy. Your job is to hold the outcome in view when the system can only see the number.
+
+<Pitfall title="A Green Dashboard Is Evidence the Proxy Is Being Optimized, Not That the Outcome Improved">
+
+The most dangerous moment is when the metric moves in the right direction. It feels like success and ends the investigation. But under Goodhart's Law, a suddenly-improving target is *also* exactly what it looks like when people have found how to game it. You cannot tell "the outcome improved" from "the proxy got gamed" by staring at the proxy — they produce the identical green number. The only way to distinguish them is to check the outcome through a *different* channel than the one being optimized.
+
+</Pitfall>
+
+---
+
+## Keeping a Metric Honest
+
+You can't stop using proxies — you'd be flying blind. You can defend against the gap:
+
+1. **Name the outcome the metric stands for, in writing, next to the metric.** "Response time — proxy for: customers feel promptly cared for." Now everyone can see when the two diverge.
+
+2. **Pair every efficiency metric with a quality or human-cost metric that moves the opposite way when it's gamed.** Response time *and* resolution-on-first-contact. Throughput *and* rework rate. Speed *and* the frontline team's own report of strain. A single number can always be gamed; a pair that trades off is much harder to fake.
+
+3. **Check the outcome through a channel the target can't touch.** Talk to the humans. A five-minute conversation with the people inside the system routinely reveals a gamed metric that no dashboard would ever show, because they know exactly what corner they're cutting to hit the number.
+
+4. **Watch who bears the cost of hitting the target.** When a metric is being gamed, someone is usually absorbing the difference — the customer who got a fast non-answer, the next engineer who inherits the hollow tests. Find that person and you've found the gap.
+
+<CodeLab title="Audit Your Metric">
+
+Take the main metric your running example will be judged by (if it doesn't have one, use the one it *should* have). Write:
+
+1. **The proxy:** the number itself.
+2. **The outcome:** the real human thing it's standing in for.
+3. **The cheapest way to move the number without producing the outcome** — the gaming path. Be specific and a little cynical; this is what people will actually do.
+4. **The paired metric** that would move the *wrong* way if step 3 happened, exposing the game.
+
+If you can't think of a paired metric that catches the gaming path, your metric is currently undefended — and that's the finding.
+
+</CodeLab>
+
+<Quiz question="A school district ties funding to standardized test scores. Scores rise for three years, then a surprising number of graduates need remedial courses in college. What happened, in Goodhart terms?">
+<div>
+
+**The test score was a proxy for 'students learned'; once it became a high-stakes target, schools optimized the proxy — teaching to the test, narrowing the curriculum — and the correlation between the score and real learning broke.**
+
+While no one was steering by it, the test score correlated with learning, so it looked like a good measure. Making it a funding target turned every school into a goal-seeking loop pointed at the number, and the cheapest path to the number (drill the test format, drop everything untested) is not the path that produces durable learning. The remedial-course surge is the proxy–outcome gap surfacing through a *different channel* — college readiness — which is the only reason anyone caught it. The rising scores themselves could never have revealed it.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Module 4 turns from diagnosis to design: how to work a problem when the people involved don't even agree on what the problem is (Checkland's soft systems), and how to pick interventions that treat the humans well (Meadows' leverage points).
