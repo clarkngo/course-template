@@ -1,0 +1,153 @@
+---
+title: "Few-Shot Examples and Getting Structured Output"
+description: "Use worked examples to steer a model's output format precisely, and learn how to reliably get back clean, parseable JSON instead of prose you have to scrape by hand."
+module: 2
+moduleTitle: "Prompting Effectively"
+lesson: 2
+duration: "13 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Showing Beats Telling
+
+The last lesson established that a prompt is a specification. Words are one way to specify a format — but for anything with real structure, **an example is a more precise specification than a description**, because it removes ambiguity a sentence can't. "Format it as a table" leaves the column names, the delimiter, and the row order all up to interpretation. One example row leaves nothing up to interpretation.
+
+This lesson covers two closely related techniques: **few-shot prompting**, where you supply worked examples of input-output pairs before your real request, and **structured output**, where you specify an exact machine-readable shape — almost always JSON — so the response can be parsed by code instead of read by a human.
+
+---
+
+## Few-Shot: Pattern-Matching by Example
+
+A **zero-shot** prompt asks the model to do a task with no examples — just an instruction. A **few-shot** prompt precedes the real request with a small number of worked examples showing exactly the input-output relationship you want, then asks the model to continue the pattern on new input.
+
+```text
+Classify the sentiment of each review as positive, negative, or mixed.
+
+Review: "Shipping was fast but the product broke after two days."
+Sentiment: mixed
+
+Review: "Exactly as described, works great, would buy again."
+Sentiment: positive
+
+Review: "Customer service never responded to three emails."
+Sentiment: negative
+
+Review: "Good price, but the manual is only in one language I don't speak."
+Sentiment:
+```
+
+Notice what the examples are doing that an instruction alone couldn't: they show the *exact* label vocabulary ("mixed," not "somewhat positive" or "it's complicated"), the exact format (`Sentiment: <label>`, no extra commentary), and implicitly calibrate the boundary between categories — a review with one good and one bad point is "mixed," not a coin flip between positive and negative. Two or three well-chosen examples usually outperform a much longer paragraph of instructions trying to describe the same boundary in words.
+
+Few-shot examples are most valuable exactly where words are weakest: **tone, edge cases, and exact formatting.** If you find yourself writing three sentences trying to describe a format, try writing one example instead.
+
+Order matters too, in a way that's easy to overlook. Models weigh recent context somewhat more heavily, so if your examples happen to end on a run of the same label — three "positive" reviews in a row, say — the model can pick up a spurious bias toward that label on the next item. Shuffling your examples so labels and edge cases are mixed throughout, rather than clustered, gives the model a cleaner pattern to generalize from.
+
+---
+
+## Getting Structured Output
+
+Prose is for humans. If another program is going to read the model's output — to populate a database, trigger a workflow, render a UI — you want **structured output**: typically JSON, with a schema you specify up front.
+
+The reliable pattern has three parts:
+
+1. **State the exact keys and types you want**, ideally by showing a literal example object, not just describing it.
+2. **Tell the model to return *only* the JSON** — no leading "Here's the JSON you asked for:", no trailing explanation, no markdown code fence around it if you're going to parse it directly.
+3. **Validate what comes back in code**, rather than trusting it blindly. A model can still occasionally produce malformed JSON, an extra field, or a value that doesn't match your expected type.
+
+```text
+Extract the following fields from this support ticket and return
+ONLY valid JSON matching this exact shape — no other text:
+
+{
+  "customer_name": string,
+  "issue_category": "billing" | "technical" | "shipping" | "other",
+  "urgency": "low" | "medium" | "high",
+  "summary": string (max 20 words)
+}
+
+Ticket:
+"Hi, this is Dana Reyes. My package (order #4471) was supposed to
+arrive Tuesday and still hasn't shown up. I have a work trip in two
+days and really need it before then."
+```
+
+A well-specified prompt like this typically returns something close to:
+
+```json
+{
+  "customer_name": "Dana Reyes",
+  "issue_category": "shipping",
+  "urgency": "high",
+  "summary": "Order #4471 delayed; customer needs it before a trip in two days."
+}
+```
+
+<CodeLab title="Parse a Model's JSON Output Defensively">
+
+Even with a clear schema in the prompt, treat the response as untrusted text until you've validated it — models occasionally wrap JSON in a code fence, add a stray sentence, or drop a field. This small helper handles the common cases and fails loudly instead of silently:
+
+```python
+import json
+import re
+
+def extract_json(raw_text: str) -> dict:
+    """
+    Pull a JSON object out of a model response that *should* be pure
+    JSON but might have stray markdown fences or whitespace around it.
+    """
+    # Strip a ```json ... ``` fence if the model added one anyway.
+    match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+    if not match:
+        raise ValueError(f"No JSON object found in response:\n{raw_text}")
+
+    data = json.loads(match.group(0))
+
+    required_keys = {"customer_name", "issue_category", "urgency", "summary"}
+    missing = required_keys - data.keys()
+    if missing:
+        raise ValueError(f"Response is missing required keys: {missing}")
+
+    return data
+
+# Simulating a model response that includes a stray code fence:
+example_response = '''```json
+{"customer_name": "Dana Reyes", "issue_category": "shipping",
+ "urgency": "high", "summary": "Order delayed before a work trip."}
+```'''
+
+ticket = extract_json(example_response)
+print(ticket["urgency"])  # "high"
+```
+
+This pattern — extract, parse, validate required fields, fail with a clear error — is what production code that calls an LLM should almost always do, rather than assuming the response is always perfectly formed.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Too Many Examples Can Overfit the Pattern">
+
+**Common mistake:** stacking in five or six few-shot examples that all happen to share an incidental trait — say, every example review in a sentiment classifier is a short, one-sentence review — and then being surprised when the model handles long, multi-paragraph reviews poorly.
+
+The model isn't just learning "classify sentiment" from your examples — it's also picking up on *every* pattern they share, including ones you didn't intend to teach, like typical length or vocabulary. Two or three examples that vary along every dimension *except* the one you're trying to teach (label, format) will generalize better than five examples that happen to look alike in some unrelated way.
+
+</Pitfall>
+
+<Quiz question="You ask a model to return JSON, and it comes back as 'Sure! Here's the JSON you requested:' followed by a code-fenced JSON block. Your code does json.loads() directly on the raw response and crashes. What's the most robust fix?">
+<div>
+
+**Extract the JSON object from the response defensively — for example with a regex or fence-stripping step — and validate the required fields, rather than assuming the raw text is always pure, parseable JSON.**
+
+Even a well-specified prompt only makes clean output *likely*, not guaranteed — models can still add a pleasantry, wrap the object in a markdown fence, or omit a field. Tightening the prompt (explicitly saying "return only JSON, no other text") reduces how often this happens, but production code that calls an LLM should still parse defensively and validate the shape of what comes back, the same way you'd validate any external input you don't fully control.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You can now write clear prompts and get clean, structured answers back. But every technique so far assumes the model's answer is trustworthy. Module 3 turns to the harder question: why models sometimes state falsehoods with total confidence, and how to catch it before it costs you.

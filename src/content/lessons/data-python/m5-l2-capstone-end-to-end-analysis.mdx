@@ -1,0 +1,215 @@
+---
+title: "Capstone: End-to-End Analysis"
+description: "Run a full analysis pipeline — read, clean, analyze, and chart a new dataset end to end — and state a finding a non-technical reader could act on."
+module: 5
+moduleTitle: "Visualization & Capstone"
+lesson: 2
+duration: "18 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Everything, in One Pipeline
+
+You've learned each piece of this in isolation: variables and types, loops and functions, lists and dicts, reading files, pandas, cleaning, filtering, grouping, and charting. Real data work rarely arrives labeled by module — it's one continuous pipeline, start to finish, on a file nobody has cleaned for you. This capstone runs that whole pipeline once, on a new week of Corner Cafe data, exactly the way you'd do it on the job: **read it, clean it, analyze it, chart it, and say what you found.**
+
+Save this as `corner_cafe_week.csv` — a new week's export, with the same kinds of problems the raw file in Module 3 had:
+
+```
+date,item,quantity,price
+2024-01-06,Latte,4,4.50
+2024-01-06,espresso,6,2.75
+2024-01-06,Muffin,3,3.25
+2024-01-06,Cold Brew,5,4.00
+2024-01-07,Latte,5,4.50
+2024-01-07,Espresso,4,2.75
+2024-01-07,Muffin,2,
+2024-01-07,Cold Brew,7,4.00
+2024-01-08,Latte,3,4.50
+2024-01-08,Espresso,5,2.75
+2024-01-08,Muffin,4,3.25
+2024-01-08,Cold Brew,6,4.00
+2024-01-08,Cold Brew,6,4.00
+```
+
+Thirteen rows, three days — and three problems worth spotting before you write a line of code: an inconsistent item name (`espresso`, lowercase, on the first day), a missing price (`Muffin` on the second day), and a duplicated row (`Cold Brew` logged twice on the third day). If you can name all three just by scanning the file, Module 3 did its job.
+
+---
+
+## Step 1: Read
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+week = pd.read_csv("corner_cafe_week.csv")
+print(week.shape)      # (13, 4)
+print(week.info())
+```
+
+Always inspect before you touch anything — `.shape` and `.info()` confirm what actually loaded, and on this file `.info()` should show `price` with only 12 non-null values out of 13, your first concrete evidence of the missing entry.
+
+## Step 2: Clean
+
+```python
+clean = week.copy()
+clean["item"] = clean["item"].str.strip().str.title()
+clean["price"] = clean["price"].fillna(3.25)
+clean = clean.drop_duplicates()
+
+print(clean.shape)     # (12, 4) — one duplicate removed
+```
+
+Three fixes, matching the three problems: `.str.title()` folds `"espresso"` into `"Espresso"`, `.fillna(3.25)` fills the missing Muffin price with this dataset's known Muffin price, and `.drop_duplicates()` removes the repeated Cold Brew row. `clean.shape` should now report `(12, 4)` — thirteen rows in, twelve out, one exact duplicate gone.
+
+## Step 3: Analyze
+
+```python
+clean["revenue"] = clean["quantity"] * clean["price"]
+
+by_item = clean.groupby("item").agg(
+    total_quantity=("quantity", "sum"),
+    total_revenue=("revenue", "sum"),
+).sort_values("total_revenue", ascending=False)
+
+by_day = clean.groupby("date")["revenue"].sum()
+
+print(by_item)
+print(by_day)
+
+top_item = by_item.index[0]
+top_revenue = by_item["total_revenue"].iloc[0]
+best_day = by_day.idxmax()
+best_day_revenue = by_day.max()
+total_revenue = clean["revenue"].sum()
+
+print(f"\nTotal revenue: ${total_revenue:.2f}")
+print(f"Top item: {top_item} (${top_revenue:.2f})")
+print(f"Best day: {best_day} (${best_day_revenue:.2f})")
+```
+
+Run this against the cleaned data and you'll get: total revenue **$196.50**, top item **Cold Brew** at **$72.00** (18 units — also the unit leader), and best day **2024-01-07** at **$68.00**. Every one of these numbers depends on the cleaning step that ran before it — which is exactly the point of building the pipeline in this order.
+
+## Step 4: Chart
+
+```python
+plt.bar(by_item.index, by_item["total_revenue"], color="#16a34a")
+plt.title("Corner Cafe: Revenue by Item, Week of Jan 6")
+plt.xlabel("Item")
+plt.ylabel("Revenue ($)")
+plt.savefig("week_revenue_by_item.png")
+plt.show()
+```
+
+A zero-based bar chart, sorted highest to lowest, with clear axis labels — everything Module 5's first lesson argued for. This is the artifact you'd actually attach to an email.
+
+## Step 5: State the Finding
+
+```python
+print(
+    f"Cold Brew was the top performer for the week of Jan 6, "
+    f"earning ${top_revenue:.2f} of the ${total_revenue:.2f} total "
+    f"— more than a third of all revenue from a single item. "
+    f"{best_day} was the strongest day, driven by a jump in "
+    f"Cold Brew and Latte orders."
+)
+```
+
+That's the pipeline: a paragraph a shop owner can read in five seconds, backed by a chart they can glance at, backed by a table they could audit line by line if they wanted to. Every real data analysis has this same shape, whether it takes twelve lines of pandas or runs on a database with a billion rows.
+
+<CodeLab title="Run the Full Pipeline Yourself">
+
+Save `corner_cafe_week.csv` from the top of this lesson, then combine every step above into one script, `capstone.py`, and run it start to finish:
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# 1. Read
+week = pd.read_csv("corner_cafe_week.csv")
+
+# 2. Clean
+clean = week.copy()
+clean["item"] = clean["item"].str.strip().str.title()
+clean["price"] = clean["price"].fillna(3.25)
+clean = clean.drop_duplicates()
+
+# 3. Analyze
+clean["revenue"] = clean["quantity"] * clean["price"]
+by_item = clean.groupby("item").agg(
+    total_quantity=("quantity", "sum"),
+    total_revenue=("revenue", "sum"),
+).sort_values("total_revenue", ascending=False)
+by_day = clean.groupby("date")["revenue"].sum()
+
+top_item = by_item.index[0]
+top_revenue = by_item["total_revenue"].iloc[0]
+best_day = by_day.idxmax()
+total_revenue = clean["revenue"].sum()
+
+# 4. Chart
+plt.bar(by_item.index, by_item["total_revenue"], color="#16a34a")
+plt.title("Corner Cafe: Revenue by Item, Week of Jan 6")
+plt.xlabel("Item")
+plt.ylabel("Revenue ($)")
+plt.savefig("week_revenue_by_item.png")
+
+# 5. State the finding
+print(
+    f"Cold Brew was the top performer, earning ${top_revenue:.2f} "
+    f"of ${total_revenue:.2f} total revenue. {best_day} was the "
+    f"strongest day of the week."
+)
+```
+
+Then try this deliberately: comment out the three cleaning lines (`.str.title()`, `.fillna()`, `.drop_duplicates()`) and rerun the analysis section. Compare the new `by_item` table to the original — you should see `Espresso` and `espresso` show up as two separate rows, and Cold Brew's totals inflated by the uncounted duplicate. Same file, same analysis code, a meaningfully different — and wrong — answer.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Skipping Cleaning Because the Analysis 'Still Runs'">
+
+The most dangerous property of skipped cleaning is that it usually doesn't crash — it just quietly produces a confident, wrong number, and nothing in the output warns you.
+
+```python
+# Wrong — runs without error, produces a real-looking
+# table, and is simply incorrect
+week["revenue"] = week["quantity"] * week["price"]
+by_item = week.groupby("item")["revenue"].sum()
+print(by_item)
+```
+
+Run that on the raw, uncleaned `corner_cafe_week.csv` and here's concretely what goes wrong: `"espresso"` (lowercase, from Jan 6) becomes its own group, separate from `"Espresso"`. The capitalized group's revenue — just Jan 7 and Jan 8 — comes to **$24.75**, which is *less* than Muffin's **$29.25**. Read naively, that table says Muffin outsold Espresso. It didn't — Espresso's real total, correctly combined, is **$41.25**, comfortably ahead of Muffin. The duplicate Cold Brew row compounds the damage, inflating an already-strong item even further. Nothing about running `.groupby()` on dirty data raises an error or a warning — pandas will summarize whatever you hand it, correct or not. The only defense is doing the cleaning first, every time, as its own explicit step you can point to.
+
+```python
+# Right — clean first, analyze second
+clean = week.copy()
+clean["item"] = clean["item"].str.strip().str.title()
+clean["price"] = clean["price"].fillna(3.25)
+clean = clean.drop_duplicates()
+
+clean["revenue"] = clean["quantity"] * clean["price"]
+by_item = clean.groupby("item")["revenue"].sum()
+print(by_item)
+```
+
+</Pitfall>
+
+<Quiz question="The capstone script prints one finding sentence about Cold Brew and the best day. A colleague asks: 'How do I know this number is actually correct, and not just confidently stated?' What in this pipeline actually answers that?">
+<div>
+
+**The intermediate, inspectable steps — `.shape` after loading and after cleaning, the printed `by_item` and `by_day` tables, and the fact that the cleaning logic is explicit and re-runnable — are what make the final sentence checkable rather than just asserted.**
+
+A finding stated on its own ("Cold Brew earned $72") is exactly as trustworthy as the person who wrote it. A finding backed by a pipeline someone else can re-run — read this file, apply these three named cleaning steps, group this way, here's the table, here's the sentence that summarizes it — is checkable: a skeptical colleague can rerun your script, inspect `by_item` themselves, or point at exactly which cleaning step they disagree with. That auditability, not the confidence of the final sentence, is what separates a real analysis from a guess dressed up in a chart. It's also why every step in this capstone printed its intermediate result instead of jumping straight to the conclusion — the whole trail is the evidence, not just the last line.
+
+</div>
+</Quiz>
+
+## Course Wrap-Up
+
+You started this course typing `price = 4.50` into a REPL. You're finishing it having read a real file, caught and fixed three concrete data problems, computed grouped summaries, charted them honestly, and written a finding someone could act on — the same pipeline that sits underneath spreadsheet dashboards, business intelligence tools, and data science workflows built on far larger datasets than a coffee shop's weekly sales.
+
+Nothing in the tools scales up much from here — bigger files, more columns, a database instead of a CSV — but the pipeline itself doesn't change: read, clean, analyze, chart, conclude. Take a real dataset of your own — a bank statement export, a fitness tracker's history, anything in CSV or JSON — and run it through the same five steps. That's the actual test of whether this course stuck: not whether you can repeat the coffee shop example, but whether you can do it cold, on data you've never seen before.

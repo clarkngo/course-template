@@ -1,0 +1,122 @@
+---
+title: "Deploying Your Site"
+description: "Understand static hosting and deploy the portfolio for free with GitHub Pages or Netlify, going from local files to a live public URL."
+module: 5
+moduleTitle: "Ship Your Portfolio"
+lesson: 1
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Your Site Only Exists on Your Computer
+
+Right now, your portfolio is a folder of files that only exists on your own machine. Nobody else can see it — there's no server anywhere handing it out in response to a request, the way GitHub's servers did back in Module 1 when you traced the DNS-to-render cycle. Deploying is the act of putting your files on a server that's reachable from the public internet, at a URL anyone can visit.
+
+This lesson explains what static hosting actually is and walks through deploying with a real, currently-existing free host. The capstone in the next lesson pulls the entire course together into the finished, live site.
+
+---
+
+## What "Static" Hosting Means
+
+Your portfolio is a **static site** — it's just files (HTML, CSS, JS, images) served exactly as they are, with no server-side code generating anything on the fly. This is in contrast to a **dynamic** site, where a server runs code per-request (looking things up in a database, personalizing content, and so on).
+
+Static hosting is the simplest, cheapest, and most reliable way to serve a site like this one:
+
+| | Static hosting | Server / dynamic hosting |
+|---|---|---|
+| What runs | Nothing — files are served as-is | Server-side code runs per request |
+| Good fit | Portfolios, docs, marketing sites, blogs | Apps needing logins, databases, per-user data |
+| Typical cost | Often free for personal projects | Usually costs something once traffic grows |
+| Your portfolio | ✅ Exactly this | Not needed — you have no server-side logic |
+
+Notice that "static" doesn't mean "not interactive" — your dark-mode toggle, form validation, and GitHub API fetch all still run, because that's all *client-side* JavaScript, executing in the visitor's browser after the static files are downloaded. Static just means the server itself isn't running any custom code to build the response.
+
+---
+
+## Two Real, Free Options
+
+Both of the following are real, currently-operating free hosts as of this writing. Exact button placements and UI details shift over time, so treat the steps below as the accurate general flow rather than a pixel-precise walkthrough — the concepts don't change even when a UI does.
+
+### Option A: GitHub Pages
+
+GitHub Pages serves static files directly out of a GitHub repository — a natural fit if your code already lives on GitHub (and after Module 4, your portfolio *fetches* GitHub data, so this pairs well thematically too).
+
+The general flow:
+1. Push your portfolio folder to a GitHub repository.
+2. In the repository's Settings, find the "Pages" section.
+3. Choose the branch (commonly `main`) and folder (commonly the repository root, `/`) to publish from.
+4. GitHub builds a URL in the form `https://yourusername.github.io/your-repo-name/`.
+5. Every future push to that branch automatically republishes the site within a minute or two.
+
+### Option B: Netlify
+
+Netlify's free tier accepts either a drag-and-drop folder upload or a connected GitHub repository for automatic redeploys on every push.
+
+The general flow:
+1. Create a Netlify account and go to the sites dashboard.
+2. Either drag your project folder directly onto the deploy area, or connect the GitHub repository containing it.
+3. Netlify assigns a random subdomain like `https://your-site-name.netlify.app` (you can rename the subdomain in site settings).
+4. If connected to GitHub, every push to your default branch triggers an automatic redeploy.
+
+<CodeLab title="Deploy the Portfolio">
+
+**Step 1** — Make sure your project folder contains everything the site needs: `index.html`, `styles.css`, `script.js`, and any images, all referenced with **relative** paths (like `href="styles.css"`, not an absolute local path like `href="/Users/you/Desktop/styles.css"`). Absolute local paths only work on your machine — they'll break the instant the files move to a server.
+
+**Step 2** — If you haven't already, initialize git and push the folder to a new GitHub repository:
+
+```bash
+git init
+git add .
+git commit -m "Initial portfolio commit"
+git branch -M main
+git remote add origin https://github.com/YOUR-USERNAME/portfolio.git
+git push -u origin main
+```
+
+**Step 3** — Follow either the GitHub Pages or Netlify flow above to publish the repository.
+
+**Step 4** — Visit the live URL you're given. Click through every part of the site — the filter buttons, the dark-mode toggle, the fetched project cards — exactly as a visitor would, since this is the first time it's running on a real server instead of opened as a local file.
+
+</CodeLab>
+
+---
+
+## A Deploy-Specific Bug: Case Sensitivity
+
+Your own computer's file system is very likely case-*insensitive* — `Styles.css` and `styles.css` are treated as the same file. Most hosting servers run on case-*sensitive* file systems, where they are two entirely different files. A file reference that "just works" locally can silently 404 once deployed.
+
+<Pitfall title="A Path That Works Locally but 404s When Deployed">
+
+```html
+<!-- Your actual file is named styles.css (lowercase) -->
+<link rel="stylesheet" href="Styles.css" />
+```
+
+Locally, on a case-insensitive file system, this loads fine — you might never notice the typo. Deployed to a case-sensitive server, this request 404s, the stylesheet never loads, and the live site renders completely unstyled with no error dialog telling you why. Always double check that every `href` and `src` in your HTML matches the actual filename's capitalization exactly, and test the *live* deployed URL, not just the local file — this class of bug is invisible until you do.
+
+</Pitfall>
+
+---
+
+## Custom Domains (Optional)
+
+Both GitHub Pages and Netlify support pointing a custom domain you own (like `jordanlee.dev`) at your site, via a DNS record — the same DNS system from Module 1, now working in the other direction: instead of your browser looking up someone else's domain, you'd be configuring the records for your *own* domain to resolve to your host's servers. This costs money for the domain itself (typically $10-20/year from a domain registrar) but is entirely optional — the free subdomain your host provides is a fully working, permanent URL on its own.
+
+<Quiz question="After deploying to GitHub Pages, the live site loads but shows completely unstyled HTML — no colors, no layout, nothing from styles.css appears to have applied. The exact same files worked perfectly when opened locally. What's the most likely category of bug, based on what changed between local and deployed?">
+<div>
+
+**A path or filename mismatch — most likely a case-sensitivity issue, since the file system changed from (likely) case-insensitive locally to case-sensitive on the server, and that's exactly the kind of bug that works locally and silently breaks on deploy.**
+
+Nothing about the CSS rules themselves changed between local and deployed — the files are identical. What changed is the *environment* serving them: a real server, which is commonly case-sensitive about file paths, replacing your local, commonly case-insensitive file system. The Pitfall above covers exactly this: an `href="Styles.css"` reference to an actual `styles.css` file loads locally but 404s once deployed, leaving the HTML to render with no styling at all and no visible error. The fix is checking the browser's developer tools Network tab on the live URL for a 404 on the stylesheet request, then correcting the capitalization to match the real filename exactly.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Your site is live. The capstone lesson is a guided assembly checklist — pulling every module's piece into one finished, verified, deployed portfolio, and a look at where to take it from here.

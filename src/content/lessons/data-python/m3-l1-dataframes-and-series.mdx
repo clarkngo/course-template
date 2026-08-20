@@ -1,0 +1,214 @@
+---
+title: "DataFrames and Series"
+description: "Load a CSV into a pandas DataFrame and learn the row-and-column structure — Series, dtypes, and selection — that every later pandas operation builds on."
+module: 3
+moduleTitle: "Working with pandas"
+lesson: 1
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Everything You Just Did, in One Line
+
+Module 2 ended with a script that opened a file, looped through rows, converted strings to numbers, and summed a column — about fifteen lines of careful, correct code. **pandas** is a library built for exactly that kind of work, and it collapses most of it into a handful of lines. It's the standard tool for table-shaped data in Python, and understanding *why* it's shaped the way it is — because you just built the shape yourself by hand — is going to make its API feel obvious instead of arbitrary.
+
+From here through the capstone, we'll grow the same coffee shop dataset from Module 2 into a slightly fuller sales log — three days, four items each. Save this as `corner_cafe_sales.csv`:
+
+```
+date,item,quantity,price
+2024-01-02,Latte,3,4.50
+2024-01-02,Espresso,5,2.75
+2024-01-02,Muffin,2,3.25
+2024-01-02,Cold Brew,4,4.00
+2024-01-03,Latte,4,4.50
+2024-01-03,Espresso,3,2.75
+2024-01-03,Muffin,1,3.25
+2024-01-03,Cold Brew,6,4.00
+2024-01-04,Latte,2,4.50
+2024-01-04,Espresso,6,2.75
+2024-01-04,Muffin,3,3.25
+2024-01-04,Cold Brew,5,4.00
+```
+
+If pandas isn't installed yet, get it first:
+
+```bash
+pip install pandas
+```
+
+---
+
+## Loading a CSV
+
+```python
+import pandas as pd
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+print(sales)
+```
+
+One line replaces `csv.DictReader`, the loop, and the manual `int()`/`float()` conversions from Module 2 — `read_csv` does all three, inferring each column's type by scanning the values. The object it returns, `sales`, is a **DataFrame**: a table, with rows and named columns, that behaves a lot like the list-of-dicts you built by hand, but with far more built-in operations.
+
+`import pandas as pd` is a near-universal convention — virtually every pandas codebase you'll ever read uses `pd` as the alias, so use it too.
+
+## Inspecting What You Loaded
+
+Before doing anything else with a new dataset, look at it. Four methods cover almost every first look you'll need:
+
+```python
+sales.head()      # first 5 rows
+sales.info()      # column names, types, non-null counts
+sales.dtypes      # just the type of each column
+sales.shape       # (rows, columns) as a tuple
+```
+
+`sales.head()` shows you the first five rows, so you can sanity-check that the file loaded the way you expected. `sales.info()` is the most useful single call for a new file — it lists every column with its inferred type and how many non-missing values it has, which is often the fastest way to spot a problem before it becomes a bug three steps later. `sales.dtypes` on this file should show `date` and `item` as `object` (pandas' name for text), and `quantity` and `price` as numeric (`int64` and `float64`) — confirmation that the conversion Module 2 made you do by hand happened automatically here.
+
+---
+
+## DataFrames Are Made of Series
+
+Select a single column with square brackets and a column name, and you get back a **Series** — a single labeled column of data, the building block a DataFrame is made from:
+
+```python
+>>> sales["item"]
+0        Latte
+1     Espresso
+2       Muffin
+3    Cold Brew
+...
+Name: item, dtype: object
+```
+
+That number on the left of each value is the **index** — a label for each row, `0, 1, 2, ...` by default, similar in spirit to a list's position but usable as a lookup key even after rows are filtered or reordered.
+
+Select more than one column by passing a *list* of names, which gives you back a DataFrame, not a Series — the double brackets are doing two different jobs, an outer `[]` for "select columns" and an inner `[]` for "here's a list":
+
+```python
+sales[["item", "price"]]
+```
+
+<svg viewBox="0 0 640 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A diagram of a pandas DataFrame as a grid: rows labeled by an index down the left side (0 through 3), columns labeled date, item, quantity, price across the top. Selecting a single column with sales of item highlights one vertical column and produces a Series. Selecting a row highlights one horizontal row.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <text x="20" y="26" fill="currentColor" font-size="13" font-weight="700" opacity="0.85">sales["item"] selects one column → a Series</text>
+
+    <rect x="20" y="46" width="40" height="34" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+    <rect x="60" y="46" width="120" height="34" fill="#16a34a" opacity="0.15" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="180" y="46" width="90" height="34" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+    <rect x="270" y="46" width="90" height="34" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+    <text x="40" y="68" text-anchor="middle" fill="currentColor" font-size="11" opacity="0.7">index</text>
+    <text x="120" y="68" text-anchor="middle" fill="#16a34a" font-size="11" font-weight="700">item</text>
+    <text x="225" y="68" text-anchor="middle" fill="currentColor" font-size="11" opacity="0.7">quantity</text>
+    <text x="315" y="68" text-anchor="middle" fill="currentColor" font-size="11" opacity="0.7">price</text>
+
+    <g font-size="11" fill="currentColor" opacity="0.85">
+      <rect x="20" y="80" width="40" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="60" y="80" width="120" height="30" fill="#16a34a" opacity="0.1" stroke="#16a34a" stroke-width="1"/>
+      <rect x="180" y="80" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="270" y="80" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <text x="40" y="100" text-anchor="middle">0</text>
+      <text x="120" y="100" text-anchor="middle">Latte</text>
+      <text x="225" y="100" text-anchor="middle">3</text>
+      <text x="315" y="100" text-anchor="middle">4.50</text>
+
+      <rect x="20" y="110" width="40" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="60" y="110" width="120" height="30" fill="#16a34a" opacity="0.1" stroke="#16a34a" stroke-width="1"/>
+      <rect x="180" y="110" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="270" y="110" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <text x="40" y="130" text-anchor="middle">1</text>
+      <text x="120" y="130" text-anchor="middle">Espresso</text>
+      <text x="225" y="130" text-anchor="middle">5</text>
+      <text x="315" y="130" text-anchor="middle">2.75</text>
+
+      <rect x="20" y="140" width="40" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="60" y="140" width="120" height="30" fill="#16a34a" opacity="0.1" stroke="#16a34a" stroke-width="1"/>
+      <rect x="180" y="140" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="270" y="140" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <text x="40" y="160" text-anchor="middle">2</text>
+      <text x="120" y="160" text-anchor="middle">Muffin</text>
+      <text x="225" y="160" text-anchor="middle">2</text>
+      <text x="315" y="160" text-anchor="middle">3.25</text>
+
+      <rect x="20" y="170" width="40" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="60" y="170" width="120" height="30" fill="#16a34a" opacity="0.1" stroke="#16a34a" stroke-width="1"/>
+      <rect x="180" y="170" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <rect x="270" y="170" width="90" height="30" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+      <text x="40" y="190" text-anchor="middle">3</text>
+      <text x="120" y="190" text-anchor="middle">Cold Brew</text>
+      <text x="225" y="190" text-anchor="middle">4</text>
+      <text x="315" y="190" text-anchor="middle">4.00</text>
+    </g>
+
+    <text x="230" y="235" text-anchor="middle" fill="currentColor" font-size="11.5" opacity="0.75">Each column is a Series. All the columns together, sharing one index, are the DataFrame.</text>
+  </g>
+</svg>
+
+## Selecting Rows: `.loc` and `.iloc`
+
+Columns are selected by name; rows are selected with `.loc` (by index label) or `.iloc` (by integer position). For the default `0, 1, 2, ...` index, they usually agree, but they mean different things:
+
+```python
+sales.loc[0]        # row labeled 0
+sales.iloc[0]        # the first row by position
+sales.iloc[0:3]       # first three rows by position
+```
+
+The distinction matters once a DataFrame's index isn't a plain row count anymore — after sorting, filtering, or setting a column as the index, `.loc[0]` still means "the row labeled `0`," which may no longer be the first row. `.iloc` always means position, no matter what the labels say. You'll use boolean filtering far more than either once Module 4 gets going, but both are worth knowing now.
+
+<CodeLab title="Load and Inspect the Sales Log">
+
+Save the CSV from the top of this lesson as `corner_cafe_sales.csv`, then run:
+
+```python
+import pandas as pd
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+
+print(sales.shape)          # (12, 4)
+print(sales.dtypes)
+print(sales.head(3))
+
+total_units = sales["quantity"].sum()
+print(f"Total units sold: {total_units}")
+```
+
+A Series supports the same aggregate methods a single column deserves: `.sum()`, `.mean()`, `.min()`, `.max()`. Confirm `total_units` comes out to `44` — the sum of all twelve `quantity` values — and that `sales.shape` reports `(12, 4)`: twelve rows, four columns.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Single Brackets vs Double Brackets">
+
+`sales["item"]` and `sales[["item"]]` look almost the same and return different types — one a Series, one a one-column DataFrame — which matters the moment you chain another operation onto the result.
+
+```python
+# This is a Series — .sum() works directly on it
+sales["quantity"].sum()
+
+# This is a one-column DataFrame — .sum() still works,
+# but returns a Series (a sum *per column*, here just one),
+# not a single number
+sales[["quantity"]].sum()
+```
+
+Neither is "wrong," but they're not interchangeable. If you want a single scalar value back — one number, one total — reach for single brackets and a column name. If you want to keep the result as a table (to select several columns at once, or to add a computed column back in), use double brackets. Mixing them up doesn't usually crash your program; it just produces a result shaped differently than you expected, which is a quieter and harder bug to spot.
+
+</Pitfall>
+
+<Quiz question="sales.dtypes shows the item column as dtype object instead of something like 'string'. Is that a bug in how the CSV loaded?">
+<div>
+
+**No — `object` is simply pandas' dtype label for a column holding text (or, more precisely, arbitrary Python objects, which in practice is almost always strings for a CSV column).**
+
+pandas dtypes map onto a small set of underlying types: `int64` and `float64` for numbers, `bool` for booleans, `datetime64` for parsed dates, and `object` for everything else — which in a freshly-loaded CSV means text columns. It's not a sign anything went wrong; `date`, `item`, and any other text column will show `object` by default. You'll see this again in Module 3's next lesson, when a numeric column shows up as `object` too — *that* is the real warning sign, because it usually means the column has a stray non-numeric value (a stray space, a typo, a missing entry written as text) that stopped pandas from inferring a numeric type for the whole column.
+
+</div>
+</Quiz>
+
+## Up Next
+
+This lesson trusted the CSV to be clean. Real exports rarely are — missing prices, inconsistent capitalization, duplicate rows. The next lesson covers pandas' cleaning toolkit: finding what's wrong with a dataset and fixing it before it corrupts every analysis built on top of it.

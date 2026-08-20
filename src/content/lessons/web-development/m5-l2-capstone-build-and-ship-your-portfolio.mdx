@@ -1,0 +1,111 @@
+---
+title: "Capstone: Build and Ship Your Portfolio"
+description: "Assemble every module's piece into one finished, verified, and deployed portfolio site, and see how far you've come from a blank file."
+module: 5
+moduleTitle: "Ship Your Portfolio"
+lesson: 2
+duration: "20 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Look Where You Started
+
+Nine lessons ago, you learned what happens between typing a URL and seeing a page. Now you're going to make sure your *own* page survives that exact same journey, end to end, for a real visitor at a real URL. This lesson isn't new material — it's a structured assembly and verification pass over everything you've built, plus a few finishing touches that make the difference between "technically works" and "actually feels finished."
+
+Budget real time for this one. You're not learning a new concept; you're integrating five modules' worth of them into a single, coherent, shippable site.
+
+---
+
+## The Full Checklist
+
+Work through this in order. Each section maps to one module.
+
+### Module 1 — Structure
+
+- [ ] `<!DOCTYPE html>`, `<html lang="en">`, `<meta charset>`, and the viewport meta tag are all present in `<head>`.
+- [ ] Exactly one `<h1>` on the page, with a logical heading hierarchy below it (no skipped levels).
+- [ ] Semantic elements throughout — `<header>`, `<nav>`, `<main>`, `<section>`, `<article>`, `<footer>` — not div soup.
+- [ ] Every `<img>` has meaningful `alt` text (or `alt=""` if purely decorative).
+
+### Module 2 — Style and Layout
+
+- [ ] `box-sizing: border-box` is set globally, at the top of `styles.css`.
+- [ ] The header lays itself out with Flexbox (`justify-content: space-between` or similar).
+- [ ] The project grid wraps cleanly with `flex-wrap: wrap`.
+- [ ] At least one deliberate media query adjusts something at a narrow width, and you've tested it with your browser's device toolbar.
+
+### Module 3 — Interactivity
+
+- [ ] The project filter buttons work and visually indicate the active filter.
+- [ ] The contact form calls `event.preventDefault()` and shows a real validation error for an invalid email or empty message.
+- [ ] `script.js` is linked at the end of `<body>`, not in `<head>`.
+
+### Module 4 — Data and State
+
+- [ ] Real GitHub repositories load via `fetch` and render into the project grid.
+- [ ] The fetch code checks `response.ok` before parsing JSON, and has a `try`/`catch` around it.
+- [ ] A visible fallback message appears if the fetch fails (test this by temporarily fetching a deliberately wrong username).
+- [ ] Dark mode toggles correctly and the preference survives a page reload via `localStorage`.
+
+### Module 5 — Deployed
+
+- [ ] The site is pushed to a real live URL (GitHub Pages or Netlify).
+- [ ] Every asset path is relative and correctly cased — checked on the *live* URL, not just locally.
+- [ ] The live site has been clicked through end to end: filter, form, dark mode, fetched data, all verified working on the deployed version, not just localhost.
+
+<CodeLab title="Run the Full Verification Pass">
+
+**Step 1** — Open your deployed URL (not your local files) in a fresh private/incognito browser window — this guarantees no cached `localStorage` or stale files are hiding a real bug.
+
+**Step 2** — Open developer tools and check the Console tab for any red errors on page load. A clean console means your DOM selectors and fetch calls are all finding what they expect.
+
+**Step 3** — Check the Network tab, reload, and confirm every request returns a `200` — your `index.html`, `styles.css`, `script.js`, and the GitHub API call. Any `404` here means a broken relative path or a casing mismatch, straight from the last lesson's Pitfall.
+
+**Step 4** — Manually click through: toggle a filter, toggle dark mode and reload to confirm it persisted, and submit the contact form both correctly and with an invalid email to confirm both paths behave.
+
+**Step 5** — Resize the browser (or use the device toolbar) down to a narrow phone width and confirm the layout reflows without any horizontal scrollbar or overlapping elements.
+
+If every box above is checked and every step here passes clean, your site is genuinely done — not "probably fine," verified.
+
+</CodeLab>
+
+---
+
+## One Last, Real Pitfall: Shipping With Console Errors
+
+<Pitfall title='Ignoring a Console Error Because "It Still Looks Fine"'>
+
+It's tempting to skip the Console tab if the page *visually* looks correct — but a caught error can still be silently breaking a feature a casual glance won't reveal. A common example at this stage: the GitHub API returns a `403` if you've made too many unauthenticated requests while testing (GitHub rate-limits by IP), and your `catch` block quietly falls back to the "Couldn't load projects" message — which looks like a legitimate, working fallback state, not a bug. Always read what the console actually says rather than assuming a clean-looking page means everything under the hood succeeded. If you hit that specific rate limit while testing, it clears itself after roughly an hour — it isn't something broken in your code.
+
+</Pitfall>
+
+---
+
+## What You Actually Built
+
+Trace it end to end, because it's worth seeing as one system rather than five disconnected lessons:
+
+A visitor's browser resolves your domain through DNS, opens a connection, and requests your `index.html` — the semantic, accessible structure you wrote in Module 1. The response comes back and the browser renders it using the box model and Flexbox layout rules from Module 2, producing a page that reflows correctly from desktop to phone. Once rendered, your Module 3 JavaScript attaches event listeners, so the visitor can filter projects and get real-time form validation. On load, your Module 4 code fires its *own* fetch request — the exact request/response cycle from Module 1, now triggered by your code instead of the browser's address bar — pulling live data from GitHub's API and checking `response.ok` before trusting it, while `localStorage` quietly restores whatever theme preference that visitor left behind last time. And all of it is reachable at a real public URL because of the static hosting deploy from Module 5.
+
+That's not ten separate tricks. It's one working system, and you built every layer of it yourself.
+
+<Quiz question="A friend visits your deployed portfolio for the first time, on a phone, with no prior localStorage data. Walk through: which module's code determines what they see first, and which module's code is the last thing to run?">
+<div>
+
+**Module 1 and 2's HTML/CSS determine what renders first — the browser paints the structured, styled page before any JavaScript runs — and the last code to run is whichever async operation resolves slowest, most likely the Module 4 fetch call to the GitHub API, since network requests are asynchronous and don't block the rest of the page from finishing its initial render.**
+
+The browser always parses and paints HTML/CSS first, because that's synchronous — Module 1's structure and Module 2's Flexbox layout are what a visitor sees in the very first instant. Module 3's event listeners attach almost immediately after, since `script.js` runs synchronously top to bottom once the DOM is ready. But Module 4's `fetch` call is asynchronous — it kicks off a real network request and the rest of the page (already rendered, already interactive) doesn't wait for it. So there's a brief, real window where a first-time visitor sees the styled page and can click a filter button *before* the GitHub-sourced project cards have finished loading in. This is exactly why a fallback state (or at minimum, not a broken empty grid) matters for that in-between moment — a lesson you saw play out for real in the Pitfall above.
+
+</div>
+</Quiz>
+
+---
+
+## You Shipped It
+
+Nine lessons ago this was a blank file. Now it's a live, deployed, interactive site with real data, persisted preferences, and validated forms — and every line of it, you understand, because you wrote it and traced *why* it works rather than copying it blind.
+
+Keep building on this exact foundation. A next natural step, entirely outside this course, is a JavaScript framework like React — and if you go that route, notice how much of it will already feel familiar: components are just a more powerful way to create and render elements, the way you did by hand in Module 3 and 4; state management there is built on the exact same immutable-update thinking you practiced with `localStorage` in Module 4. You didn't just build a portfolio. You built the mental model everything else in web development sits on top of.

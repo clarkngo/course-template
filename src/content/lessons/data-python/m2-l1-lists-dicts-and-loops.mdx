@@ -1,0 +1,204 @@
+---
+title: "Lists, Dicts, and Loops"
+description: "Store many values in a list, label them with a dictionary, and combine both into the row-based shape that real datasets take in Python."
+module: 2
+moduleTitle: "Data Structures for Data Work"
+lesson: 1
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## One Value Was Never Going to Be Enough
+
+Every real dataset is a pile of values, not one. A day of coffee shop sales isn't a single `item` and `quantity` — it's dozens of orders, each with several fields. Python gives you two structures built exactly for this: the **list**, an ordered collection of values, and the **dictionary**, a collection of values labeled by name instead of position. Together they're how you'll represent a table of data before pandas (Module 3) gives you a more powerful tool for the same job — and understanding this shape first is what makes pandas make sense later, instead of feeling like magic.
+
+---
+
+## Lists: Ordered Collections
+
+A list holds values in a specific order, written with square brackets:
+
+```python
+items = ["Latte", "Espresso", "Muffin", "Cold Brew"]
+quantities = [3, 5, 2, 6]
+```
+
+Access an element by its **index** — its position, counting from zero:
+
+```python
+>>> items[0]
+'Latte'
+>>> items[3]
+'Cold Brew'
+>>> items[-1]
+'Cold Brew'
+```
+
+Negative indices count from the end, so `items[-1]` is always the last element regardless of how long the list is — useful when you don't want to compute `len(items) - 1` yourself. Slicing pulls out a sub-list with `start:stop` (stop is exclusive, same rule as `range`):
+
+```python
+>>> items[1:3]
+['Espresso', 'Muffin']
+```
+
+Lists are **mutable** — you can change them after creating them:
+
+```python
+items.append("Croissant")   # add to the end
+items[0] = "Oat Latte"      # replace an element
+items.sort()                # reorder in place, alphabetically
+```
+
+## Dictionaries: Labeled Collections
+
+A list is great when order is the only structure you need. But a single coffee order has *named* fields — an item, a quantity, a price — and tracking those as three separate lists that you index in parallel is fragile: nothing stops the lists from drifting out of sync. A dictionary fixes this by pairing each value with a key:
+
+```python
+order = {
+    "item": "Latte",
+    "quantity": 3,
+    "price": 4.50,
+}
+```
+
+Access a value by its key, not its position:
+
+```python
+>>> order["item"]
+'Latte'
+>>> order["price"]
+4.5
+```
+
+Add or update a key the same way you'd assign a variable:
+
+```python
+order["discount"] = 0.50
+order["quantity"] = 4
+```
+
+`.get()` is the safer way to read a key that might not exist — it returns `None` (or a default you supply) instead of crashing:
+
+```python
+>>> order.get("discount")
+0.5
+>>> order.get("size")           # key doesn't exist
+None
+>>> order.get("size", "Regular")  # supply a fallback
+'Regular'
+```
+
+---
+
+## A List of Dicts Is a Table
+
+Here's the idea that makes everything downstream click: **a list of dictionaries, where every dictionary has the same keys, is a table.** Each dict is one row; each shared key is one column. This is exactly the shape a CSV file takes once you read it into Python (Lesson 2), and it's exactly the shape pandas builds a DataFrame from (Module 3).
+
+```python
+sales = [
+    {"item": "Latte", "quantity": 3, "price": 4.50},
+    {"item": "Espresso", "quantity": 5, "price": 2.75},
+    {"item": "Muffin", "quantity": 2, "price": 3.25},
+    {"item": "Cold Brew", "quantity": 6, "price": 4.00},
+]
+```
+
+Loop through it to process every row — this pattern, `for row in sales`, is one you'll type hundreds of times in real data work:
+
+```python
+for row in sales:
+    revenue = row["quantity"] * row["price"]
+    print(f"{row['item']}: ${revenue:.2f}")
+```
+
+`enumerate()` gives you the index alongside each item, when you need both:
+
+```python
+for i, row in enumerate(sales):
+    print(f"Row {i}: {row['item']}")
+```
+
+<CodeLab title="Compute Total Revenue by Hand">
+
+Save this as `revenue.py`. It's the same `for row in sales` pattern, extended to accumulate a running total.
+
+```python
+sales = [
+    {"item": "Latte", "quantity": 3, "price": 4.50},
+    {"item": "Espresso", "quantity": 5, "price": 2.75},
+    {"item": "Muffin", "quantity": 2, "price": 3.25},
+    {"item": "Cold Brew", "quantity": 6, "price": 4.00},
+]
+
+total_revenue = 0
+
+for row in sales:
+    revenue = row["quantity"] * row["price"]
+    total_revenue += revenue
+    print(f"{row['item']}: ${revenue:.2f}")
+
+print(f"\nTotal: ${total_revenue:.2f}")
+```
+
+Run it, then add a fifth dict to `sales` for `"Croissant"` at quantity `4`, price `3.00` — no other line of the script needs to change, because the loop processes whatever rows are in the list. That's the same "logic separate from data" idea from Module 1's functions, now applied to a whole dataset.
+
+</CodeLab>
+
+---
+
+## Iterating a Dictionary Directly
+
+Sometimes you want to loop over a dictionary itself, not a list of them — useful for a running tally, like counting how many times each item was ordered:
+
+```python
+counts = {}
+
+for row in sales:
+    name = row["item"]
+    counts[name] = counts.get(name, 0) + 1
+
+for item, count in counts.items():
+    print(f"{item}: {count}")
+```
+
+`counts.get(name, 0) + 1` is worth reading slowly: the first time `"Latte"` appears, `counts.get("Latte", 0)` returns `0` because the key doesn't exist yet, so `counts["Latte"]` becomes `1`. Every later `"Latte"` row finds the existing count and adds one more. `.items()` hands you both the key and the value together, which is almost always what you want when printing or processing a dictionary.
+
+<Pitfall title="KeyError From Assuming a Key Exists">
+
+Reaching into a dict with `[]` crashes the whole program if the key is missing — which is common in real data, where not every row has every field.
+
+```python
+# Wrong — crashes with KeyError if any row is
+# missing a "discount" key
+for row in sales:
+    print(row["discount"])
+```
+
+```python
+# Right — .get() returns a sensible fallback instead
+# of crashing, so one missing field doesn't kill the run
+for row in sales:
+    discount = row.get("discount", 0)
+    print(discount)
+```
+
+Use `[]` when a key is guaranteed to exist and its absence should be loud — a real bug worth crashing on. Use `.get()` when a key is optional and a missing value has an obvious, safe default. Real-world data files (Lesson 2) are full of optional or missing fields, so `.get()` becomes the default habit for anyone doing this work.
+
+</Pitfall>
+
+<Quiz question="You loop over a list of 100 order dicts and call .append() on a *different* list inside the loop to collect only the orders where quantity > 5. Why is building a new list like this usually safer than modifying the original sales list in place while looping over it?">
+<div>
+
+**Changing the length of a list while you're iterating over it produces unreliable behavior — items can be skipped or processed twice — because the loop tracks position by index as it goes.**
+
+A `for` loop over a list walks forward by position, one index at a time. If you `append` to, or `remove` from, the *same* list you're looping over, you shift what's at each position out from under the loop mid-walk, and the results depend on exactly how the removal or addition landed relative to where the loop currently is. Building a *separate* result list — looping over the original for reading, appending matches to a new list for writing — avoids the problem entirely, because the list you're iterating over never changes size. This pattern, read from one collection and write to another, is one you'll use constantly once real filtering starts in Module 4.
+
+</div>
+</Quiz>
+
+## Up Next
+
+You've built datasets by hand so far. The next lesson reads them from where real data actually lives — CSV and JSON files — using Python's built-in `csv` and `json` modules, so the list-of-dicts shape you just learned stops being something you type and starts being something you load.

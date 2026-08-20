@@ -1,0 +1,93 @@
+---
+title: "Technical Interviews: Behavioral and Technical"
+description: "Structure behavioral answers with the STAR method and handle technical interview questions by thinking aloud, including what to do when you genuinely don't know the answer."
+module: 4
+moduleTitle: "The Job Search"
+lesson: 2
+duration: "13 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Two Different Games, One Interview Loop
+
+A typical interview loop asks you to perform two genuinely different skills back to back: tell a coherent, specific story about something you did (behavioral), and reason through a problem live, out loud, in front of someone watching (technical). Most candidates prepare heavily for one and wing the other — usually over-preparing technical content and treating behavioral questions as something you can improvise from memory in the moment.
+
+Both halves reward the same underlying thing, though: specificity and visible reasoning, over polish. This lesson covers a structure for each.
+
+---
+
+## STAR, Done Well
+
+**STAR** — Situation, Task, Action, Result — is the standard structure for behavioral answers, and most candidates know the acronym. Almost nobody actually uses it well, because the failure mode is subtle: they spend 80% of the answer on Situation and Task (setting the scene) and rush Action and Result (the only parts that actually show anything about them).
+
+**Weak STAR, correctly labeled but badly weighted:**
+> "So we had this project where we were migrating our data pipeline to a new system, and the old system was really outdated and causing a lot of problems for the team, and leadership wanted it done by end of quarter which was tight, so there was a lot of pressure... *(this eats 45 seconds)* ...anyway, I worked on it and we got it done and it went well."
+
+**Strong STAR, same underlying story, reweighted:**
+> "Our data pipeline was on a system that broke roughly weekly, and leadership set an end-of-quarter deadline for migrating it. *(Situation + Task, 10 seconds.)* I proposed we migrate incrementally, table by table, instead of a big-bang cutover, specifically because a full cutover failure would've been much harder to debug and roll back. I built the first migration as a template, wrote a validation script that compared row counts and checksums between old and new after each table, and caught two data-mapping bugs before they hit production because of that check. *(Action, 30 seconds — this is the answer.)* We finished a week ahead of deadline with zero data incidents, and two other teams reused my validation script for their own migrations afterward. *(Result, 10 seconds, with a number and a downstream effect.)*"
+
+The strong version compresses the setup ruthlessly and spends its time on **Action** — the specific decisions you made, and *why* you made them that way instead of some other way. The "why" is what actually differentiates you from anyone else who was on that project; "we migrated the pipeline and it worked" could be said by anyone on the team, including someone who did none of the interesting thinking.
+
+A rule of thumb: if your Action section could be told by a teammate who barely worked on it, it's too generic. Rewrite until only you could have told that specific version.
+
+---
+
+## Thinking Aloud in a Technical Interview
+
+Technical interviews — whiteboard problems, system design, live debugging — are frequently misunderstood as tests of arriving at the right answer. Most interviewers care at least as much about *how you think* when you're uncertain, because that's what the job actually looks like day to day. Silence is the single worst thing you can do in a technical interview, because it gives the interviewer nothing to evaluate except the final answer, and it makes it look like you're stuck rather than working.
+
+A structure for thinking aloud that works across most technical formats:
+
+1. **Restate the problem in your own words** before touching anything — this surfaces misunderstandings immediately, when they're cheap to fix, instead of ten minutes in.
+2. **Narrate your assumptions explicitly.** "I'm going to assume this list can have duplicates, let me know if that's wrong" — this invites the interviewer to correct you early, which they usually will if you're wrong, and it shows you know assumptions need stating.
+3. **Say what you're trying before you try it**, not after. "I want to check whether a hash map gets me O(1) lookups here" — narrated before you write it — reads as reasoning; the same code appearing silently reads as either memorized or lucky.
+4. **Name tradeoffs out loud as you notice them.** "This approach is simpler but re-scans the whole array each time — I think that's fine at this scale, but flagging it" shows judgment even when you don't optimize it away.
+
+<Pitfall title="Going Silent When You're Stuck">
+
+**Weaker:** you hit a wall mid-problem and go quiet for two full minutes, staring at the whiteboard, hoping the answer arrives before the interviewer has to ask if you're okay.
+
+From the interviewer's side, silence is indistinguishable from being completely lost — they have no way to tell "I'm 30 seconds from the answer" from "I have no idea," and most will start worrying and may even step in to help in a way that costs you credit for getting there yourself.
+
+**Better:** narrate the stuck-ness itself. "I'm stuck on how to handle the case where the input is empty — let me think through what should happen there... actually, I think the issue is I'm not handling that edge case in my loop condition." Talking through being stuck is not a worse performance than solving it instantly — interviewers routinely rate candidates who narrate their way out of a stuck point higher than candidates who solved a slightly easier problem in silence, because the narrated version is the only one that actually demonstrates the reasoning process the interview exists to assess.
+
+</Pitfall>
+
+---
+
+## When You Genuinely Don't Know
+
+Every candidate eventually hits a question they don't know the answer to. What separates a fine outcome from a bad one is almost never the gap in knowledge — it's what you do in the thirty seconds after you realize you don't know.
+
+- **Don't bluff.** A confident wrong answer is worse than an honest "I don't know," because most interviewers will follow up, and a bluff that unravels under one follow-up question costs more trust than the original gap ever would have.
+- **Say what you do know that's adjacent.** "I haven't worked with Kafka specifically, but I've used SQS for a similar durable-queue use case — the concepts I'd guess carry over are X and Y" turns a knowledge gap into a demonstration of related reasoning.
+- **Ask a clarifying question that might unlock it.** Sometimes "I don't know" is really "I don't have enough context yet" — ask what constraint you're missing before concluding you're actually stuck.
+- **Reason toward an answer from first principles**, out loud, even an imperfect one. "I don't know the exact algorithm, but if I had to guess, I'd expect a solution that sorts first, because..." shows the underlying capability the interviewer is actually trying to assess, independent of whether you land on the textbook answer.
+
+---
+
+## Try This
+
+Pick one real, specific project from your own experience and draft a STAR answer for the prompt "tell me about a time you disagreed with a technical decision."
+
+1. Write Situation and Task in two sentences maximum — resist the urge to over-explain the setup.
+2. Write Action as the majority of the answer — the specific reasoning behind what you argued for and why, not just "I raised my concerns."
+3. Write Result with a concrete outcome, including what happened to the disagreement itself, not just the project's overall success.
+
+Time yourself saying it out loud. If it runs past 90 seconds, cut from Situation and Task first — that's almost always where the excess length is hiding, not in Action.
+
+<Quiz question="Midway through a live coding problem, you realize the approach you started with won't actually work — it'll be too slow for the given constraints. What's the best way to handle this out loud?">
+<div>
+
+**Say what you just noticed and why the current approach breaks down, then think aloud toward a better one — treat catching your own mistake mid-problem as a moment to show reasoning, not something to hide or quietly patch over.**
+
+Something like: "Wait — this is going to be O(n²) because of the nested loop, and given the constraint that n can be up to 10^6, that won't finish in time. Let me think about how to get this down to O(n log n) — I think sorting first might let me use a two-pointer approach instead." Catching your own mistake mid-stream and correcting course out loud is one of the strongest signals you can send in a technical interview — it's a close simulation of exactly what happens on the job, where you notice partway through that an approach isn't going to scale and have to adjust. Silently deleting the code and starting over without narrating what went wrong hides the most valuable part of the moment: the interviewer never gets to see you catch it.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Getting the offer is the goal of the interview loop — but the offer itself is often just an opening move. Module 5 starts with negotiation: what's actually negotiable beyond base salary, and how to counter respectfully.

@@ -1,0 +1,180 @@
+---
+title: "Managing State in the Browser"
+description: "Use localStorage to persist a dark-mode preference across visits, and learn immutable-update thinking for managing state safely."
+module: 4
+moduleTitle: "Talking to the Web"
+lesson: 2
+duration: "15 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Problem: JavaScript Forgets Everything
+
+Reload the portfolio page right now and every variable in `script.js` resets to nothing. That's normal — a page load starts JavaScript fresh, every time. Most of the time that's fine. But some things should survive: a dark-mode preference, a filter a visitor had selected, a draft of unsent form text. This is the problem **state persistence** solves, and `localStorage` is the simplest tool the browser gives you for it.
+
+By the end of this lesson, a visitor who switches your portfolio to dark mode will still see dark mode the next time they visit — no account, no server, no database required.
+
+---
+
+## What "State" Means
+
+**State** is just data that describes the current condition of something and can change over time — whether dark mode is on, which filter is active, what's in a shopping cart. You've already been managing state since Module 3: the `active` class on a filter button *is* state, tracked in the DOM itself. `localStorage` extends that idea across page loads and even across browser restarts.
+
+---
+
+## `localStorage`: A Tiny Persistent Key-Value Store
+
+`localStorage` is a simple storage API built into every browser. It stores **strings only**, as key-value pairs, and — critically — that data survives a page reload, a tab close, even a computer restart. It's scoped per-origin: only your site's own pages can read the data your site wrote.
+
+```js
+localStorage.setItem("theme", "dark");   // write
+localStorage.getItem("theme");            // read → "dark"
+localStorage.removeItem("theme");         // delete one key
+localStorage.clear();                     // delete everything for this origin
+```
+
+Because it only stores strings, anything more complex than a plain word needs to be serialized with `JSON.stringify` on the way in and parsed with `JSON.parse` on the way out:
+
+```js
+const preferences = { theme: "dark", fontSize: "large" };
+localStorage.setItem("preferences", JSON.stringify(preferences));
+
+const saved = JSON.parse(localStorage.getItem("preferences"));
+console.log(saved.theme); // "dark"
+```
+
+---
+
+## Building the Dark Mode Toggle
+
+Start with two CSS blocks — a default (light) theme and a dark override, selected by a class on `<body>`:
+
+```css
+body {
+  background: #ffffff;
+  color: #1a1a2e;
+  transition: background 0.2s, color 0.2s;
+}
+
+body.dark-mode {
+  background: #14141f;
+  color: #e5e7eb;
+}
+
+body.dark-mode article {
+  border-color: #2e2e42;
+}
+```
+
+Now add a toggle button to the header in `index.html`:
+
+```html
+<button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+```
+
+And the JavaScript that ties clicking it to both the visual class and `localStorage`:
+
+```js
+const toggleButton = document.querySelector("#theme-toggle");
+
+function applyTheme(theme) {
+  document.body.classList.toggle("dark-mode", theme === "dark");
+  toggleButton.textContent = theme === "dark" ? "☀️" : "🌙";
+}
+
+toggleButton.addEventListener("click", () => {
+  const isDark = document.body.classList.contains("dark-mode");
+  const newTheme = isDark ? "light" : "dark";
+  applyTheme(newTheme);
+  localStorage.setItem("theme", newTheme);
+});
+```
+
+`classList.toggle("dark-mode", theme === "dark")` is a two-argument form: it adds the class if the second argument is `true`, removes it if `false` — cleaner than a separate if/else for this exact case.
+
+---
+
+## Restoring State on Page Load
+
+Saving the preference is only half the job — it needs to be *read back* and applied the moment the page loads, before the visitor even notices a flash of the wrong theme:
+
+```js
+const savedTheme = localStorage.getItem("theme") || "light";
+applyTheme(savedTheme);
+```
+
+Place this near the top of `script.js`, right after `applyTheme` is defined. `localStorage.getItem("theme")` returns `null` if nothing's been saved yet (a first-time visitor), and the `|| "light"` fallback handles that case cleanly, exactly like the `repo.description ||` fallback from the previous lesson.
+
+<CodeLab title="Persist Dark Mode With localStorage">
+
+**Step 1** — Add the light/dark CSS rules above to `styles.css`.
+
+**Step 2** — Add the toggle `<button>` to the header in `index.html`.
+
+**Step 3** — Add `applyTheme`, the click handler, and the load-time restore logic to `script.js`, in that order (restore logic last, since it calls `applyTheme` which must already be defined).
+
+**Step 4** — Reload the page, click the toggle to switch to dark mode, then reload the page again. It should load directly into dark mode — no flash of light mode, no manual re-toggling. Open dev tools → Application tab → Local Storage to see the raw `theme` key sitting there between reloads.
+
+</CodeLab>
+
+---
+
+## Immutable-Update Thinking
+
+`localStorage.setItem` always *overwrites* a key completely — it doesn't merge. This matters the moment you store an object with multiple fields:
+
+```js
+// Wrong: this destroys fontSize, because setItem replaces the whole value
+const preferences = { theme: "dark", fontSize: "large" };
+localStorage.setItem("preferences", JSON.stringify(preferences));
+
+// Later, updating just the theme:
+localStorage.setItem("preferences", JSON.stringify({ theme: "light" })); // fontSize is gone!
+```
+
+```js
+// Right: read the existing object, spread it, override only what changed
+const current = JSON.parse(localStorage.getItem("preferences")) || {};
+const updated = { ...current, theme: "light" }; // fontSize is preserved
+localStorage.setItem("preferences", JSON.stringify(updated));
+```
+
+`{ ...current, theme: "light" }` is the **spread operator** — it copies every property from `current` into a brand-new object, then `theme: "light"` overrides just that one field. This pattern — read the old state, build a *new* object from it rather than mutating the old one in place, save the new object — is called **immutable updating**, and it's the same mental model every major JavaScript framework (React, Vue, and others) is built around. Learning it here, with plain `localStorage`, means it'll already be familiar wherever you meet it next.
+
+<Pitfall title="Storing a Raw Object Without JSON.stringify">
+
+```js
+// Wrong: localStorage silently converts the object to the string "[object Object]"
+const preferences = { theme: "dark" };
+localStorage.setItem("preferences", preferences);
+console.log(localStorage.getItem("preferences")); // "[object Object]" — data is lost
+```
+
+```js
+// Right: always serialize objects and arrays explicitly
+localStorage.setItem("preferences", JSON.stringify(preferences));
+console.log(JSON.parse(localStorage.getItem("preferences"))); // { theme: "dark" }
+```
+
+`localStorage` only stores strings. Passing an object directly doesn't throw an error — JavaScript silently calls `.toString()` on it, which for a plain object produces the useless string `"[object Object]"`. This fails silently, with no error to point you at the bug, which makes it worth memorizing as a rule rather than debugging from scratch each time: object or array going in means `JSON.stringify` on the way in, and `JSON.parse` on the way out.
+
+</Pitfall>
+
+<Quiz question="A visitor toggles dark mode, and it saves correctly to localStorage. But every time they reload the page, it briefly flashes light mode for a split second before switching to dark. What's the likely cause, based on where the restore logic runs?">
+<div>
+
+**The restore logic (reading localStorage and calling applyTheme) is placed too late in the script, or the script itself loads too late, so the page paints in its default light-mode CSS before JavaScript has a chance to apply the saved dark-mode class.**
+
+The browser renders whatever HTML and CSS it has as soon as it can — it doesn't wait for your JavaScript. If `script.js` is fetched, parsed, and executed even a little after the initial paint, there's a visible gap where the default (light) styles are showing before the dark-mode class gets added. The fix is to make sure the theme-restoring code runs as early as possible and isn't blocked behind other slow operations — in more advanced setups this is solved with a tiny inline script placed directly in `<head>`, but for this course, keeping the restore logic as the very first thing `script.js` does (rather than, say, after a fetch call) minimizes the flash.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Every piece of the portfolio — structure, style, layout, interactivity, live data, persisted preferences — now exists on your machine. Next module, you put it on the actual internet: real static hosting, a real deploy flow, and then the capstone that ships the finished site.

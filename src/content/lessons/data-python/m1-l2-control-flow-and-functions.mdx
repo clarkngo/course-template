@@ -1,0 +1,198 @@
+---
+title: "Control Flow and Functions"
+description: "Direct a program's behavior with if/elif/else and loops, then package repeatable logic into functions you can call by name."
+module: 1
+moduleTitle: "Python Foundations"
+lesson: 2
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## From One Line to a Program
+
+Lesson 1 gave you variables and types — a way to hold values. That's not yet a program; it's a fact sheet. A program *decides* and *repeats*. This lesson gives you both: `if` statements that branch depending on a condition, loops that repeat work without you retyping it, and functions that let you name a piece of logic once and reuse it forever after.
+
+Everything here runs in a `.py` file now, not just the REPL — save your work as `sales.py` and run it with `python3 sales.py` from your terminal. Files are where real programs live; the REPL is for quick experiments, not for anything you want to keep.
+
+---
+
+## Making Decisions With `if`
+
+An `if` statement runs a block of code only when a condition is `True`. Python marks that block with indentation — not braces, not a keyword like `end` — so whitespace is not cosmetic here, it's syntax:
+
+```python
+quantity = 6
+
+if quantity > 10:
+    print("Bulk order")
+elif quantity > 4:
+    print("Medium order")
+else:
+    print("Small order")
+```
+
+Python checks conditions top to bottom and runs the *first* branch that matches, then skips the rest — `elif` (else-if) never even gets evaluated if an earlier condition already fired. Indent consistently with four spaces per level; mixing tabs and spaces, or indenting inconsistently, raises an `IndentationError` before your code runs at all.
+
+Combine conditions with `and`, `or`, and `not`:
+
+```python
+if quantity > 4 and unit_price < 3.00:
+    print("High volume, low price — check the margin")
+```
+
+## Repeating Work With Loops
+
+A `for` loop walks through a sequence, one item at a time — this is the workhorse loop for data work, because a dataset is fundamentally a sequence of rows:
+
+```python
+items = ["Latte", "Espresso", "Muffin"]
+
+for item in items:
+    print(f"Preparing: {item}")
+```
+
+`range(n)` generates a sequence of numbers, handy when you need a fixed count of repetitions rather than a list to walk through:
+
+```python
+for i in range(3):
+    print(f"Order slip #{i + 1}")
+```
+
+Note `range(3)` produces `0, 1, 2` — three numbers, starting at zero, not including `3`. Adding `1` inside the loop (`i + 1`) is a common way to print a human-friendly count starting from 1 instead of 0.
+
+A `while` loop repeats as long as a condition stays `True` — useful when you don't know the count in advance, only the stopping condition:
+
+```python
+cups_left = 3
+while cups_left > 0:
+    print(f"{cups_left} cups remaining")
+    cups_left -= 1
+```
+
+`cups_left -= 1` is shorthand for `cups_left = cups_left - 1`. Forgetting that decrement is the single most common way to write an infinite loop — the condition never becomes `False`, so Python just keeps going until you kill it.
+
+---
+
+## Functions: Naming Your Logic
+
+A function packages a block of code under a name, so you can run it again — with different inputs — without retyping the logic. Define one with `def`, and hand back a result with `return`:
+
+```python
+def order_total(quantity, unit_price):
+    return quantity * unit_price
+
+print(order_total(3, 4.50))   # 13.5
+print(order_total(6, 2.75))   # 16.5
+```
+
+`quantity` and `unit_price` are **parameters** — placeholders that get filled in with real values (**arguments**) each time you *call* the function. The function itself doesn't know or care whether it's pricing lattes or muffins; it just does the same multiplication for whatever numbers it's handed. That's the entire point — write the logic once, reuse it for every order.
+
+Give a parameter a default value to make it optional:
+
+```python
+def order_total(quantity, unit_price, discount=0):
+    return quantity * unit_price - discount
+
+print(order_total(3, 4.50))        # 13.5, discount defaults to 0
+print(order_total(3, 4.50, 2))     # 11.5
+```
+
+<CodeLab title="Classify a Day's Orders">
+
+Save this as `sales.py` and run it with `python3 sales.py`. It combines everything so far: a function, a loop, and a decision.
+
+```python
+def classify_order(quantity):
+    if quantity >= 6:
+        return "Bulk"
+    elif quantity >= 3:
+        return "Medium"
+    else:
+        return "Small"
+
+orders = [2, 5, 8, 1, 6]
+
+for qty in orders:
+    label = classify_order(qty)
+    print(f"Order of {qty}: {label}")
+```
+
+Run it, then add a sixth order of `12` to the `orders` list and re-run — you should see a new `Bulk` line without touching `classify_order` at all. That's the payoff of a function: the classification rule lives in exactly one place, so extending the data never means rewriting the logic.
+
+</CodeLab>
+
+---
+
+## Boolean Logic Inside Conditions
+
+Real filtering conditions usually combine more than one check. Python evaluates `and`/`or` left to right, and — like arithmetic — mixing them without parentheses can produce a condition that isn't the one you meant:
+
+```python
+quantity = 5
+unit_price = 2.50
+is_member = True
+
+# ambiguous without parentheses about intent
+if quantity > 4 and unit_price < 3.00 or is_member:
+    print("Apply discount")
+```
+
+`and` binds tighter than `or`, so this actually reads as `(quantity > 4 and unit_price < 3.00) or is_member` — but relying on operator precedence to be remembered correctly, by you or by whoever reads this code next, is asking for a bug. Parenthesize explicitly whenever a condition mixes `and` and `or`.
+
+<Pitfall title="Comparing With = Instead of Building a Reusable Function">
+
+A tempting shortcut when you need the "same" logic twice is to copy-paste the `if`/`elif` block instead of writing a function.
+
+```python
+# Wrong — the rule is duplicated, and a future edit
+# has to remember to touch both copies
+if qty_monday >= 6:
+    label_monday = "Bulk"
+elif qty_monday >= 3:
+    label_monday = "Medium"
+else:
+    label_monday = "Small"
+
+if qty_tuesday >= 6:
+    label_tuesday = "Bulk"
+elif qty_tuesday >= 3:
+    label_tuesday = "Medium"
+else:
+    label_tuesday = "Small"
+```
+
+```python
+# Right — one function, called twice; change the
+# threshold once and both callers pick it up
+def classify_order(quantity):
+    if quantity >= 6:
+        return "Bulk"
+    elif quantity >= 3:
+        return "Medium"
+    else:
+        return "Small"
+
+label_monday = classify_order(qty_monday)
+label_tuesday = classify_order(qty_tuesday)
+```
+
+The moment you catch yourself copy-pasting a block of logic and only changing the variable name, that's the signal to extract a function instead. It's not just tidiness — it's the difference between fixing a rule in one place and hunting down every copy of it later.
+
+</Pitfall>
+
+<Quiz question="A function classify_order(quantity) has no else branch for negative numbers — it just falls through the if/elif chain. What happens if you call classify_order(-2)?">
+<div>
+
+**It returns `"Small"` — the final `else` branch catches everything that didn't match an earlier condition, including values the function's author never intended, like a negative quantity.**
+
+`if`/`elif`/`else` doesn't validate that a value makes sense — it just tests conditions in order and runs the first match, falling through to `else` for anything left over. A negative quantity is nonsensical for an order, but nothing in this function stops it from being processed and silently labeled `"Small"`. This is exactly why real data-cleaning work (which you'll get to in Module 3) has to check for impossible values explicitly — a function will happily produce a confident, wrong-looking answer for input it was never designed to handle.
+
+</div>
+</Quiz>
+
+## Up Next
+
+You can now branch, repeat, and package logic into functions — the full toolkit for *acting* on values one at a time. Module 2 introduces the structures that hold many values at once: lists and dictionaries, which are how you'll represent an entire row, and an entire dataset, in Python.

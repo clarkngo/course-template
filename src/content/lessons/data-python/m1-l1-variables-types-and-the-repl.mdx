@@ -1,0 +1,152 @@
+---
+title: "Variables, Types, and the REPL"
+description: "Learn to store values in variables, recognize Python's core data types, and use the REPL as a scratchpad for testing ideas instantly."
+module: 1
+moduleTitle: "Python Foundations"
+lesson: 1
+duration: "12 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Your First Conversation With Python
+
+Every data skill in this course — reading a spreadsheet, cleaning a messy column, drawing a chart — comes down to the same two moves: **store a value, and do something with it.** That's it. Python gives you a name for the first move (a *variable*) and a category for every value you store (its *type*). Get comfortable with both, right now, in the most immediate tool Python offers: the REPL.
+
+REPL stands for **R**ead-**E**val-**P**rint **L**oop. Type an expression, hit enter, and Python reads it, evaluates it, and prints the result back at you — instantly, no file, no save, no run button. It's the fastest way to build intuition for how Python thinks, and you'll use it constantly to sanity-check a line of code before it goes anywhere near a real script.
+
+---
+
+## Variables: Naming a Value
+
+A variable is a label attached to a value in memory. You create one with `=`, which in Python means *assign*, not *is equal to*:
+
+```python
+price = 4.50
+item = "Latte"
+in_stock = True
+```
+
+Read `price = 4.50` as "the name `price` now points to the value `4.50`," not "price equals 4.50" in the math-class sense. That distinction matters the moment you write `price = price + 1` — nonsense in algebra, completely ordinary in Python, where it just means "point `price` at a new value: the old one plus one."
+
+Variable names are yours to choose, but Python cares about a few rules: they can contain letters, digits, and underscores, can't start with a digit, and are case-sensitive (`Price` and `price` are different names). Convention — not enforced by Python, but expected by every Python programmer who reads your code — is `snake_case`: lowercase words joined by underscores, like `total_revenue` rather than `totalRevenue` or `TotalRevenue`.
+
+## The Four Types You'll Use Constantly
+
+Python infers a value's type automatically — you never declare it up front. The four types that will cover almost everything in this course:
+
+| Type | What it holds | Example |
+|---|---|---|
+| `int` | whole numbers | `quantity = 3` |
+| `float` | decimal numbers | `price = 4.50` |
+| `str` | text, in quotes | `item = "Latte"` |
+| `bool` | `True` or `False` | `in_stock = True` |
+
+Ask Python what type something is with the built-in `type()` function:
+
+```python
+>>> type(4.50)
+<class 'float'>
+>>> type("Latte")
+<class 'str'>
+```
+
+This matters because types determine what operations make sense. `3 + 4` gives you `7`. `"3" + "4"` gives you `"34"` — string concatenation, not addition — because both values are `str`, and `+` means something different for text than it does for numbers. Python won't guess which one you meant; it does exactly what the types allow, which is why the next section exists.
+
+---
+
+## Converting Between Types
+
+Data rarely arrives in the type you need. A price read from a file often arrives as text — `"4.50"`, not `4.50` — and you have to convert it before you can do math with it. Three converter functions handle almost every case:
+
+```python
+int("3")        # 3        (str -> int)
+float("4.50")   # 4.5      (str -> float)
+str(4.50)       # "4.50"   (float -> str, useful for building messages)
+```
+
+You'll lean on this constantly once you start reading real files in Module 2 — everything that comes out of a CSV file starts life as a string, even the numbers.
+
+<CodeLab title="Price Out a Coffee Order">
+
+Open a terminal, type `python3` (or `python` on some systems) to start the REPL, and work through this order for a small coffee shop, one line at a time.
+
+```python
+item = "Latte"
+quantity = 3
+unit_price = 4.50
+
+total = quantity * unit_price
+print(item, "x", quantity, "=", total)
+```
+
+You should see `Latte x 3 = 13.5`. Now build a cleaner message using an **f-string** — a string prefixed with `f` that lets you drop variables directly inside `{}`:
+
+```python
+print(f"{quantity}x {item}: ${total:.2f}")
+```
+
+The `:.2f` inside the braces formats the number to two decimal places, so `13.5` prints as `13.50` — the way a receipt actually looks. Try changing `quantity` to `5` and re-running the last two lines. Notice you didn't have to redeclare `item` or `unit_price` — the REPL remembers everything you've defined until you close it.
+
+</CodeLab>
+
+---
+
+## Booleans and Comparisons
+
+`bool` looks like the simplest type, but it's the one that drives every decision Python makes — including every filter you'll write on a dataset in Module 4. A boolean comes from asking a question with a comparison operator:
+
+```python
+>>> quantity > 4
+False
+>>> unit_price == 4.50
+True
+>>> item != "Espresso"
+True
+```
+
+Note `==` (double equals) asks *is this equal to*, while `=` (single equals) *assigns*. Mixing these up is one of the most common early mistakes, and it's exactly the kind of thing the REPL catches for you cheaply, before it's buried in a script.
+
+<Pitfall title="= vs ==">
+
+These two look almost identical and do completely different things.
+
+```python
+# Wrong — this is an assignment, not a question,
+# and Python will raise a SyntaxError if used where a
+# condition is expected
+if quantity = 5:
+    print("five items")
+```
+
+```python
+# Right — == asks a question and returns a bool
+if quantity == 5:
+    print("five items")
+```
+
+If you ever see Python complain about a line that "looks fine," check for a stray `=` where you meant `==`. Reading the error message's line number and reading the line out loud — "if quantity equals five" vs. "if quantity is-equal-to five" — usually surfaces the typo immediately.
+
+</Pitfall>
+
+---
+
+## Why the REPL Matters Beyond This Lesson
+
+You won't write real programs entirely in the REPL — those live in `.py` files, which Lesson 2 gets into. But the REPL stays useful for the rest of your Python life: checking what a function returns, confirming a type before you commit to an operation, testing one line of a bigger idea before you paste it into a script. Professional data analysts keep a REPL (or its notebook cousin, which you'll meet in Module 3) open beside their editor for exactly this reason — it's faster to ask Python directly than to guess.
+
+<Quiz question="You type total = quantity * unit_price in the REPL, then later type quantity = 10 and expect total to update automatically. It doesn't. Why not?">
+<div>
+
+**`total` was computed once, from the values `quantity` and `unit_price` held at that moment — it's not a live formula, it's a stored result.**
+
+Python variables aren't like spreadsheet cells with formulas that recalculate when an input changes. `total = quantity * unit_price` runs the multiplication immediately and stores the *answer* in `total`. Changing `quantity` afterward doesn't touch `total` at all — it's just sitting there holding the old number. To get an updated total, you have to re-run the calculation: `total = quantity * unit_price` again, after the change. This is a core mental model for the rest of the course: every line of Python executes once, in order, top to bottom — nothing recalculates on its own.
+
+</div>
+</Quiz>
+
+## Up Next
+
+You can now store values and tell them apart. The next lesson gives your programs a brain: `if` statements that make decisions, loops that repeat work, and functions that package logic up so you can reuse it — the building blocks every real script depends on.

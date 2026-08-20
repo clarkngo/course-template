@@ -1,0 +1,127 @@
+---
+title: "Your First API Call"
+description: "Install the Anthropic SDK, set up your API key safely, and make a real call to Claude from Python, from request to printed response."
+module: 4
+moduleTitle: "Building with the Claude API"
+lesson: 1
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## From Chat Window to Code
+
+Everything so far has probably happened in a chat interface. That's fine for exploring ideas, but it doesn't let you build anything — an app that summarizes tickets automatically, a script that classifies incoming data, a tool with its own interface. To do that, you call the model directly from code, the same way any other program talks to a service over the internet: an API.
+
+This lesson is entirely hands-on. By the end, you'll have sent a real prompt to Claude from a Python script and printed a real response — the foundation every later lesson in this module builds on.
+
+---
+
+## Getting an API Key
+
+An **API key** is a secret credential that identifies you (or your application) to Anthropic's servers and gets billed for usage. You get one from the Anthropic Console, and it looks like a long string starting with `sk-ant-`.
+
+Treat it exactly like a password: **never paste it directly into code, never commit it to a repository, never share it in a screenshot.** The standard, safe pattern is to put it in an environment variable and let your code read it from there — never as a literal string in a `.py` file.
+
+```bash
+# In your terminal, before running your script:
+export ANTHROPIC_API_KEY="sk-ant-your-real-key-here"
+```
+
+On most systems you'd add that line to your shell profile so it persists across sessions, rather than typing it every time.
+
+---
+
+## Installing the SDK
+
+Anthropic publishes an official Python SDK that wraps the raw HTTP API in a clean interface. Install it with pip:
+
+```bash
+pip install anthropic
+```
+
+That's the only dependency you need for this lesson.
+
+---
+
+## Making the Call
+
+<CodeLab title="Send Your First Prompt to Claude">
+
+With the key set as an environment variable and the SDK installed, the entire round trip — client, request, response — is a handful of lines:
+
+```python
+import anthropic
+
+# Anthropic() automatically reads the ANTHROPIC_API_KEY environment
+# variable — you never type the key itself into your code.
+client = anthropic.Anthropic()
+
+message = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Explain what an API is, in two sentences, for someone who has never coded."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+Run this and you should see two plain-English sentences printed to your terminal — a real response, generated live by the model, not a canned example.
+
+A few details worth understanding line by line:
+
+- **`model`** — which model handles the request. `claude-sonnet-5` is a strong, balanced default. Anthropic also offers `claude-opus-5`, a larger model for the hardest tasks, and smaller, faster models like `claude-haiku-4-5-20251001` for high-volume, latency-sensitive work — you'll pick based on the tradeoff between capability, speed, and cost for a given task.
+- **`max_tokens`** — the maximum number of tokens the model is allowed to generate in its reply. This caps the response length and, indirectly, the cost of this call.
+- **`messages`** — a list of turns, each with a `role` (`"user"` or `"assistant"`) and `content`. Even a single-turn request is a list with one message — this shape is what makes multi-turn conversations possible, which the next lesson covers.
+- **`message.content`** — the response comes back as a list of content blocks (a single request can, in general, produce more than one — text and other block types). For a simple text reply, `message.content[0].text` is the string you want.
+
+</CodeLab>
+
+---
+
+## Reading Errors Instead of Fearing Them
+
+Your first call won't always succeed, and the SDK's errors are informative once you know what to look for:
+
+| Error | What it usually means |
+|---|---|
+| `AuthenticationError` | The API key is missing, wrong, or not set in the environment the script actually runs in. |
+| `RateLimitError` | You're sending requests faster than your account's current limit allows. |
+| `BadRequestError` | Something about the request shape is invalid — often a `max_tokens` value that's out of range, or a malformed `messages` list. |
+
+Wrapping a call in a `try`/`except` around `anthropic.APIError` (the base class for SDK errors) is good practice once you move past one-off scripts, so a bad request fails with a clear message instead of an unhandled crash.
+
+---
+
+<Pitfall title="Hardcoding the API Key">
+
+**Common mistake:** pasting the key directly into the script to "just get it working," meaning to move it to an environment variable later.
+
+```python
+# Never do this — especially if this file ever ends up in version control.
+client = anthropic.Anthropic(api_key="sk-ant-abc123...")
+```
+
+The risk isn't hypothetical: a key committed to a public (or even private-but-later-made-public) repository can be found and used by someone else, and you'd be billed for it. Set the key as an environment variable from the very first line of code you write, not as a cleanup step for later — `anthropic.Anthropic()` with no arguments already knows to look for `ANTHROPIC_API_KEY`, so there's no convenience lost by doing it the safe way from the start.
+
+</Pitfall>
+
+<Quiz question="Your script raises anthropic.AuthenticationError the first time you run it, even though you're sure you set the key correctly earlier today. What's the most likely cause?">
+<div>
+
+**The environment variable was set in a different terminal session or shell than the one running the script, so this process never actually sees it.**
+
+`export ANTHROPIC_API_KEY=...` only applies to the current shell session (and anything launched from it) unless it's also saved somewhere that persists, like a shell profile file. Opening a new terminal tab, restarting your editor's integrated terminal, or running the script through a different tool (like an IDE's run button) can all start a fresh process that never inherited the variable. The fix is to re-set it in the exact session that's running the script, or add it to your shell profile so every new session picks it up automatically.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+One call and response is the whole mechanism — but real applications hold conversations, not one-shot exchanges. The next lesson covers system prompts and how to manage multi-turn conversation state, since the API itself remembers nothing between calls.

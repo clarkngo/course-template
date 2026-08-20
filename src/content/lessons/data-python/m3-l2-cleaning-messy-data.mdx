@@ -1,0 +1,153 @@
+---
+title: "Cleaning Messy Data"
+description: "Find and fix the problems real datasets actually have — missing values, inconsistent text, and duplicate rows — before they corrupt an analysis."
+module: 3
+moduleTitle: "Working with pandas"
+lesson: 2
+duration: "15 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The File You Actually Get
+
+The `corner_cafe_sales.csv` from the last lesson was clean on purpose, so you could focus on DataFrames without fighting the data itself. That file is not what you get from a real point-of-sale export. Real exports have blank fields where someone forgot to enter a price, the same item typed two different ways by two different cashiers, and rows accidentally logged twice. Cleaning isn't a detour before the "real" analysis — for most data work, it *is* most of the work, and skipping it means every number you compute afterward inherits the mess.
+
+Save this as `raw_sales.csv` — a more realistic, messier export from the same coffee shop:
+
+```
+date,item,quantity,price
+2024-01-02,Latte,3,4.50
+2024-01-02,latte,2,4.50
+2024-01-02,Espresso,5,2.75
+2024-01-02, Muffin,2,
+2024-01-03,Cold Brew,6,4.00
+2024-01-03,Cold Brew,6,4.00
+2024-01-03,Muffin,1,3.25
+```
+
+Three problems are hiding in those seven rows: an inconsistent item name (`"Latte"` vs `"latte"`), a missing price (that blank field after `2`), and an exact duplicate row (`Cold Brew` logged twice on the 3rd). You'll fix all three.
+
+---
+
+## Finding Missing Values
+
+Load the file and check for missing data before you do anything else with it:
+
+```python
+import pandas as pd
+
+raw = pd.read_csv("raw_sales.csv")
+print(raw.isna())
+print(raw.isna().sum())
+```
+
+`.isna()` returns a same-shaped DataFrame of `True`/`False`, marking every missing cell. Chaining `.sum()` onto it is a common idiom worth memorizing: `True` counts as `1` and `False` as `0`, so summing a boolean column (or, here, every column at once) gives you a per-column count of missing values — in this case, `price` should show `1`.
+
+Two ways to handle what `.isna()` finds:
+
+```python
+raw.dropna()              # drop any row with a missing value
+raw.fillna(0)             # fill missing values with 0
+```
+
+Both are almost always too blunt to use as-is. `dropna()` throws away the whole `Muffin` row just because one field was blank — losing real data (a known item, a known quantity) to fix one missing number. `fillna(0)` is worse here: a $0.00 muffin isn't a reasonable stand-in, and it would silently understate every total that includes it. The better fix uses information you actually have — this shop's other `Muffin` rows show a price of `3.25`, so fill with that specific, justified value:
+
+```python
+raw["price"] = raw["price"].fillna(3.25)
+```
+
+The general rule: **fill with a value you can defend, not the first value that makes the error go away.** A missing price sometimes should become the item's known price, sometimes the column's average, and sometimes the row genuinely can't be trusted and should be dropped — the right call depends on the data, and pandas won't make it for you.
+
+## Fixing Inconsistent Text
+
+`"Latte"` and `"latte"` are the same drink to a customer and two different strings to pandas — which means they'd be counted as two different items in any grouping you do in Module 4, silently splitting one item's totals in half. The **string accessor**, `.str`, lets you run text methods across an entire column at once:
+
+```python
+raw["item"] = raw["item"].str.strip().str.title()
+```
+
+`.str.strip()` removes leading/trailing whitespace — catching the accidental `" Muffin"` with a stray leading space. `.str.title()` capitalizes the first letter of each word, which normalizes `"latte"` and `"Latte"` (and would also catch `"COLD BREW"` or `"cold brew"`) into one consistent `"Latte"` / `"Cold Brew"`. Chaining both together is a common one-liner for cleaning up free-typed text columns.
+
+---
+
+## Removing Duplicate Rows
+
+The two identical `Cold Brew` rows are a common export bug — a register retry, a sync running twice. Find and remove exact duplicates:
+
+```python
+print(raw.duplicated())        # True/False per row
+print(raw.duplicated().sum())  # how many
+
+clean = raw.drop_duplicates()
+```
+
+`.duplicated()` flags every row that's an exact repeat of an earlier one (keeping the first occurrence unflagged by default). `.drop_duplicates()` removes the flagged repeats. Note this only catches *exact* duplicates across every column — it wouldn't catch two rows that are the same sale logged with slightly different quantities, which is a different, harder problem with no one-line fix; the honest answer there is manual investigation, not a method call.
+
+<CodeLab title="Clean the Raw Export">
+
+Save `raw_sales.csv` from the top of this lesson, then run this end-to-end cleaning script:
+
+```python
+import pandas as pd
+
+raw = pd.read_csv("raw_sales.csv")
+print("Before:", raw.shape)
+print("Missing prices:", raw["price"].isna().sum())
+print("Duplicate rows:", raw.duplicated().sum())
+
+clean = raw.copy()
+clean["item"] = clean["item"].str.strip().str.title()
+clean["price"] = clean["price"].fillna(3.25)
+clean = clean.drop_duplicates()
+
+print("\nAfter:", clean.shape)
+print(clean)
+```
+
+`raw.copy()` makes an independent copy before editing, rather than modifying `raw` in place — a habit worth keeping any time you want to compare "before" and "after" side by side, which you just did with the shape and missing-value counts above. Confirm `clean.shape` reports `(6, 4)`: the duplicate `Cold Brew` row is gone, and the missing price is filled, but the `Latte`/`latte` rows are *both* still there (correctly — they're two separate orders, not duplicates, once their text is normalized).
+
+</CodeLab>
+
+---
+
+<Pitfall title="A Numeric Column That Won't Do Math">
+
+If a numeric-looking column shows up as `object` instead of `int64`/`float64` in `.dtypes`, something non-numeric snuck in — often a stray typed value like `"N/A"` or `"-"` where a number belonged.
+
+```python
+# Wrong — assumes price is already numeric because it
+# "looks like" a number column; crashes if even one row
+# has non-numeric text in it
+raw["price"].mean()
+```
+
+```python
+# Right — check the dtype first when something's off
+print(raw.dtypes)
+print(raw["price"])   # scan for a value that isn't a number
+
+# once the offending value is found and fixed (or the
+# row dropped), the column will convert cleanly:
+raw["price"] = raw["price"].astype(float)
+```
+
+This is exactly why `.info()` and `.dtypes` from the last lesson are worth checking on *every* new file, not just once out of curiosity — a numeric column stuck as `object` is one of the clearest early warning signs that a dataset has a hidden problem, and it's much easier to fix before you've built three calculations on top of it.
+
+</Pitfall>
+
+<Quiz question="After running .str.title() on the item column, would 'Cold Brew' and 'cold  brew' (with two spaces between the words) end up as the exact same string?">
+<div>
+
+**No — `.str.title()` fixes capitalization, but it doesn't collapse extra internal whitespace, so `"Cold  Brew"` (two spaces) and `"Cold Brew"` (one space) remain two different strings even after title-casing both.**
+
+`.strip()` only removes whitespace from the *ends* of a string, and `.title()` only changes capitalization — neither touches spacing in the middle. A double space between words is a real, if less common, source of the same silent-duplicate problem as inconsistent casing: two visually similar strings that pandas treats as entirely different values in any grouping. If you suspect this in a real dataset, a targeted fix like `.str.replace(r"\s+", " ", regex=True)` collapses any run of whitespace to a single space. The broader lesson holds either way: don't assume text is clean just because one cleaning step ran on it — check what you actually have, the same way `.dtypes` catches a numeric column gone wrong.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Your data is trustworthy now. Module 4 puts it to work — filtering rows down to the ones that matter, grouping by item or day, and aggregating to answer real questions like "which item makes the most money" and "was Tuesday actually our best day."

@@ -1,0 +1,208 @@
+---
+title: "Your First HTML Page and Semantic Structure"
+description: "Scaffold a real HTML document using semantic elements instead of div soup, and write the first draft of your portfolio's structure."
+module: 1
+moduleTitle: "Web Foundations"
+lesson: 2
+duration: "16 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Every Page Starts the Same Way
+
+HTML (HyperText Markup Language) is not a programming language — it's a set of instructions for *structure*. You wrap content in tags, and each tag tells the browser what that content *is*: a heading, a paragraph, a link, an image. Get the structure right and everything downstream — styling in Module 2, interactivity in Module 3 — has something solid to attach to.
+
+Today you write the skeleton of the project you'll carry through this entire course: a personal portfolio page. By the end of this lesson it'll be plain, unstyled, and fully structured — exactly what you want before CSS enters the picture.
+
+---
+
+## The Document Shell
+
+Every HTML file starts with the same boilerplate. Create a file named `index.html` and start with this:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Name — Portfolio</title>
+</head>
+<body>
+
+</body>
+</html>
+```
+
+Here's what each line is actually doing:
+
+| Line | Purpose |
+|---|---|
+| `<!DOCTYPE html>` | Tells the browser "parse this as modern HTML," not some legacy mode |
+| `<html lang="en">` | The root element; `lang` helps screen readers and translators |
+| `<head>` | Metadata *about* the page — nothing here is visible content |
+| `<meta charset="UTF-8">` | Ensures special characters (é, —, emoji) render correctly |
+| `<meta name="viewport" ...>` | Tells mobile browsers to use the actual screen width, not a zoomed-out desktop layout |
+| `<title>` | The text shown in the browser tab — also what search engines show as the link title |
+| `<body>` | Everything visible on the page goes here |
+
+Skip the viewport meta tag and your site will look zoomed-out and tiny on every phone — you'll fix the *rest* of responsiveness in Module 2, but this one line belongs here, on page one.
+
+---
+
+## Semantic Elements vs. Div Soup
+
+You could build an entire page out of nothing but `<div>` tags. Plenty of real (bad) websites do. The problem: a `<div>` carries zero meaning. A screen reader, a search engine, and a future version of you reading this code all have to guess what a `<div>` is *for*.
+
+**Semantic elements** solve this by naming the role directly:
+
+| Element | Role |
+|---|---|
+| `<header>` | Introductory content — usually a name/logo and navigation |
+| `<nav>` | A block of navigation links |
+| `<main>` | The primary content of the page — one per page |
+| `<section>` | A thematic grouping of content, usually with its own heading |
+| `<article>` | A self-contained piece of content (a blog post, a project card) |
+| `<footer>` | Closing content — copyright, contact links |
+
+Compare the two approaches for the same visual result:
+
+```html
+<!-- Div soup: renders fine, means nothing -->
+<div class="top">
+  <div class="name">Jordan Lee</div>
+  <div class="links">
+    <div><a href="#projects">Projects</a></div>
+  </div>
+</div>
+```
+
+```html
+<!-- Semantic: same visual result, but the structure is legible -->
+<header>
+  <h1>Jordan Lee</h1>
+  <nav>
+    <a href="#projects">Projects</a>
+  </nav>
+</header>
+```
+
+A screen reader user can jump straight to `<nav>` or `<main>` with a keystroke. Search engines weight text inside `<h1>` and `<main>` more heavily than text in an anonymous `<div>`. And six months from now, semantic tags tell *you* what the code does without re-reading every class name.
+
+---
+
+## Building the Portfolio Skeleton
+
+Let's write the real structure. This is the file every later module will style and script.
+
+<CodeLab title="Scaffold the Portfolio Page">
+
+**Step 1** — Inside `<body>`, add a semantic `<header>` with your name and a nav bar:
+
+```html
+<header>
+  <h1>Jordan Lee</h1>
+  <p>Front-end developer, based in Austin</p>
+  <nav>
+    <a href="#projects">Projects</a>
+    <a href="#contact">Contact</a>
+  </nav>
+</header>
+```
+
+**Step 2** — Add a `<main>` element to hold everything below the header. Inside it, add a `<section>` for your projects:
+
+```html
+<main>
+  <section id="projects">
+    <h2>Projects</h2>
+    <article>
+      <h3>Weather Dashboard</h3>
+      <p>A small app that fetches live weather data and displays a 5-day forecast.</p>
+      <a href="https://github.com/yourname/weather-dashboard">View on GitHub</a>
+    </article>
+    <article>
+      <h3>Task Tracker</h3>
+      <p>A to-do list with drag-and-drop reordering and local storage persistence.</p>
+      <a href="https://github.com/yourname/task-tracker">View on GitHub</a>
+    </article>
+  </section>
+</main>
+```
+
+Notice each project is its own `<article>` — it's self-contained content that would still make sense if you plucked it out and put it on its own page.
+
+**Step 3** — Add a contact section and a footer, still inside `<main>` and `<body>` respectively:
+
+```html
+  <section id="contact">
+    <h2>Get In Touch</h2>
+    <p>Email me at <a href="mailto:jordan@example.com">jordan@example.com</a>.</p>
+  </section>
+</main>
+
+<footer>
+  <p>&copy; 2026 Jordan Lee. Built from scratch.</p>
+</footer>
+```
+
+**Step 4** — Open the file directly in a browser (double-click it, or drag it into a browser window). It'll be plain black-on-white text with no styling — that's expected. You're looking at pure structure.
+
+</CodeLab>
+
+---
+
+## Headings Are a Hierarchy, Not a Font Size
+
+One mistake trips up almost every beginner: picking a heading tag (`<h1>` through `<h6>`) based on how big you want the text, rather than what it *means* structurally.
+
+Headings form an outline of your page, the same way a document outline works. There should be exactly **one `<h1>`** per page — your name, in this case — and every heading below it should nest logically, without skipping levels.
+
+<Pitfall title="Skipping Heading Levels for a 'Look'">
+
+```html
+<!-- Wrong: h1 down to h4, skipping h2 and h3, just because h4 "looked right" -->
+<h1>Jordan Lee</h1>
+<h4>Projects</h4>
+```
+
+```html
+<!-- Right: pick the size you want with CSS later — the tag reflects structure now -->
+<h1>Jordan Lee</h1>
+<h2>Projects</h2>
+```
+
+If `<h2>` looks too big right now, that's fine — you haven't written any CSS yet. Resist the urge to reach for `<h4>` just because it happens to render smaller by default. Next module, you'll control size, weight, and color with CSS while keeping the heading level correct. Screen readers announce heading levels to let users jump around a page by outline; a broken hierarchy breaks that navigation.
+
+</Pitfall>
+
+---
+
+## Images Need Alt Text, Always
+
+If you add a photo or project screenshot, every `<img>` needs an `alt` attribute describing it in words:
+
+```html
+<img src="headshot.jpg" alt="Jordan Lee smiling, standing in front of a whiteboard" />
+```
+
+Screen readers read that text aloud in place of the image. Search engines index it. And if the image file ever fails to load, the alt text shows in its place. A missing `alt` isn't just an accessibility gap — leave `alt=""` (empty, but present) only for purely decorative images that carry no information, and always fill it in for anything meaningful.
+
+<Quiz question="You're structuring a portfolio page and need a block that groups your bio text with a nav bar at the top of the page. You also need a wrapper for each individual project write-up further down. Which semantic elements fit each job, and why not just use <div> for both?">
+<div>
+
+**The top block should be a `<header>`, and each project write-up should be an `<article>` — because both carry real meaning that a `<div>` doesn't.**
+
+`<header>` explicitly tells browsers, assistive tech, and other developers "this is introductory content for the page (or section)." `<article>` tells them "this is a self-contained chunk that would still make sense on its own" — exactly true of a single project card, which has its own title, description, and link. A `<div>` would render identically once styled, but it communicates nothing: a screen reader can't jump to "the header," and there's no signal that a project block is a complete, independent unit. Semantic tags cost nothing extra to write and pay off every time something other than your eyes needs to interpret the page.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Your portfolio has a real skeleton now, but it's unstyled and looks like a plain document. Next lesson introduces CSS — starting with the box model, so you understand exactly how spacing, borders, and sizing work before you touch layout.

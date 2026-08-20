@@ -1,0 +1,188 @@
+---
+title: "Tool Use and Function Calling"
+description: "Give Claude the ability to call a real function in your code, and handle the full request-run-respond loop the tools API actually uses."
+module: 5
+moduleTitle: "Build a Real Tool"
+lesson: 1
+duration: "15 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## From Concept to Working Code
+
+Module 3 described tool use conceptually: the model asks for real data instead of guessing it, your code supplies the real result, and the model's final answer is grounded in something true. This lesson makes that mechanism real, using the Claude API's actual `tools` parameter — the exact shape you'll use in anything you build going forward.
+
+The core idea to hold onto: **the model never runs your function.** It can only request that a specific function be called with specific arguments. Running it, and sending the real result back, is always your code's job. This division — model decides intent, your code controls execution — is deliberate, and it's what keeps tool use safe and predictable.
+
+---
+
+## Describing a Tool
+
+A tool is described to the API as a JSON-ish object with three parts: a `name` the model will refer to, a `description` telling the model when and why to use it, and an `input_schema` defining exactly what arguments it takes.
+
+```python
+tools = [
+    {
+        "name": "get_weather",
+        "description": "Get the current weather conditions for a given city.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "city": {
+                    "type": "string",
+                    "description": "The city name, e.g. 'Austin' or 'Nairobi'."
+                }
+            },
+            "required": ["city"],
+        },
+    }
+]
+```
+
+The `description` field matters more than it looks — it's the model's only guide for *when* to reach for this tool versus answering directly. A vague description ("weather stuff") leads to inconsistent use; a specific one ("current conditions for a named city") gives the model a clear signal for exactly which questions should trigger it.
+
+---
+
+## The Full Request-Run-Respond Loop
+
+<CodeLab title="Wire Up a Stub Weather Tool">
+
+Here's the complete loop: send the question with the tool available, detect that the model wants to use it, actually run it, and send the real result back for a final answer.
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+def get_weather(city: str) -> str:
+    # A stub standing in for a real weather API call.
+    fake_data = {"tokyo": "72°F, partly cloudy", "austin": "98°F, sunny"}
+    return fake_data.get(city.lower(), "No data for that city.")
+
+tools = [
+    {
+        "name": "get_weather",
+        "description": "Get the current weather conditions for a given city.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
+    }
+]
+
+messages = [{"role": "user", "content": "What's the weather like in Tokyo right now?"}]
+
+# 1. First call: give the model the question AND the available tools.
+response = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=1024,
+    tools=tools,
+    messages=messages,
+)
+
+if response.stop_reason == "tool_use":
+    # 2. Find the tool_use block the model returned instead of a final answer.
+    tool_use_block = next(
+        block for block in response.content if block.type == "tool_use"
+    )
+
+    # 3. Actually run the real function with the arguments the model chose.
+    result = get_weather(tool_use_block.input["city"])
+
+    # 4. Record the model's tool request, then supply the real result
+    #    as a tool_result message, tied back by tool_use_id.
+    messages.append({"role": "assistant", "content": response.content})
+    messages.append({
+        "role": "user",
+        "content": [
+            {
+                "type": "tool_result",
+                "tool_use_id": tool_use_block.id,
+                "content": result,
+            }
+        ],
+    })
+
+    # 5. Second call: now the model answers using the real data.
+    final_response = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=1024,
+        tools=tools,
+        messages=messages,
+    )
+    print(final_response.content[0].text)
+else:
+    # The model answered directly without needing the tool.
+    print(response.content[0].text)
+```
+
+Notice it's **two API calls**, not one: the first returns a request to run `get_weather`, and only the second — after your code actually ran it and reported the real result — returns the model's final, grounded answer. That's the whole pattern. More complex agents (Module 5's capstone) just repeat this loop more than once.
+
+</CodeLab>
+
+---
+
+## Controlling Whether the Model Uses a Tool
+
+By default, giving the model a `tools` list doesn't force it to use one — it decides, based on the question and each tool's `description`, whether a tool call would actually help. Ask "what's 2 + 2" with `get_weather` available, and a well-described tool won't get called just because it exists.
+
+You can override that default behavior with `tool_choice`:
+
+- `{"type": "auto"}` — the default: the model decides whether to use a tool, a plain answer, or nothing at all.
+- `{"type": "any"}` — the model must use *some* tool, but you don't dictate which one.
+- `{"type": "tool", "name": "get_weather"}` — force this specific tool to be called.
+- `{"type": "none"}` — disable tool use for this request entirely, even though tools are listed.
+
+Forcing a specific tool is useful when you already know, from your application's own logic, exactly what needs to happen next — for example, a form-filling flow where the very next step is always supposed to extract structured fields, and you don't want the model second-guessing whether extraction is needed.
+
+---
+
+## Why `tool_use_id` Matters
+
+Every `tool_use` block the model returns comes with a unique `id`. When you send the result back, you must tag it with that same `id` in the `tool_use_id` field. This is how the model matches "here's the result" to "here's the specific request that asked for it" — essential once a single response might request more than one tool call at once. Get the ID wrong or omit it, and the API will reject the follow-up request.
+
+---
+
+<Pitfall title="Forgetting to Send the Assistant's tool_use Message Back">
+
+**Common mistake:** sending the `tool_result` back without first appending the model's original `tool_use` response to the `messages` list.
+
+```python
+# Wrong — the tool_result has nothing to attach to from the model's
+# point of view, because its own tool_use request was never recorded:
+messages.append({
+    "role": "user",
+    "content": [{"type": "tool_result", "tool_use_id": tool_use_block.id, "content": result}],
+})
+
+# Right — record what the model asked for, THEN supply the result:
+messages.append({"role": "assistant", "content": response.content})
+messages.append({
+    "role": "user",
+    "content": [{"type": "tool_result", "tool_use_id": tool_use_block.id, "content": result}],
+})
+```
+
+Remember: the API is stateless (Module 4) — it only knows about a tool call because you put the record of it in `messages`. Skip that append, and the follow-up call is missing the context needed to make sense of a `tool_result` that refers to a request the model, from its perspective, never made.
+
+</Pitfall>
+
+<Quiz question="Claude's response comes back with stop_reason 'tool_use' and a tool_use block requesting get_weather with city='Tokyo'. What should your code do next?">
+<div>
+
+**Actually call the real get_weather function with 'Tokyo', then send the real result back as a tool_result message tagged with that block's tool_use_id — the model never runs the function itself.**
+
+A `tool_use` block is a request, not an execution — the model has decided a tool call would help, and specified the arguments, but stops there and waits. Your code is responsible for running the real function, capturing its real output, and reporting that output back in the exact shape the API expects, matched to the original request by its id. Only after that round trip does the model get to generate a final answer grounded in real data instead of a guess.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You've built the single-tool-call loop by hand. The capstone lesson puts it all together — system prompt, conversation state, and tool use — into a small agent that can call a tool repeatedly, on its own, until it has enough information to give a final answer.

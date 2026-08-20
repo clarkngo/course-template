@@ -1,0 +1,203 @@
+---
+title: "JavaScript Basics and the DOM"
+description: "Learn core JavaScript syntax and use the DOM API to select and change page content, turning the static portfolio into a script-driven page."
+module: 3
+moduleTitle: "JavaScript Fundamentals"
+lesson: 1
+duration: "18 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## HTML and CSS Can't Do This
+
+HTML gives a page structure. CSS gives it style. Neither can make the page *do* anything in response to what a visitor does — no reacting to a click, no changing text after the page loads, no reading what a user typed. That's JavaScript's job, and it's the last major piece before your portfolio stops being a static document and starts being an application.
+
+This lesson covers the syntax you need and the DOM API — the same tree structure the browser built while parsing your HTML back in Module 1 — which is how JavaScript reaches into a page and changes it.
+
+---
+
+## Linking a Script
+
+Like CSS, JavaScript usually lives in its own file. Create `script.js` and link it at the bottom of `<body>`, right before the closing tag:
+
+```html
+  <footer>
+    <p>&copy; 2026 Jordan Lee. Built from scratch.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+```
+
+Placing the `<script>` tag at the *end* of `<body>` (rather than in `<head>`) matters: by the time this script runs, the browser has already parsed the whole HTML tree, so your code can safely find and touch any element on the page without racing the parser.
+
+---
+
+## Variables, Values, and Functions — Fast
+
+You need a small, solid vocabulary before touching the DOM.
+
+```js
+// Variables: use const by default, let only when a value will change
+const siteName = "Jordan Lee";
+let visitCount = 0;
+visitCount = visitCount + 1; // let can be reassigned; const cannot
+
+// Common data types
+const name = "Jordan";           // string
+const age = 28;                  // number
+const isAvailable = true;        // boolean
+const skills = ["HTML", "CSS", "JS"]; // array
+const profile = { name: "Jordan", role: "Developer" }; // object
+
+// Functions
+function greet(personName) {
+  return `Hello, ${personName}!`; // template literal — backticks, ${} for variables
+}
+
+console.log(greet("Jordan")); // "Hello, Jordan!"
+```
+
+Two habits worth building immediately: use `const` unless you know a value needs to change (catches accidental reassignment bugs early), and use template literals (backtick strings with `${}`) instead of string concatenation — they're easier to read and less error-prone.
+
+---
+
+## The DOM: Your Page as a Tree
+
+Back in Module 1, you learned the browser parses HTML into the **DOM** — a tree of objects mirroring your tags. JavaScript's `document` object is your entry point into that tree. Two methods do almost all the work of finding elements:
+
+```js
+document.querySelector(".project-grid");     // first match, or null
+document.querySelectorAll("article");         // ALL matches, as a NodeList
+```
+
+Both accept any valid CSS selector — the exact same syntax you've been writing in `styles.css`. That's deliberate: if you can select it with CSS, you can select it with JavaScript.
+
+```js
+const heading = document.querySelector("h1");
+console.log(heading.textContent); // reads the current text
+heading.textContent = "Jordan Lee, Developer"; // overwrites it
+```
+
+`textContent` reads or writes the plain text inside an element. There's also `innerHTML`, which reads/writes actual HTML markup — powerful, but be careful with it: writing untrusted or user-supplied text into `innerHTML` can let malicious HTML or scripts execute on your page. For anything that's plain text, `textContent` is the safer default.
+
+---
+
+## Reading and Writing Attributes
+
+Elements have attributes beyond their text — an `<img>`'s `src`, an `<a>`'s `href`, a custom `data-*` attribute you invent yourself.
+
+```js
+const link = document.querySelector("nav a");
+console.log(link.getAttribute("href")); // "#projects"
+link.setAttribute("href", "#about");    // change it
+
+const img = document.querySelector("img");
+img.setAttribute("alt", "Updated description");
+```
+
+`data-*` attributes are especially useful for stashing information in the HTML that only your JavaScript needs to read — for instance, tagging each project card with its category so you can filter by it:
+
+```html
+<article data-category="web">...</article>
+```
+
+```js
+const category = document.querySelector("article").dataset.category; // "web"
+```
+
+Note the shortcut: `dataset.category` reads `data-category` automatically — the DOM API converts hyphenated attribute names to camelCase on the `dataset` object.
+
+---
+
+## Creating and Inserting Elements
+
+You can build entirely new elements in JavaScript and insert them into the page — the technique you'll use in Module 4 to render fetched API data.
+
+```js
+const newTag = document.createElement("span");
+newTag.textContent = "New";
+newTag.className = "badge";
+
+const firstProject = document.querySelector("article");
+firstProject.appendChild(newTag); // inserts it as the last child
+```
+
+`createElement` makes an element that exists only in memory — nothing appears on the page until you `appendChild` (or a similar method) it into an element that's already part of the visible tree.
+
+<CodeLab title="Script the Portfolio's Page Title">
+
+**Step 1** — In `script.js`, select the header `<h1>` and log its current text to the console to confirm your selector works:
+
+```js
+const heading = document.querySelector("header h1");
+console.log(heading.textContent);
+```
+
+Open the page in a browser, open developer tools (right-click → Inspect), and check the Console tab — you should see your name logged.
+
+**Step 2** — Add a small script that inserts today's year into the footer automatically, so you never have to hand-update the copyright year again:
+
+```js
+const yearSpan = document.querySelector("#current-year");
+const now = new Date();
+yearSpan.textContent = now.getFullYear();
+```
+
+**Step 3** — Update the footer in `index.html` to give that span an id:
+
+```html
+<footer>
+  <p>&copy; <span id="current-year"></span> Jordan Lee. Built from scratch.</p>
+</footer>
+```
+
+**Step 4** — Reload the page. The footer should now display the current year, generated live by JavaScript rather than typed by hand.
+
+</CodeLab>
+
+<Pitfall title="Script Runs Before the Element Exists">
+
+```html
+<head>
+  <script src="script.js"></script>  <!-- runs before <body> exists! -->
+</head>
+<body>
+  <h1>Jordan Lee</h1>
+</body>
+```
+
+```js
+// script.js
+const heading = document.querySelector("h1"); // returns null — h1 doesn't exist yet
+heading.textContent = "Hi!"; // TypeError: cannot read properties of null
+```
+
+If your script tag sits in `<head>` and runs before the browser has parsed the rest of the HTML, `querySelector` returns `null` for anything below it — and calling a method on `null` throws an error. The fix is exactly what this lesson did: place `<script>` at the very end of `<body>`, after every element it needs to find has already been parsed.
+
+</Pitfall>
+
+---
+
+## Why `const` and `let`, Never `var`
+
+You may see older JavaScript code use `var` for variables. Avoid it in new code — `var` has confusing scoping rules that `let` and `const` were specifically introduced to fix. Stick to `const` by default and `let` when reassignment is genuinely needed; you won't need `var` in this course or, realistically, in modern JavaScript at all.
+
+<Quiz question="You write document.querySelector('.project-card') expecting to select and modify a project card, but your script throws 'Cannot read properties of null.' Your script tag is correctly placed at the end of body. What's the most likely cause?">
+<div>
+
+**The CSS selector doesn't actually match any element on the page — most likely a typo, like the class being `.project-grid article` or `article` rather than `.project-card`, since querySelector returns null (not an error) when nothing matches.**
+
+`querySelector` never throws on a failed search — it quietly returns `null`, and the error only appears the moment you try to call a method or read a property on that `null` value, like `.textContent`. Since script placement is already correct (ruling out the timing issue from the Pitfall above), the next most common cause is a mismatched selector: check the actual class or tag names in your HTML against the string inside `querySelector`, including exact spelling, capitalization, and whether you meant a class (`.name`) versus an element tag (`name`) versus an id (`#name`).
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You can now read and change the page with JavaScript, but only in response to the page loading. Next lesson adds event listeners — clicks, typing, form submissions — so the portfolio actually reacts to what a visitor does.
