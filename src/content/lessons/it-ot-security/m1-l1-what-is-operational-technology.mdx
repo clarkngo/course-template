@@ -1,0 +1,170 @@
+---
+title: "What Is Operational Technology?"
+description: "A ground-up introduction to OT for readers with no prior background — what it is, where it lives, how it actually works, and why it needs its own approach to security."
+module: 1
+moduleTitle: "The IT/OT Divide"
+lesson: 1
+duration: "40 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Start With What You Already Know
+
+You've used operational technology today, probably before you finished breakfast.
+
+A thermostat that turns the furnace on when a room gets cold. A traffic light that switches from red to green on a timer, or when a sensor buried in the pavement detects your car waiting. An elevator that knows which floor to stop at. A washing machine that fills, agitates, drains, and spins in a fixed sequence without you touching another button. Every one of these is a small piece of technology whose entire job is to sense something in the physical world and *act* on it.
+
+That's the whole idea behind operational technology, or **OT**. Scale that same idea up — from a thermostat to a power grid, from a washing machine to an oil refinery — and you have the subject of this course.
+
+This lesson has one job: give you a solid, no-jargon mental model of what OT is, what it looks like in the real world, and why it behaves so differently from the computers you already know. Everything else in this course builds on it.
+
+---
+
+## A Working Definition
+
+The U.S. National Institute of Standards and Technology (NIST) defines operational technology like this, in [NIST SP 800-82 Revision 3](https://doi.org/10.6028/NIST.SP.800-82r3), *Guide to Operational Technology (OT) Security* — the document this entire course is grounded in:
+
+> "OT encompasses a broad range of programmable systems and devices that interact with the physical environment (or manage devices that interact with the physical environment). These systems and devices detect or cause a direct change through the monitoring and/or control of devices, processes, and events."
+
+Unpack that sentence slowly, because every phrase in it is doing work:
+
+- **"Programmable systems and devices"** — OT runs on computers. Small, specialized, often invisible ones, but computers: they execute instructions, just like the laptop in front of you.
+- **"Interact with the physical environment"** — this is the part that makes OT different from everything else in computing. OT doesn't just process information; it opens valves, spins motors, locks doors, and shuts down reactors. A bug in a spreadsheet gives you a wrong number. A bug in OT can flood a basement, derail a train, or hurt someone.
+- **"Detect or cause a direct change"** — OT systems either *sense* something (a temperature, a pressure, a badge swipe) or *act* on something (a valve, a switch, a motor) — often both, in a continuous loop.
+
+Compare that to **information technology (IT)** — the email server, the customer database, the app on your phone. IT's job is to move, store, and process *information*. OT's job is to move, store, and process the physical world itself. That distinction is the spine of this entire course, and we'll dig into its security consequences in the next lesson.
+
+---
+
+## OT Is Everywhere You're Not Looking
+
+If OT sounds abstract, it's because it's designed to be invisible. Nobody wants to think about the building automation system while they're in a meeting — they just want the room to be the right temperature. That invisibility is exactly why OT deserves a closer look. Here's a small sample of what counts as OT:
+
+| Where | What the OT Is Doing |
+|---|---|
+| **Water treatment plant** | Dosing chemicals, monitoring turbidity, opening and closing valves along miles of pipe |
+| **Power grid** | Balancing electricity supply and demand in real time, tripping breakers to stop a fault before it cascades |
+| **Hospital** | Regulating oxygen delivery systems, controlling MRI cooling, managing badge access to secure wards |
+| **Office building** | Running HVAC, elevators, fire alarms, and the badge readers at every door |
+| **Manufacturing plant** | Sequencing robotic arms, controlling conveyor speed, stopping the line if a safety guard opens |
+| **Oil refinery** | Holding a distillation column at an exact temperature and pressure, 24 hours a day, for years |
+| **Rail system** | Reading track occupancy, setting signals, controlling traction power to trains |
+| **Your car** | Managing engine timing, anti-lock brakes, and airbag deployment — OT concepts at a smaller scale |
+
+Notice the pattern: none of these systems exist to give a human information to read later. They exist to make something physical happen correctly, continuously, and safely — with a human often only in a supervisory role, if involved at all.
+
+NIST's *Guide to Operational Technology (OT) Security* also ties OT directly to the sectors the U.S. government designates as **critical infrastructure** — the systems a modern society cannot function without: chemical, critical manufacturing, dams, defense, emergency services, energy, food and agriculture, healthcare, nuclear, transportation, and water and wastewater, among others. OT is what actually runs the physical machinery inside almost every one of those sectors. That's why a course on OT security isn't a niche technical topic — it's foundational to how the physical world keeps running.
+
+---
+
+## The Basic Building Block: A Control Loop
+
+Nearly every OT system, no matter how large or small, is built from the same repeating pattern: the **control loop**. Once you can see this pattern, you can recognize OT anywhere.
+
+A control loop has four parts:
+
+1. **Sensor** — measures something physical: temperature, pressure, water level, position, whether a door is open. It reports this as a *controlled variable*.
+2. **Controller** — the "brain." It compares the sensor's reading against a target (a *set point*) and decides what needs to change.
+3. **Actuator** — the "muscle." A valve, motor, switch, breaker, or pump that physically changes something in response to the controller's decision (a *manipulated variable*).
+4. **Process** — the physical thing being controlled: the water in the tank, the temperature in the room, the speed of the motor.
+
+Picture a home thermostat: the **sensor** reads the room temperature, the **controller** compares it to the temperature you set, and if the room is too cold, it tells the **actuator** (the furnace) to turn on, which changes the **process** (the room's temperature) — which the sensor then reads again. Around and around, continuously, without you thinking about it.
+
+Industrial control loops work identically, just with higher stakes: a pressure sensor on a boiler, a controller that knows the safe operating range, and a valve that vents pressure before the boiler fails.
+
+Engineers describe three ways a control loop can be configured:
+
+- **Open loop** — output is controlled by fixed, pre-set instructions, with no feedback checking whether the target was actually reached.
+- **Closed loop** — the actual output is measured and fed back in, continuously correcting toward the target. This is the thermostat example above, and it's the most common pattern in OT.
+- **Manual mode** — a human is the controller, making every decision directly.
+
+Most real systems blend all three: automated closed-loop control for routine operation, with a human able to step in and take manual control when something goes wrong.
+
+---
+
+## Meet the Family: Common Types of OT Systems
+
+"OT" is an umbrella term. Underneath it are several distinct families of systems, each suited to a different kind of physical problem. You'll see all of these named throughout the course, so it's worth meeting them now.
+
+| System | What It's For | Where You'd Find It |
+|---|---|---|
+| **PLC** (Programmable Logic Controller) | A small, rugged industrial computer that runs the control loop logic — "if pressure exceeds X, close valve Y" | Inside nearly everything below: the workhorse controller of industrial automation |
+| **SCADA** (Supervisory Control and Data Acquisition) | Centralized software that collects data from many geographically spread-out sites and lets one control room monitor and command all of them | Pipelines, electrical grids, water distribution, rail networks |
+| **DCS** (Distributed Control System) | A tightly integrated architecture for controlling a single large facility from a supervisory level down to many local controllers | Oil refineries, chemical plants, power generation |
+| **BAS** (Building Automation System) | Automates HVAC, lighting, fire systems, and access control inside a building | Offices, hospitals, hotels, campuses |
+| **PACS** (Physical Access Control System) | Controls who can open which door, when, using badges, PINs, or biometrics | Any facility with card readers or turnstiles |
+| **Safety System** (e.g., SIS — Safety Instrumented System) | An independent system whose only job is to force a process to a safe state if it starts to go dangerously wrong | Chemical plants, refineries, nuclear facilities |
+| **IIoT** (Industrial Internet of Things) | Networked sensors and devices that use internet connectivity to feed data into analytics and cloud platforms | Modern manufacturing, smart grid, predictive maintenance |
+
+A quick mental shortcut for two of the most commonly confused terms: **SCADA is about visibility and control across distance** — one control room watching over field sites that might be hundreds of miles apart. **DCS is about tight, local integration** — many controllers working together inside a single plant, coordinated by a supervisory layer sitting right on top of them. PLCs show up inside both, functioning as the local muscle that does the actual moment-to-moment control work.
+
+Real-world systems are rarely pure examples of just one category — a modern plant might run a DCS for the core process, PLCs for individual machines, a BAS for the building itself, a PACS at every door, and IIoT sensors feeding a cloud dashboard, all at once. Later lessons in this module go deeper on how these pieces fit together on a network; for now, focus on recognizing the shapes.
+
+---
+
+<Pitfall title={`"It's Just a Computer" Is a Trap`}>
+
+It's tempting to look at a PLC or a SCADA server and think of it the same way you think of a laptop: a computer that runs software, so it should behave — and be secured — like any other computer.
+
+Resist that instinct. A PLC often runs the same control program, unmodified, for 15 to 20 years. It may have no password protection, no encryption, and no logging capability at all — not because it's outdated, but because it was designed to do one thing, reliably, for decades, in an environment where "just reboot it" can mean shutting down a production line or, worse, a safety system.
+
+The physical consequence is the trap. A frozen laptop is an inconvenience. A frozen safety-instrumented system on a chemical reactor is an entirely different category of problem. Keep that distinction in mind every time this course draws a comparison between IT and OT — the comparison is never "which is more advanced," it's "which failure mode actually matters here."
+
+</Pitfall>
+
+---
+
+## Why OT Feels So Different From "Normal" Computing
+
+If you've worked with regular computers, several things about OT will feel backward at first. This isn't a bug in how OT was designed — it's a direct, rational consequence of OT touching the physical world. NIST SP 800-82r3 lays out the contrast plainly:
+
+| | Information Technology (IT) | Operational Technology (OT) |
+|---|---|---|
+| **What it manages** | Data | The physical world |
+| **Top priority** | Confidentiality, then integrity, then availability | Availability and safety, then integrity, then confidentiality |
+| **Typical lifespan** | 3–5 years | 10–15+ years |
+| **Patching** | Frequent, often automatic | Rare, tested for weeks first, scheduled around planned outages |
+| **If it needs a reboot** | Usually fine | May mean stopping a physical process — sometimes unsafe to do at all |
+| **Performance need** | High throughput; some delay is tolerable | Real-time, predictable response; delay can be dangerous |
+| **Support model** | Many vendors, easy to swap components | Often a single vendor; unauthorized changes can void support or safety certification |
+
+A quick way to internalize this: if your work laptop crashes, you lose ten minutes and maybe an unsaved document. If the controller running a wastewater treatment plant crashes at the wrong moment, untreated sewage can reach a river. Neither system is "better engineered" than the other — they're built to completely different sets of priorities, because the cost of failure is completely different.
+
+That's also why something as routine as an IT security patch can be genuinely dangerous to apply to OT without care: a patch that's perfectly safe on an office laptop might change the timing behavior of a controller by a few milliseconds — and on a system controlling a fast-moving industrial process, a few milliseconds can be the difference between normal operation and a safety incident.
+
+---
+
+<Quiz question="A water treatment plant's control system has been running the same software, unpatched, for eight years. From an OT perspective, is this necessarily a sign of neglect?">
+
+<div>
+
+Not necessarily — though it isn't automatically fine either.
+
+In IT, an eight-year-old unpatched system is almost always a red flag. In OT, long uptimes and infrequent patching are often a deliberate, rational choice: the plant may be running vendor-certified software that has been validated for exactly this process, and any change — even a security patch — has to be tested under real field conditions before deployment, then scheduled around a planned outage that might only happen once a year.
+
+That said, "we've never patched it" is different from "we made an informed decision not to patch it, and we compensate with other controls." The first is neglect. The second is a defensible risk-management position — provided the plant has other safeguards in place (network segmentation, monitoring, physical access control) to compensate for the fact that known vulnerabilities in that software are never going away.
+
+This tension — between the operational need for stability and the security need to reduce exposure — sits at the center of nearly every decision in OT security. You'll see it again throughout this course.
+
+</div>
+</Quiz>
+
+---
+
+## Why This Matters Now
+
+For most of the history of industrial control, this entire discussion would have been academic. OT systems were physically isolated — no connection to the internet, often no connection to any other network at all. Attacking one meant being physically present at the facility.
+
+That isolation is disappearing. Modern OT increasingly runs on the same kind of general-purpose computers, operating systems, and networking equipment as IT — because it's cheaper and more capable than proprietary alternatives. Plants want real-time production dashboards for executives. Vendors want to remotely diagnose their equipment instead of sending a technician. Sensors want to phone data home to the cloud for predictive maintenance. Every one of these is a legitimate, valuable capability — and every one of them is also a new connection between a system that was never designed to be attacked and a world full of people who might try.
+
+That's the gap this course exists to close. You now have the vocabulary and mental model to understand *what* OT is. The next lesson picks up exactly where this one ends: *why* connecting OT to IT creates one of the most consequential security challenges in modern computing, and what it takes to defend the boundary between the two.
+
+---
+
+## What's Next
+
+You can now recognize OT in the world around you, describe the sensor–controller–actuator loop at its core, and name the major families of OT systems — SCADA, DCS, PLCs, BAS, PACS, safety systems, and IIoT — along with why OT's priorities differ so fundamentally from IT's.
+
+In **Lesson 2**, we bring IT and OT face to face: why merging these two worlds onto one network creates the most dangerous attack surface in industrial environments, and the shared vocabulary security teams use to talk about it.
