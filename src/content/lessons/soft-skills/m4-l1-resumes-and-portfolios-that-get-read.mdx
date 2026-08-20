@@ -1,0 +1,95 @@
+---
+title: "Resumes and Portfolios That Get Read"
+description: "Structure a resume and portfolio to survive the first 10-second skim, using concrete before/after bullet rewrites and the most common mistakes that get resumes cut early."
+module: 4
+moduleTitle: "The Job Search"
+lesson: 1
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Ten Seconds Is Not an Exaggeration
+
+Recruiters and hiring managers screening a stack of resumes genuinely spend somewhere around ten seconds on a first pass — enough to read a title, scan a few bullet points, and decide "phone screen" or "no." That's not laziness; it's a volume problem. A single posting can pull in hundreds of applications, and the ten-second skim is the only way anyone gets through the stack at all.
+
+This means a resume's job isn't to fully represent you. It's to survive the ten-second skim well enough to earn a slower, second read. Everything in this lesson follows from that one constraint.
+
+---
+
+## What Ten Seconds Actually Sees
+
+In ten seconds, a reader's eyes catch: your most recent title and company, three or four bullet points if they're short and start with something concrete, and any numbers that jump out. They do not read paragraphs. They do not parse a dense "Summary" section at the top written in the third person. They definitely do not read a bullet point that takes two lines to get to the verb.
+
+That means the single highest-leverage edit on most resumes is rewriting bullets so the *result* is visible in the first few words, not buried at the end of a sentence describing the task.
+
+**Before:** "Responsible for maintaining and improving the checkout service, including fixing bugs and optimizing performance where needed."
+
+**After:** "Cut checkout latency 40% by rewriting the payment validation flow, reducing cart abandonment complaints by half."
+
+The before-bullet describes a job description — what you were responsible for. The after-bullet describes an accomplishment — what changed because you did the work, with a number attached. A skimming reader gets the entire value of the after-bullet in the first four words; they'd have to read the whole before-bullet and still learn nothing concrete.
+
+The universal fix: every bullet should follow **[what you did] → [measurable result]**, not **[what your role generally covered]**. If you can't attach a number, use a concrete outcome instead — "shipped," "reduced," "led," "unblocked" — anything more specific than "responsible for" or "worked on."
+
+---
+
+## The Structure That Survives a Skim
+
+Beyond individual bullets, the overall shape of the document matters:
+
+- **Most relevant, most recent, first.** Reverse-chronological for experience; within each role, lead with the bullet a hiring manager for *this specific job* would care most about, not the one that happened first chronologically.
+- **No summary paragraph at the top**, or if you include one, make it one line, specific, and skip generic phrases like "results-driven professional." A skimming reader treats a paragraph as something to skip, not something to read first.
+- **Consistent, scannable formatting.** Same date format, same bullet style, same spacing throughout — inconsistency reads as carelessness before anyone even evaluates the content.
+- **One page, unless you have 10+ years of directly relevant experience.** A second page competes with the ten-second budget; most of it won't get read anyway.
+- **Skills listed where they're skimmable** — a short list, not woven only into paragraph-style bullets where an ATS or a fast human skim might miss them entirely.
+
+---
+
+## Portfolios: Show the Decision, Not Just the Output
+
+For roles where a portfolio matters — engineering, design, data — the same ten-second logic applies, but the failure mode is different. Most portfolios show finished output (a screenshot, a repo link, a live demo) with no explanation of what was hard about it or what you actually decided.
+
+A hiring manager skimming a portfolio project wants the answer to one question fast: **what did you have to figure out that wasn't obvious?** A project write-up that leads with that survives the skim; one that leads with a tech-stack list does not.
+
+**Weaker portfolio entry:** "Built a task management app. Tech stack: React, Node, PostgreSQL. [Link to repo]"
+
+**Better portfolio entry:** "Built a task management app for small teams. The interesting problem was handling offline edits that conflict when multiple people reconnect — I implemented a last-write-wins strategy with a manual merge prompt for genuine conflicts, after an earlier version that silently dropped changes turned out to be worse than just asking the user. [Link to repo, with the conflict-resolution code linked directly]"
+
+The better version does what a good resume bullet does — leads with the decision and its reasoning, not the inventory of tools used. It also demonstrates judgment (the discarded earlier approach), which is exactly what a skimming reviewer is trying to assess and rarely gets from a plain project list.
+
+<Pitfall title="Optimizing for Comprehensiveness Instead of Skimmability">
+
+The instinct, especially for someone who's done a lot of real work, is to list everything — every project, every responsibility, every tool touched — on the theory that more information is more persuasive.
+
+**Weaker:** a two-page resume with eight bullets per role, several of them routine ("attended sprint planning," "participated in code reviews"), no clear signal of which three or four things actually mattered most.
+
+**Better:** a one-page resume where every role has been cut down to the three or four bullets that would most impress the specific reader for the specific job — with the routine, expected-of-anyone items removed entirely, even if they're true and even if they took real time.
+
+Comprehensiveness and skimmability trade off directly against each other. Every bullet you add dilutes the ten seconds spent on the others. The discipline isn't "what have I done" — it's "what are the fewest, strongest lines that would make this specific reader want a second, slower read."
+
+</Pitfall>
+
+---
+
+## Try This
+
+Take your current resume (or portfolio, if that's more relevant to your target role) and do one focused edit:
+
+1. Pick your three weakest bullets — the ones that describe a responsibility rather than a result.
+2. Rewrite each as **[what you did] → [measurable result]**, adding a real number if you can find or reasonably estimate one.
+3. Read the whole document for exactly ten seconds, stop, and write down what you actually remember. If it's not the strongest three things about you, reorder so it is.
+
+<Quiz question="A friend asks you to review their resume. It's well-organized but every bullet reads like: 'Worked on the recommendation engine team, involved in various improvements to model accuracy.' What's the single most useful piece of feedback to give?">
+<div>
+
+**Rewrite every bullet to lead with a specific, measurable result instead of a description of what team or area they worked in — 'worked on' and 'involved in' describe presence, not impact, and a ten-second skim can't tell the difference between someone who drove the improvement and someone who sat in on the meetings.**
+
+The fix isn't about adding more bullets or more detail — it's about replacing vague-but-true language with specific-and-true language for the same underlying work. Ask your friend a pointed question for each bullet: "what number moved, and what did you specifically do that moved it?" If the recommendation engine's accuracy went from 82% to 89% and they personally built the feature that drove most of that gain, the bullet should say exactly that. If they genuinely can't attach a number or a specific contribution to a bullet, that's a signal the bullet is weak content, not just weak phrasing — and it might be worth cutting rather than dressing up.
+
+</div>
+</Quiz>
+
+## Up Next
+
+A strong resume earns you the interview. Next lesson covers what happens once you're in the room — structuring behavioral answers with STAR and handling technical interview questions, including the ones where you genuinely don't know the answer.

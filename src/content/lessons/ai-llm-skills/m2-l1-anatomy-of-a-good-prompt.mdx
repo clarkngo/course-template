@@ -1,0 +1,116 @@
+---
+title: "Anatomy of a Good Prompt"
+description: "Break a prompt down into its functional parts — task, context, format, constraints — so you can debug bad outputs by asking which part was missing, instead of just retyping and hoping."
+module: 2
+moduleTitle: "Prompting Effectively"
+lesson: 1
+duration: "12 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Prompting Is Specification, Not Incantation
+
+It's tempting to treat prompting like searching for a magic phrase — as if the right combination of words unlocks a hidden mode. That framing makes debugging impossible, because when the output is bad, your only move is to shuffle the words and try again.
+
+The more useful framing, and the one this whole module is built on: **a prompt is a specification.** You're a client, and the model is a very fast, very literal contractor who will build exactly what you describe and nothing you didn't. Vague specs get vague, generic results — not because the model is being difficult, but because "generic and plausible" is the correct statistical answer to an underspecified request. Good prompting is the skill of specifying clearly enough that there's only one reasonable way to interpret what you're asking for.
+
+---
+
+## The Four Parts Worth Naming
+
+Almost every prompting problem traces back to one of four missing ingredients. Naming them turns "this output is bad" into "this output is bad because I never specified the format" — a fixable, specific diagnosis.
+
+| Part | Question it answers | Example |
+|---|---|---|
+| **Task** | What do you actually want done? | "Summarize this email thread." |
+| **Context** | What does the model need to know to do it well? | "It's a customer complaint about a delayed shipment; I'm the support lead." |
+| **Format** | What shape should the output take? | "3 bullet points, under 40 words each." |
+| **Constraints** | What should it avoid or prioritize? | "Don't recommend a refund — that's not my call to promise." |
+
+A prompt can be short and still hit all four. "Summarize this thread for my manager in 3 bullets, focused on what *we* need to decide — don't propose a refund" is one sentence and specifies all four parts. Length isn't the goal; coverage is.
+
+---
+
+## Context Is the Part People Skip Most
+
+Of the four, **context** is the one most often left out, because it feels obvious to the person writing the prompt — you already know who you are, what the document is, what "good" looks like for this task. The model knows none of that unless you say it.
+
+Compare:
+
+```text
+Bad:  "Rewrite this to sound better."
+
+Good: "Rewrite this product description for a landing page aimed at
+       small business owners who are price-sensitive and skeptical of
+       AI tools. Keep it under 60 words. Lead with the concrete time
+       saved, not a feature list."
+```
+
+The first prompt forces the model to guess your audience, your tone, your length constraint, and what "better" even means — and it will guess something plausible but generic. The second prompt removes every one of those guesses. Same underlying task, wildly different reliability.
+
+<CodeLab title="Diagnose a Vague Prompt">
+
+Take this real, underspecified prompt:
+
+```text
+"Write something about our new pricing for the newsletter."
+```
+
+Rewrite it by filling in all four parts explicitly. Use this scaffold and fill in specifics for a product you know (real or invented):
+
+```text
+Task:        [what exactly should be produced — a paragraph? headline + body?]
+Context:     [what changed about pricing, who reads this newsletter, what tone fits]
+Format:      [length, structure — headline, 2 short paragraphs, a CTA line?]
+Constraints: [anything to avoid — no discount language? no specific numbers yet?]
+```
+
+Then combine the four lines into a single natural-language prompt, the way the "Good" example above does. Notice how much less room there is for the model to guess wrong.
+
+</CodeLab>
+
+---
+
+## Order and Emphasis Matter Too
+
+Two more practical habits, both grounded in how the model actually processes your text as a token sequence:
+
+- **Put the most important instruction where it's easy to weigh, and repeat it if the prompt is long.** A constraint buried in the middle of three paragraphs of background competes with everything around it. If it's critical, state it plainly and consider restating it right before the actual request.
+- **Show, don't just tell, when the format matters.** "Format as a table" is good; showing a one-row example of the exact table you want is better. The next lesson covers this — few-shot examples — in depth.
+
+For long, complex prompts, plain text delimiters help too — wrapping a block of source material in something like triple quotes or an XML-style tag (`<document>...</document>`) makes it visually and structurally unambiguous where your instructions end and the content to act on begins. This matters most when the content itself contains text that could be mistaken for an instruction, like a customer email that says "ignore the previous message" — a clear boundary keeps the model from treating pasted content as a new command.
+
+<Pitfall title="Padding a Prompt With Adjectives Instead of Specifics">
+
+**Common mistake:** trying to fix a bad output by adding intensity — "Please write a REALLY good, professional, high-quality summary" — instead of adding information.
+
+```text
+Weaker:   "Write a really great, professional summary of this report."
+
+Stronger: "Summarize this report in 4 sentences for a board audience
+           that has 2 minutes to read it. Lead with the number that
+           matters most: revenue, not headcount."
+```
+
+Words like "great" or "professional" don't give the model new information to condition on — they just add tokens without narrowing the space of plausible outputs. Every word in a prompt should either supply information the model didn't have, or constrain a choice it would otherwise have to guess. If a word does neither, it's not helping.
+
+</Pitfall>
+
+<Quiz question="You ask a model to 'write a product description' and get something generic and forgettable. A friend suggests just re-running the exact same prompt a few more times until you get a good one. What's a better first move?">
+<div>
+
+**Diagnose which of the four parts — task, context, format, constraints — is missing, and add it, rather than re-rolling the same underspecified prompt.**
+
+Re-running an identical vague prompt samples from the same broad, generic probability distribution each time — you might get a slightly different generic answer, but you're not changing what's likely. A prompt that never specifies the audience, the tone, the length, or what to avoid leaves the model to guess all of those, and "generic but plausible" is the statistically safe guess. Naming the missing part turns a frustrating retry loop into a specific, one-time fix.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Specifying the task in words gets you far, but sometimes the fastest way to communicate a format is to *show* it. The next lesson covers few-shot examples and how to reliably get structured output like JSON back from a model.

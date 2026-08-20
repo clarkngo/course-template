@@ -1,0 +1,99 @@
+---
+title: "Explaining Technical Work to Non-Technical People"
+description: "Learn to translate technical work into language a non-technical stakeholder can act on, using analogy, the 'so what,' and a before/after rewrite you can copy."
+module: 1
+moduleTitle: "Communicating Technical Work"
+lesson: 1
+duration: "11 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Update Nobody Understood
+
+Picture a standup. An engineer says: "We refactored the auth service to use JWT with refresh token rotation, so the session invalidation race condition should be gone." The product manager nods, writes nothing down, and moves on. Nobody in that room except the engineer's teammate actually understood what just happened — including, maybe, whether it was good news or bad news.
+
+That's not a communication failure because the PM is "non-technical." It's a failure because the engineer described the *mechanism* instead of the *outcome*. Every stakeholder — a PM, a designer, a VP, a customer — cares about the same three things: what changed, why it matters to them, and what (if anything) they need to do about it. Technical vocabulary answers none of those questions by default; it answers "how," and almost nobody asked "how."
+
+This lesson gives you a repeatable way to translate technical work for people who don't share your vocabulary, without dumbing it down or losing accuracy.
+
+---
+
+## The "So What" Test
+
+Before you explain anything technical, run it through one filter: **so what?** Take your first draft of an explanation and ask what a listener should now believe or do differently. If the answer is "nothing, they just now know a fact," you haven't finished translating — you've just repeated yourself more simply.
+
+Apply it to the standup example:
+
+- **What you said:** "We refactored auth to use JWT with refresh token rotation."
+- **So what?** → "This fixes the bug where about 2% of users got logged out mid-session for no reason."
+- **So what, again?** → "Support tickets about random logouts should drop to near zero this week — worth watching the dashboard."
+
+Notice the pattern: each "so what" moves you further from the mechanism and closer to something a PM can act on — update a customer, close a ticket category, report a number going up in a review. The mechanism (JWT, refresh tokens) is still true and still available if someone asks "how did you fix it," but it's no longer load-bearing for the headline.
+
+A useful habit: write the mechanism sentence first, because you need it to think clearly. Then delete it from what you say out loud, and replace it with the answer to "so what" two levels deep.
+
+---
+
+## Analogies That Actually Map
+
+Analogies are the fastest way to give someone a mental model, but a bad analogy is worse than no analogy — it creates false confidence. The test for a good analogy isn't "is it vivid," it's "does the structure of the comparison actually match the structure of the problem."
+
+Compare two analogies for the same concept, database indexing:
+
+**Weak analogy:** "An index is like a librarian who knows where all the books are." Vivid, but it doesn't help anyone reason about *tradeoffs* — why you wouldn't index every column, why writes get slower, why the wrong index doesn't help.
+
+**Working analogy:** "An index is like the index at the back of a textbook. Flipping to page 340 because the index told you to is instant. But someone has to maintain that index every time the book changes — add a new index for every possible topic and updating the book after every edit gets slower and slower. That's why we don't index everything: each one speeds up certain lookups and slows down every write."
+
+The working analogy survives a follow-up question. If the PM asks "so why not just index everything?" the analogy already contains the answer. That's the bar: **an analogy should let the listener predict something you haven't told them yet.** If it can't, it's decoration, not a model.
+
+<Pitfall title="Explaining Downward Instead of Sideways">
+
+The instinct with a non-technical stakeholder is to simplify until it sounds easy — "don't worry about it, it's handled." That reads as condescending and, worse, it hides real tradeoffs and risks the stakeholder actually needs to weigh in on.
+
+**Weaker:** "It's complicated, but basically we're rebuilding some backend stuff. It'll be fine, don't worry about it."
+
+**Better:** "We're rebuilding the piece that handles logins because it breaks under heavy traffic. For about two weeks, login-related bug fixes will pause while we do this — worth flagging to support so they can set expectations. After that, the random-logout complaints should stop for good."
+
+The better version keeps every real consequence (a two-week tradeoff, a heads-up support needs) and drops only the jargon. Explain *sideways*, to a peer who happens to lack your specific vocabulary — not *downward*, to someone who can't handle complexity. Non-technical does not mean unable to weigh a tradeoff; it means unfamiliar with your terms.
+
+</Pitfall>
+
+---
+
+## Building the Explanation: A Three-Layer Structure
+
+A reliable structure for any technical explanation to a mixed audience has three layers, delivered in order, and you stop as soon as the audience has what they need:
+
+1. **The headline** — one sentence, outcome-first. "Checkout is 40% faster on mobile."
+2. **The so-what** — what this means for them specifically. "That should reduce cart abandonment, which was our #2 complaint in last month's survey."
+3. **The mechanism, on request** — how, only if someone asks. "We moved the payment validation from three sequential calls to one batched call."
+
+Most technical people default to starting at layer 3 because that's where the interesting work happened, and where their pride lives. Reverse the order. You can always go deeper if asked; you can rarely claw back an audience that checked out during a sentence about batched API calls.
+
+---
+
+## Try This
+
+Take a piece of real technical work you've done recently — a bug fix, a migration, a performance improvement, anything. Write three versions of the same update:
+
+1. A one-sentence headline, outcome-first, zero jargon.
+2. Add one sentence answering "so what" — what changes for the reader.
+3. Add, only if genuinely useful, one sentence of mechanism for someone who asks "how."
+
+Read all three aloud to yourself. If sentence 1 alone wouldn't satisfy a PM who has ninety seconds, keep revising it — the goal is that the headline works standalone, and layers 2 and 3 are optional depth, not required context.
+
+<Quiz question="Your team shipped a database migration that took three weeks and touched almost every service. In the all-hands update, what should the first sentence be?">
+<div>
+
+**A one-sentence, outcome-first headline that names what's now true for the business — not a description of the migration itself.**
+
+Something like: "The system that was randomly slowing down checkout during peak hours is fixed, and we now have headroom to handle 5x our current traffic without another project like this." That sentence contains zero technical vocabulary and answers "so what" immediately — it tells a non-technical listener what changed for them (checkout reliability, future scaling) without requiring them to know what a migration is. The database details, the three weeks of effort, the specific tables touched — all of that is available if someone asks "how did you do it," but leading with it front-loads mechanism before anyone has been told why they should care. Save the technical narrative for people who ask, or for a written appendix.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Explaining your work out loud is one skill; writing it down so it survives being skimmed is another. Next lesson covers writing that respects the reader's time — docs, emails, and status updates structured so the important part survives even a 10-second read.

@@ -1,0 +1,152 @@
+---
+title: "System Prompts and Managing Conversation State"
+description: "Use the system prompt to set persistent behavior, and learn how to build multi-turn conversations by hand, since the API itself is stateless between calls."
+module: 4
+moduleTitle: "Building with the Claude API"
+lesson: 2
+duration: "13 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The API Remembers Nothing
+
+Here's the fact that trips up almost everyone building their first chat feature: **every call to `messages.create` is completely independent.** The API has no memory of your previous call, no session, no account of what was said a moment ago. If your second message seems to build on the first, it's because *your code* resent the entire conversation history — not because the model retained anything.
+
+This lesson covers the two tools you use to shape a conversation on top of that stateless foundation: the **system prompt**, which sets persistent behavior for the whole conversation, and the **messages list**, which you grow by hand, turn by turn, to give the model access to everything said so far.
+
+---
+
+## The System Prompt Sets the Rules of Engagement
+
+The `system` parameter is a separate field from `messages` — it's not a turn in the conversation, it's standing instructions that apply to how the model behaves for every turn in this request. Use it for things that should hold steady throughout the conversation: persona, tone, formatting rules, hard constraints.
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+message = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=1024,
+    system=(
+        "You are a support assistant for a bike rental company. "
+        "Keep replies under 4 sentences. Never promise a refund — "
+        "escalate refund requests to a human by saying so explicitly."
+    ),
+    messages=[
+        {"role": "user", "content": "My bike's brakes felt loose yesterday, is that normal?"}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+Keeping persistent rules in `system` rather than repeating them inside every user message keeps your `messages` list focused on the actual conversation, and — as you'll see next — makes the pattern for growing that list much simpler.
+
+---
+
+## Building Conversation State by Hand
+
+Since nothing is remembered server-side, a multi-turn conversation is just a Python list that you append to after every exchange: the user's message goes in, then the model's reply goes in too — as an `"assistant"` message — before you send the next request.
+
+<CodeLab title="Build a Running Conversation">
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+SYSTEM_PROMPT = "You are a concise, friendly cooking assistant."
+
+conversation = []
+
+def ask(user_text: str) -> str:
+    # 1. Add the new user turn to the running history.
+    conversation.append({"role": "user", "content": user_text})
+
+    # 2. Send the ENTIRE history so far — not just this message.
+    response = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=512,
+        system=SYSTEM_PROMPT,
+        messages=conversation,
+    )
+
+    reply_text = response.content[0].text
+
+    # 3. Add the model's own reply back into the history, so the
+    #    NEXT call has full context of what it already said.
+    conversation.append({"role": "assistant", "content": reply_text})
+
+    return reply_text
+
+print(ask("What's a good substitute for buttermilk?"))
+print(ask("And how much of that should I use for 1 cup of buttermilk?"))
+```
+
+The second question — "how much of *that*" — only makes sense with the first exchange in view. Because `conversation` is resent in full on every call, the model can resolve "that" correctly. Delete the `conversation.append(...)` lines and rerun it: the second answer would come back confused, because the model would have no idea what "that" refers to. This is Module 1's context window lesson made concrete — you are the one responsible for keeping the relevant history inside it.
+
+</CodeLab>
+
+---
+
+## Watching the List Grow (and Cost Grow With It)
+
+Every additional turn makes the `messages` list — and therefore every *subsequent* request — larger, because you resend the whole thing each time. This has two direct consequences worth planning around:
+
+- **Cost and latency creep up as a conversation gets longer**, since input token count grows with every turn, even though only the newest message is actually new.
+- **Eventually you'll approach the context window limit** (Module 1) and need a strategy — trimming the oldest turns, summarizing older parts of the conversation into a shorter recap, or starting a fresh conversation — rather than letting a request simply fail once the list grows too large.
+
+For a short-lived script or a bounded interaction, none of this matters much. For a long-running chat product, it's the first real architectural decision you'll face.
+
+---
+
+## One More Structural Rule: Roles Must Alternate
+
+The API expects `messages` to alternate strictly between `"user"` and `"assistant"` roles, starting with `"user"`. You can't send two `"user"` messages back to back, or start a conversation with an `"assistant"` message. This is exactly why the `ask()` function above appends a `"user"` entry and then, once the response comes back, an `"assistant"` entry before the next call — it's maintaining that alternation for you automatically.
+
+This matters most when you're assembling `messages` from multiple sources — say, combining a logged transcript with a new question. If two consecutive entries end up with the same role, merge their content into a single message rather than sending them as separate turns; the API will reject a request that breaks the alternating pattern.
+
+One more distinction worth noting here: `system` is not a turn at all, and doesn't count toward this alternation. It's a separate field that applies to the whole request regardless of how many turns are in `messages` — one more reason to keep standing rules there rather than folding them into the conversation itself.
+
+---
+
+<Pitfall title="Putting Persistent Rules Inside the User Message Instead of system">
+
+**Common mistake:** re-typing behavioral rules into every user message instead of setting them once in `system`.
+
+```python
+# Repetitive, and rules can drift or get forgotten on later turns:
+messages=[{"role": "user", "content":
+    "Remember, keep replies short and never promise refunds. "
+    "Also: my bike's brakes felt loose yesterday, is that normal?"
+}]
+
+# Cleaner: set once, applies to the whole conversation automatically.
+system="Keep replies under 4 sentences. Never promise a refund."
+messages=[{"role": "user", "content":
+    "My bike's brakes felt loose yesterday, is that normal?"
+}]
+```
+
+Mixing standing rules into the conversational content makes the `messages` list harder to reason about and easier to get wrong — you have to remember to re-paste the rules on every single turn, and if you forget once, the behavior silently changes. `system` exists specifically so this doesn't have to be your problem.
+
+</Pitfall>
+
+<Quiz question="You call ask() from the CodeLab above three times in a row, but you forgot to include the conversation.append(...) line for the assistant's replies. What happens to the third response?">
+<div>
+
+**It's generated with no knowledge of the model's own previous two replies — only the user's messages accumulate, so the model may contradict or repeat itself as if this were closer to three separate conversations.**
+
+The API has no memory of its own; everything it "knows" about the conversation comes only from what's actually inside the `messages` list you send. If you only append user turns and never append the assistant's replies, each new call still includes every question you've asked, but the model has no record of how it answered them before — it's reasoning from an incomplete, one-sided transcript. Appending both roles after each exchange is what makes the history coherent from the model's point of view.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+So far, the model can only respond with text — it can't check a real order status, run a calculation, or take an action in the world. Module 5 introduces tool use: giving Claude the ability to call real functions in your code and use their results to answer accurately.

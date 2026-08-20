@@ -1,0 +1,155 @@
+---
+title: "Answering Real Questions with Data"
+description: "Combine filtering, groupby, and sorting into short analysis scripts that answer specific business questions and end in a stated conclusion."
+module: 4
+moduleTitle: "Analysis"
+lesson: 2
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## A Summary Table Isn't a Finding
+
+`by_item` from the last lesson is a table. "Cold Brew is our best-selling item by both units and revenue" is a **finding**. The gap between those two things is where real data analysis actually happens — and it's smaller than it looks, because every finding is just a summary table with one more step: reading the number that matters and saying, in plain language, what it means. This lesson is about taking that last step deliberately, every time, instead of stopping at the table.
+
+We'll keep working with the same `corner_cafe_sales.csv` and answer three concrete questions a coffee shop owner might actually ask.
+
+---
+
+## Question 1: What's Our Best-Selling Item?
+
+"Best-selling" is ambiguous until you pick a measure — units moved, or revenue earned. Compute both and compare:
+
+```python
+import pandas as pd
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+sales["revenue"] = sales["quantity"] * sales["price"]
+
+by_item = sales.groupby("item").agg(
+    total_quantity=("quantity", "sum"),
+    total_revenue=("revenue", "sum"),
+)
+
+top_by_units = by_item["total_quantity"].idxmax()
+top_by_revenue = by_item["total_revenue"].idxmax()
+
+print(f"Most units sold: {top_by_units}")
+print(f"Most revenue earned: {top_by_revenue}")
+```
+
+`.idxmax()` returns the *index label* of the row with the largest value — not the value itself, the name attached to it. On `by_item`, whose index is the item name, `by_item["total_revenue"].idxmax()` hands you `"Cold Brew"` directly, rather than making you look up which row a raw number belongs to. In this dataset both questions land on the same answer — Cold Brew leads on units (15) *and* revenue ($60.00) — which is itself worth stating plainly: the top seller isn't just popular, it's also the biggest earner, so there's no tension here between "what customers want" and "what pays the bills."
+
+## Question 2: Which Day Earned the Most?
+
+Group by `date` instead of `item`, and the same pattern answers a completely different question:
+
+```python
+by_day = sales.groupby("date")["revenue"].sum()
+print(by_day)
+
+best_day = by_day.idxmax()
+best_day_revenue = by_day.max()
+print(f"\nBest day: {best_day}, ${best_day_revenue:.2f}")
+```
+
+Run it and you'll get `2024-01-04` at `$55.25` — the highest of the three days, edging out `2024-01-03` at `$53.50` and `2024-01-02` at `$49.75`. Notice this used `.groupby("date")["revenue"]` — the single-bracket shortcut from the last lesson's quiz — because here you only need one summary statistic from one column, not the multi-column `.agg()` table.
+
+---
+
+## Question 3: Count vs. Sum — Not the Same Question
+
+"How many times did we sell Muffins" and "how many Muffins did we sell" sound similar and are genuinely different questions, answered by different aggregations:
+
+```python
+orders_per_item = sales.groupby("item")["quantity"].count()
+units_per_item = sales.groupby("item")["quantity"].sum()
+
+print(orders_per_item)
+print(units_per_item)
+```
+
+`.count()` counts *rows* — how many separate order lines exist for each item, regardless of the quantity in each one. `.sum()` adds up the *values* in those rows. In this dataset, every item appears in exactly three rows (one per day), so `orders_per_item` shows `3` across the board — but `units_per_item` ranges from `6` (Muffin) to `15` (Cold Brew), because three orders of very different sizes produce very different totals. Reporting "Muffins were ordered the same number of times as Cold Brew" would be technically true and completely misleading about which drink actually matters to the business — the count and the sum tell two different stories, and picking the wrong one changes the finding.
+
+<CodeLab title="Write a Three-Line Findings Report">
+
+Extend the script from Question 1 and 2 to print an actual, readable summary — the kind you'd hand to someone who will never open the CSV themselves:
+
+```python
+import pandas as pd
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+sales["revenue"] = sales["quantity"] * sales["price"]
+
+by_item = sales.groupby("item").agg(
+    total_quantity=("quantity", "sum"),
+    total_revenue=("revenue", "sum"),
+).sort_values("total_revenue", ascending=False)
+
+by_day = sales.groupby("date")["revenue"].sum()
+
+top_item = by_item.index[0]
+top_item_revenue = by_item["total_revenue"].iloc[0]
+best_day = by_day.idxmax()
+best_day_revenue = by_day.max()
+total_revenue = sales["revenue"].sum()
+
+print("CORNER CAFE — 3-DAY SALES SUMMARY")
+print(f"Total revenue: ${total_revenue:.2f}")
+print(f"Top item: {top_item} (${top_item_revenue:.2f})")
+print(f"Best day: {best_day} (${best_day_revenue:.2f})")
+```
+
+`by_item.index[0]` reads the label of the first row after sorting — since `by_item` is already sorted by revenue descending, that's the top item's name. Run it and confirm the total comes to `$158.50` across all three days — the same number you'd get from `by_day.sum()`, a useful cross-check that your grouping didn't silently drop or double-count any rows.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Reporting the Table Instead of the Finding">
+
+A summary table is not, by itself, an answer to anyone's question — and handing someone a `groupby` result without reading it first is a common way to bury a finding you already have.
+
+```python
+# Wrong — technically shows the answer, but makes the
+# reader do the work of finding it
+print(by_item)
+```
+
+```
+            total_quantity  total_revenue
+item
+Cold Brew                15          60.00
+Espresso                  14          38.50
+Latte                      9          40.50
+Muffin                     6          19.50
+```
+
+```python
+# Right — the table is your evidence; the print
+# statement is your finding
+top_item = by_item["total_revenue"].idxmax()
+top_revenue = by_item["total_revenue"].max()
+print(f"Cold Brew leads all items with ${top_revenue:.2f} in revenue.")
+```
+
+Keep the table around — as a comment, a saved CSV, or printed output above the summary line — so the finding is checkable. But the *finding* is the sentence in plain English, not the table it was read from. This is the same instinct the capstone in Module 5 leans on hardest: an analysis isn't finished until someone who never touched pandas could read your conclusion and understand it.
+
+</Pitfall>
+
+<Quiz question="by_item.sort_values('total_revenue', ascending=False).index[0] and by_item['total_revenue'].idxmax() both identify the top-revenue item in this dataset. Are they interchangeable in general?">
+<div>
+
+**Not quite — `idxmax()` always returns a single label, even if there's a tie for the maximum, while sorting and taking `.index[0]` depends on how ties are broken by the sort, which isn't something you should rely on to pick a specific "winner."**
+
+Both approaches happen to agree here because there's a clear, unique top item. But if two items tied for the highest revenue, `idxmax()` would return whichever one pandas encounters first internally — and so would `.index[0]` after a sort, but for a different, easy-to-miss reason: `sort_values` is stable, so a tie's order depends on the *original* row order in the DataFrame, not on which value is "really" bigger, because they're equal. Neither method is choosing a winner in a tie — they're both just reporting *a* value that matches the maximum. If ties matter to a question you're answering, check for them explicitly (`by_item[by_item["total_revenue"] == by_item["total_revenue"].max()]`) rather than trusting either shortcut to pick the one you meant.
+
+</div>
+</Quiz>
+
+## Up Next
+
+You can now turn a dataset into a stated, defensible finding. Module 5 adds the piece that makes a finding land with someone who won't read your code at all: a chart. You'll also learn how an honestly-built chart differs from a technically-accurate but misleading one — a distinction that matters as much as the numbers underneath it.

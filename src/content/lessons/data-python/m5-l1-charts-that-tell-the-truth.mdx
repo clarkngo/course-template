@@ -1,0 +1,168 @@
+---
+title: "Charts That Tell the Truth"
+description: "Turn a pandas summary into a matplotlib chart, and learn the axis and scale choices that separate an honest chart from a misleading one."
+module: 5
+moduleTitle: "Visualization & Capstone"
+lesson: 1
+duration: "14 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## A Number Nobody Reads Twice
+
+Module 4 ended with a print statement: *"Cold Brew leads all items with $60.00 in revenue."* True, clear, and still easy to skim past in a wall of terminal output. A chart is what makes that finding land — it's the difference between a fact someone has to parse and a fact someone just *sees*. This lesson covers **matplotlib**, Python's foundational charting library, and — just as important — the handful of choices that turn an accurate chart into a misleading one, because a chart's persuasive power cuts both ways.
+
+If matplotlib isn't installed:
+
+```bash
+pip install matplotlib
+```
+
+We're finishing with the same `corner_cafe_sales.csv` and the `by_item` revenue summary from Module 4.
+
+---
+
+## Your First Chart
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+sales["revenue"] = sales["quantity"] * sales["price"]
+
+by_item = sales.groupby("item")["revenue"].sum().sort_values(ascending=False)
+
+plt.bar(by_item.index, by_item.values, color="#16a34a")
+plt.title("Revenue by Item")
+plt.xlabel("Item")
+plt.ylabel("Revenue ($)")
+plt.savefig("revenue_by_item.png")
+plt.show()
+```
+
+`plt.bar(x, y)` takes two matching sequences — here, `by_item.index` (the item names) for the bar positions and `by_item.values` (the revenue totals) for their heights. `plt.title`, `plt.xlabel`, and `plt.ylabel` aren't decoration — a chart with no labels forces every viewer to guess what they're looking at, which defeats the entire point of charting a finding instead of just stating it. `plt.savefig("revenue_by_item.png")` writes the chart to a file, so it can go in a report or a slide; `plt.show()` opens it in a window if you're running the script somewhere with a display. Call `savefig` *before* `show()` — once a chart window closes, matplotlib clears the figure, and a `savefig` after that point writes a blank image.
+
+A line chart uses the same pattern for data that moves across an ordered sequence, like revenue over the three days:
+
+```python
+by_day = sales.groupby("date")["revenue"].sum()
+
+plt.plot(by_day.index, by_day.values, marker="o", color="#2563eb")
+plt.title("Daily Revenue Trend")
+plt.xlabel("Date")
+plt.ylabel("Revenue ($)")
+plt.savefig("daily_revenue_trend.png")
+plt.show()
+```
+
+`marker="o"` draws a dot at each actual data point on top of the connecting line, which matters for a three-point line like this one — without it, three dots and the two segments between them can be hard to distinguish from a chart that has many more underlying points.
+
+## Choosing the Right Chart Shape
+
+| Question | Chart | Why |
+|---|---|---|
+| Compare totals across categories | `plt.bar` | Bar length is easy to compare at a glance |
+| Show a trend across an ordered sequence (time) | `plt.plot` | A line makes direction and rate of change visible |
+| Show the relationship between two numeric variables | `plt.scatter` | Reveals whether two measures move together |
+
+`plt.scatter(x, y)` follows the identical pattern — for example, `plt.scatter(sales["quantity"], sales["revenue"])` would show whether bigger orders tend to be more profitable per order, one dot per row. The chart type isn't a style preference; it's a claim about what kind of comparison you're asking the viewer to make, so pick the one that matches your actual question.
+
+---
+
+## Where Charts Start Lying
+
+A chart's whole value is that people trust their eyes more than a table of numbers. That trust is exactly what a poorly-made chart abuses — sometimes by accident, sometimes on purpose. The single most common way a bar chart misleads: **starting the y-axis somewhere other than zero.**
+
+```python
+# Distorts the comparison — don't do this
+plt.bar(by_item.index, by_item.values, color="#16a34a")
+plt.ylim(35, 62)
+```
+
+`plt.ylim(35, 62)` forces the visible range to start near the smallest bar instead of at zero. Because a bar's *height* is what a viewer reads as "how much," truncating the axis inflates every visual difference — a value that's genuinely about 1.5 times larger than another can be drawn *ten times* taller once the baseline is cut away.
+
+<svg viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two bar charts side by side showing the same two values, 60 and 38.50. The left chart, axis starting at zero, shows the bars at a modest, honest height difference. The right chart, axis truncated to start near 35, shows the same two bars with a wildly exaggerated height difference, making the smaller value look almost negligible.">
+  <g font-family="system-ui, -apple-system, sans-serif" font-size="11.5">
+    <text x="150" y="20" text-anchor="middle" fill="currentColor" font-weight="700" opacity="0.85">Axis starts at 0 — honest</text>
+    <line x1="60" y1="220" x2="60" y2="40" stroke="currentColor" stroke-width="1.2" opacity="0.35"/>
+    <line x1="60" y1="220" x2="240" y2="220" stroke="currentColor" stroke-width="1.2" opacity="0.35"/>
+    <rect x="90" y="40" width="50" height="180" fill="#16a34a" opacity="0.75"/>
+    <text x="115" y="234" text-anchor="middle" fill="currentColor" opacity="0.7">Cold Brew</text>
+    <text x="115" y="34" text-anchor="middle" fill="currentColor" opacity="0.85">$60</text>
+    <rect x="170" y="105" width="50" height="115" fill="#94a3b8" opacity="0.75"/>
+    <text x="195" y="234" text-anchor="middle" fill="currentColor" opacity="0.7">Espresso</text>
+    <text x="195" y="99" text-anchor="middle" fill="currentColor" opacity="0.85">$38.50</text>
+
+    <text x="480" y="20" text-anchor="middle" fill="currentColor" font-weight="700" opacity="0.85">Axis starts at 35 — misleading</text>
+    <line x1="390" y1="220" x2="390" y2="40" stroke="currentColor" stroke-width="1.2" opacity="0.35"/>
+    <line x1="390" y1="220" x2="570" y2="220" stroke="currentColor" stroke-width="1.2" opacity="0.35"/>
+    <rect x="420" y="40" width="50" height="180" fill="#16a34a" opacity="0.75"/>
+    <text x="445" y="234" text-anchor="middle" fill="currentColor" opacity="0.7">Cold Brew</text>
+    <text x="445" y="34" text-anchor="middle" fill="currentColor" opacity="0.85">$60</text>
+    <rect x="500" y="197" width="50" height="23" fill="#94a3b8" opacity="0.75"/>
+    <text x="525" y="234" text-anchor="middle" fill="currentColor" opacity="0.7">Espresso</text>
+    <text x="525" y="191" text-anchor="middle" fill="currentColor" opacity="0.85">$38.50</text>
+
+    <text x="320" y="250" text-anchor="middle" fill="currentColor" opacity="0.7" font-size="10.5">Same two numbers. The right chart makes Espresso look like a rounding error.</text>
+  </g>
+</svg>
+
+The fix is almost always to just not call `plt.ylim` at all — matplotlib defaults to a zero-based axis for a bar chart unless you override it, so leaving it alone is usually the honest choice by default. A truncated axis is occasionally defensible for a *line* chart zooming in on a small fluctuation in an otherwise large, stable number (a stock price, a temperature) — but even then, label the axis clearly and consider annotating that it's zoomed, so no one mistakes a small wiggle for a dramatic swing.
+
+<CodeLab title="Chart the Item Revenue Comparison">
+
+Using `corner_cafe_sales.csv`:
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+sales["revenue"] = sales["quantity"] * sales["price"]
+
+by_item = sales.groupby("item")["revenue"].sum().sort_values(ascending=False)
+
+plt.bar(by_item.index, by_item.values, color="#16a34a")
+plt.title("Corner Cafe: Revenue by Item")
+plt.xlabel("Item")
+plt.ylabel("Revenue ($)")
+plt.savefig("revenue_by_item.png")
+plt.show()
+```
+
+Run it, then deliberately break it: add `plt.ylim(35, 62)` right before `plt.savefig(...)`, regenerate the chart, and compare the two images side by side. Notice how much more dramatic Cold Brew's lead looks in the truncated version — same four numbers, a visibly different (and less honest) impression.
+
+</CodeLab>
+
+<Pitfall title="A Pie Chart for Too Many Slices">
+
+Bar charts aren't the only place scale choices mislead — pie charts have their own common failure, and it's not about the axis.
+
+```python
+# Technically works, but human eyes are bad at
+# comparing angles — six-plus slices become an
+# unreadable wedge of similar-looking colors
+plt.pie(by_item.values, labels=by_item.index)
+```
+
+A pie chart is only genuinely readable with a handful of slices and a clear largest-vs-rest story — beyond four or five categories, or when several slices are close in size, a bar chart communicates the same comparison far more clearly, because bar length is much easier for a human eye to judge accurately than a wedge angle. When in doubt, default to `plt.bar` for category comparisons; reach for `plt.pie` only when "this one slice dominates the rest" is genuinely the whole point.
+
+</Pitfall>
+
+<Quiz question="A truncated y-axis on a bar chart is misleading. Would the same truncation be misleading on a scatter plot comparing quantity and revenue per order?">
+<div>
+
+**Less so, and often not misleading at all — because a scatter plot's meaning comes from each point's *position* relative to the others, not from a bar's height measured against a zero baseline.**
+
+Bar charts encode value as length from a shared baseline, so moving that baseline distorts every comparison the viewer makes by eye. A scatter plot encodes value as *position* — you're reading where each dot sits relative to the other dots and the general trend, not measuring a bar's length against zero. Zooming a scatter plot's axes to the range where the actual data lives is normal practice and usually makes the pattern *easier* to see, not harder. The rule isn't "never adjust an axis" — it's "know what visual property your chart type uses to encode value, and don't distort that specific property." For bars, that's height from zero. For scatter plots, it's relative position, which a zoomed axis doesn't corrupt the same way.
+
+</div>
+</Quiz>
+
+## Up Next
+
+You now have every piece: load data, clean it, filter and group it, state a finding, and chart it. The capstone lesson runs the entire pipeline start to finish on one new dataset, exactly the way a real data analysis unfolds — and it's the last lesson in this course.

@@ -1,0 +1,233 @@
+---
+title: "Events and Interactivity"
+description: "Wire up click and input events with addEventListener to build a project filter and a validated contact form for the portfolio."
+module: 3
+moduleTitle: "JavaScript Fundamentals"
+lesson: 2
+duration: "17 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## From Reading the Page to Reacting to It
+
+Last lesson, your JavaScript ran once, when the page loaded, and then sat idle. Real interactivity means responding to things a visitor *does* — clicking a filter button, typing into a field, submitting a form. That response mechanism is called an **event**, and `addEventListener` is how you hook your code up to one.
+
+By the end of this lesson your portfolio will do two real things: filter project cards by category when a button is clicked, and validate a contact form before it's allowed to submit.
+
+---
+
+## The Anatomy of an Event Listener
+
+```js
+const button = document.querySelector("#filter-all");
+
+button.addEventListener("click", function () {
+  console.log("Button was clicked!");
+});
+```
+
+`addEventListener` takes two arguments: the event name as a string (`"click"`, `"input"`, `"submit"`, and dozens more), and a function to run when that event fires. That function is called an **event handler** or **callback** — you're handing the browser a function and saying "call this later, when this happens," rather than running the code immediately.
+
+You'll also see this written with an **arrow function**, a shorter function syntax that's extremely common in modern JavaScript:
+
+```js
+button.addEventListener("click", () => {
+  console.log("Button was clicked!");
+});
+```
+
+`() => { ... }` behaves the same as `function () { ... }` for this purpose. Both are correct; arrow functions are just more concise, and you'll see them constantly from here on.
+
+---
+
+## The Event Object
+
+Every handler receives an **event object** describing what happened — which element was clicked, what key was pressed, what the current value of an input is:
+
+```js
+const input = document.querySelector("#name-field");
+
+input.addEventListener("input", (event) => {
+  console.log(event.target.value); // the current text in the field, live
+});
+```
+
+`event.target` is the actual element the event fired on. For a text input, `event.target.value` gives you what the user has typed *so far* — the `"input"` event fires on every keystroke, which makes it perfect for live validation feedback as someone types.
+
+---
+
+## Building the Project Filter
+
+Here's the pattern for filtering: give each project card a `data-category` attribute (from last lesson), give each filter button a matching `data-filter` value, and toggle visibility by comparing the two.
+
+```html
+<div class="filter-bar">
+  <button data-filter="all">All</button>
+  <button data-filter="web">Web</button>
+  <button data-filter="tools">Tools</button>
+</div>
+
+<div class="project-grid">
+  <article data-category="web">...</article>
+  <article data-category="tools">...</article>
+</div>
+```
+
+```js
+const filterButtons = document.querySelectorAll(".filter-bar button");
+const projectCards = document.querySelectorAll(".project-grid article");
+
+filterButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const filter = button.dataset.filter;
+
+    projectCards.forEach((card) => {
+      const matches = filter === "all" || card.dataset.category === filter;
+      card.style.display = matches ? "block" : "none";
+    });
+  });
+});
+```
+
+Two things worth noticing here. First, `querySelectorAll` returns a NodeList, and `forEach` lets you run code for every match — you need this because you're wiring up *multiple* buttons and checking *multiple* cards, not just one. Second, the ternary `matches ? "block" : "none"` is shorthand for an if/else that returns one of two values — extremely common for exactly this kind of toggle logic.
+
+<CodeLab title="Wire Up the Project Filter">
+
+**Step 1** — Add `data-category` to each project `<article>` in `index.html`, and add a filter bar above `.project-grid`:
+
+```html
+<div class="filter-bar">
+  <button data-filter="all">All</button>
+  <button data-filter="web">Web</button>
+</div>
+```
+
+**Step 2** — Add the JavaScript from above to `script.js`.
+
+**Step 3** — Add basic styling so the active filter is visually obvious:
+
+```css
+.filter-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-bar button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #3b63f5;
+  border-radius: 6px;
+  background: white;
+  color: #3b63f5;
+  cursor: pointer;
+}
+
+.filter-bar button.active {
+  background: #3b63f5;
+  color: white;
+}
+```
+
+**Step 4** — Extend the click handler to toggle an `active` class, so the currently-selected filter button is visually highlighted:
+
+```js
+filterButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    filterButtons.forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+
+    const filter = button.dataset.filter;
+    projectCards.forEach((card) => {
+      const matches = filter === "all" || card.dataset.category === filter;
+      card.style.display = matches ? "block" : "none";
+    });
+  });
+});
+```
+
+`classList.add`/`.remove` is the standard way to toggle CSS classes from JavaScript — cleaner than writing inline styles for anything beyond simple show/hide logic.
+
+</CodeLab>
+
+---
+
+## Form Validation
+
+Now the contact section from Module 1 becomes a real form. Update the HTML:
+
+```html
+<form id="contact-form">
+  <label for="email">Email</label>
+  <input type="email" id="email" required />
+
+  <label for="message">Message</label>
+  <textarea id="message" required></textarea>
+
+  <button type="submit">Send</button>
+  <p id="form-error" role="alert"></p>
+</form>
+```
+
+The `required` attribute gives you basic built-in browser validation for free. But to show a custom, styled error message — and to stop a genuinely empty submission — handle the `"submit"` event yourself:
+
+```js
+const form = document.querySelector("#contact-form");
+const errorMessage = document.querySelector("#form-error");
+
+form.addEventListener("submit", (event) => {
+  event.preventDefault(); // stop the default page-reload submission
+
+  const email = document.querySelector("#email").value.trim();
+  const message = document.querySelector("#message").value.trim();
+
+  if (!email.includes("@")) {
+    errorMessage.textContent = "Please enter a valid email address.";
+    return;
+  }
+
+  if (message.length === 0) {
+    errorMessage.textContent = "Please enter a message before sending.";
+    return;
+  }
+
+  errorMessage.textContent = "";
+  console.log("Form is valid — ready to send:", { email, message });
+});
+```
+
+`event.preventDefault()` is essential here — by default, submitting a form reloads the page (or navigates to whatever URL the form's `action` points to), wiping out any JavaScript state and console output. Calling it first lets you control exactly what happens next, which matters enormously once Module 4 has you sending this data somewhere with `fetch`.
+
+<Pitfall title="Forgetting preventDefault on a Form Submit">
+
+```js
+// Wrong: the page reloads the instant "submit" fires, before your
+// validation logic ever gets a chance to run to completion
+form.addEventListener("submit", (event) => {
+  if (email.includes("@")) {
+    console.log("valid!");
+  }
+});
+```
+
+```js
+// Right: stop the default behavior immediately, first line of the handler
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (email.includes("@")) {
+    console.log("valid!");
+  }
+});
+```
+
+Without `preventDefault()`, the browser's default full-page-reload behavior for form submission kicks in right alongside your handler — on a fast connection, you might not even see your `console.log` before the page refreshes and clears it. This is one of the most common "my code isn't running" bugs beginners hit with forms, and the fix is one line, always the first line of the handler.
+
+</Pitfall>
+
+---
+
+## Up Next
+
+Your portfolio now reacts to clicks and validates its own form — but everything so far lives entirely inside the page, with no connection to the outside world. Next module, you fetch real data from an API and render it dynamically into the DOM.

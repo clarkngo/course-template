@@ -1,0 +1,101 @@
+---
+title: "Navigating Disagreement and Code Review"
+description: "Disagree productively in PR reviews and team discussions, and know when to keep pushing on a technical disagreement versus when to let it go."
+module: 2
+moduleTitle: "Working on a Team"
+lesson: 2
+duration: "11 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## A PR Comment Is Not a Verdict on You
+
+Code review is where a lot of teams' interpersonal friction actually lives, because it's a place where someone's work product gets picked apart in writing, often asynchronously, often by someone more senior, in a format with no tone of voice. A comment that was meant as "here's an alternative worth considering" reads, at 11pm with low context, as "this is wrong and you should have known better."
+
+Neither side is usually acting in bad faith. The problem is that code review compresses a technical disagreement and a personal evaluation into the same three-line comment box, and both the reviewer and the author have to actively work to keep those two things separate.
+
+---
+
+## Writing Review Comments That Stay Technical
+
+The words you choose in a review comment determine whether the author reads it as "let's solve this together" or "you made a mistake." A few concrete rewrites:
+
+| Instead of | Try |
+|---|---|
+| "This is wrong." | "I think this breaks when the list is empty — can you check?" |
+| "Why would you do it this way?" | "What was the reasoning here? I'd have reached for X, curious what led here." |
+| "This is a mess." | "This function is doing three things — splitting it might make the tests easier to write." |
+| "Obviously this needs a test." | "Could you add a test for the empty-list case? Want to make sure we catch regressions here." |
+
+The pattern across every rewrite: name the *specific technical concern*, ask rather than assert when you're not certain, and frame it as a question about the code's behavior rather than a judgment of the person who wrote it. "Why would you do it this way" presumes there's no good reason; "what was the reasoning here" assumes there might be one you haven't seen yet — and often there is.
+
+This isn't about being soft on standards. You can hold a hard line — "this will break under concurrent writes, it needs to change before merge" — and still phrase it as a claim about the code's behavior rather than the author's competence.
+
+---
+
+## Disagreeing Without Making It Personal
+
+When you're the one pushing back on a review comment, or on someone else's proposed approach in a design discussion, the same separation applies in reverse. A useful discipline: state the technical claim, the reasoning behind it, and what would change your mind — all three, every time.
+
+**Weaker:** "I don't think that's a good idea."
+
+**Better:** "I'd lean against the shared cache here — under our traffic pattern, a cache miss storm on deploy could take down the service, and we hit that exact issue with the search index last year. If we added a warm-up step before traffic switches over, I'd be fine with it."
+
+The better version does three things the weaker one doesn't: it gives a concrete reason (cache miss storm risk), grounds it in evidence (a past incident), and names a condition that would resolve the disagreement (a warm-up step). That last part matters most — it turns a stalemate into a path forward, and it signals you're arguing about the approach, not defending a position for its own sake.
+
+<Pitfall title="Winning the Thread Instead of Solving the Problem">
+
+PR comment threads have a specific failure mode: each reply tries to have the last word, the thread grows to fifteen comments, and by the end nobody remembers what the original technical question even was. It becomes about not backing down rather than about the code.
+
+**Weaker exchange:**
+> Reviewer: "This should use a Map instead of an array — O(1) lookup."
+> Author: "The array is fine, we're not at scale where that matters."
+> Reviewer: "It's still bad practice."
+> Author: "I disagree, arrays are simpler here."
+> *(eight more replies, no resolution)*
+
+**Better move, at message three:** "Sounds like we're both fairly confident and this is a real tradeoff (readability vs. performance headroom) rather than a right-and-wrong question. Want to hop on a two-minute call, or should we just go with the array now and revisit if it's ever actually a bottleneck?"
+
+The better move doesn't concede the technical point — it recognizes that the *medium* has stopped working. Async threads are bad at resolving genuine disagreements once both sides have stated their case twice; a synchronous conversation resolves in two minutes what a comment thread turns into a fifteen-round debate. Naming that and proposing a way out is itself a skill, separate from who's technically right.
+
+</Pitfall>
+
+---
+
+## When to Push and When to Let It Go
+
+Not every disagreement is worth escalating, and treating all of them as equally important burns trust you'll need for the ones that actually matter. A rough framework for deciding:
+
+- **Push hard:** correctness bugs, security issues, anything that's expensive or risky to fix later (data model choices, public API shape), anything that violates a documented team standard.
+- **State your view once, then defer:** style preferences, naming, structure choices where multiple approaches are genuinely fine, anything where you're the reviewer but not the owner of the long-term maintenance burden.
+- **Let it go entirely:** anything you'd call a nitpick even in your own head, anything you've already said once and the author considered and declined, anything where being right would cost more team goodwill than the fix is worth.
+
+The signal that tells you which bucket you're in: **ask what happens if you're wrong, and what happens if you're right but say nothing.** If being wrong costs a production incident, push. If being right just means the code matches your personal taste, that's information about you, not a reason to hold up someone else's PR.
+
+When you do decide to defer or let something go, say so explicitly rather than just going silent — "not blocking, but flagging for future consideration" or "fine as is, my earlier comment was a preference not a requirement" closes the loop cleanly instead of leaving the author guessing whether you're still unhappy.
+
+---
+
+## Try This
+
+Find a PR comment thread from your own history — yours or a review you gave — that felt tense or dragged on longer than it should have. Rewrite the exchange:
+
+1. Rewrite your own comment using a concrete technical claim, your reasoning, and what would change your mind.
+2. If the thread went back and forth more than twice without resolving, write the "let's take this off-thread" message you could have sent at message three instead of message ten.
+3. Decide, honestly, which bucket the original disagreement belonged in — push hard, state once, or let go — and whether the actual exchange matched that.
+
+<Quiz question="You leave a PR comment suggesting a different approach. The author replies defending their original choice with reasoning you hadn't considered, and you realize they might be right. What's the best response?">
+<div>
+
+**Say so directly and update your position — something like "good point, hadn't considered that, I'm fine with the original approach" — rather than staying quiet or continuing to push a position you no longer actually hold.**
+
+Changing your mind visibly in a PR thread does two things at once: it resolves this specific disagreement immediately instead of dragging it out, and it models exactly the behavior that makes code review function as genuine collaboration rather than a status contest — where reviewers who are shown to be wrong actually say so. The alternative, quietly approving without comment or continuing to argue a point you're no longer sure of, either leaves the author unsure whether you're actually convinced or wastes both people's time defending a position for its own sake. Being visibly persuadable is what earns you the credibility to push hard on the disagreements that really matter.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Feedback and disagreement are peer-to-peer skills. Module 3 moves up a level — to leading and influencing people who don't report to you, starting with how to get buy-in when you have no formal authority to demand it.

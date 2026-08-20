@@ -1,0 +1,110 @@
+---
+title: "Writing That Gets Read: Docs, Emails, and Status Updates"
+description: "Structure written updates so the important information survives a 10-second skim, using the inverted pyramid and a real before/after rewrite."
+module: 1
+moduleTitle: "Communicating Technical Work"
+lesson: 2
+duration: "10 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Nobody Reads Top to Bottom
+
+Here's the uncomfortable truth about anything you write at work: almost nobody reads it start to finish. They skim the first two lines, decide whether it matters to them right now, and either keep going or move on. A status update, a design doc, a Slack message to a director — all of them get the same treatment. Your reader's attention is a resource you're spending, not a given you're owed.
+
+Most engineers write the way they think: build up context, walk through the reasoning, arrive at the conclusion at the end. That's a fine structure for figuring something out. It's a terrible structure for being read, because the conclusion — the one thing most readers actually need — is buried under everything they'll skim past.
+
+This lesson is about flipping that order on purpose.
+
+---
+
+## The Inverted Pyramid
+
+Journalists solved this problem a century ago with the **inverted pyramid**: put the most important information first, then supporting details, then background, in decreasing order of importance. A reader who stops after the first sentence still has the story. A reader who stops after the first paragraph has the story plus the key details. Only a reader who wants the full picture reads to the end.
+
+Applied to a status update, the pyramid looks like this:
+
+1. **Bottom line** — status and the one thing that matters (blocked, on track, needs a decision).
+2. **Key details** — the two or three facts that support the bottom line.
+3. **Background** — context, for anyone who wants it or is catching up after time away.
+
+Compare a real before/after. Here's a status update written the way most people draft one first:
+
+**Before:**
+> "This week I spent most of my time investigating the checkout latency issue that was reported last Tuesday. I looked into the payment provider's API response times first, then checked our own service logs, and eventually traced it to a connection pool that was too small under load. I've written a fix and it's in code review now. I also did some work on the notification service and attended the design review for Q3 planning."
+
+A reader has to get to sentence three before learning anything actionable, and the update never actually states whether checkout is still broken right now.
+
+**After:**
+> **Checkout latency: fixed, in code review, should ship Thursday.**
+> Root cause was an undersized connection pool that couldn't keep up under peak load. No customer-facing action needed once it ships — I'll post here when it's live.
+>
+> Also this week: notification service work continued (on track), attended Q3 design review.
+
+The bottom line is now the first thing anyone sees, bolded, with the status word right in it. A reader with five seconds gets the one fact that matters. A reader with thirty seconds gets the whole picture. The investigation narrative — genuinely interesting to another engineer — is simply gone, because it wasn't what most readers needed.
+
+---
+
+## Make the Structure Visible
+
+Inverting the order helps, but readers are still skimming, so make the structure something eyes can catch without reading every word:
+
+- **Bold the bottom line.** Don't make someone read a paragraph to find the one sentence that matters.
+- **Use headers or bullets for anything with more than one part.** A wall of prose forces linear reading; a bulleted list can be scanned.
+- **Name the ask, if there is one, explicitly.** "Need a decision by Friday on X" should never be implied — spell it out as its own line.
+- **Put dates and numbers where eyes land.** "Ships Thursday" beats "should be done soon" — vague timing forces a follow-up question that a specific one prevents.
+
+<Pitfall title="Burying the Ask">
+
+The most expensive version of this mistake is writing an entire email building up to a request, and putting the actual request in the last sentence — or worse, only implying it.
+
+**Weaker:** *[Four paragraphs of context about a vendor contract, technical constraints, and timeline, ending with]* "...so given all that, it would be good to figure out how to proceed at some point."
+
+**Better subject line and opener:** "Need a decision by Wednesday: renew the vendor contract or migrate off it." Followed by the context, for whoever wants it.
+
+If a reader has to infer that you want something from them, most won't act on it — not because they don't care, but because a vague ask reads as optional, and busy people triage optional requests to the bottom of the pile. State the ask, the deadline, and who owns the decision, in that order, before any of the supporting reasoning.
+
+</Pitfall>
+
+---
+
+## Matching the Format to the Reader
+
+The inverted pyramid is a universal starting point, but the right level of detail still depends on who's reading:
+
+| Audience | What they need up top | What can wait |
+|---|---|---|
+| Your manager, weekly 1:1 | Status + any blocker they can unblock | Implementation detail |
+| Cross-functional stakeholder | Impact on their timeline or metric | Any technical detail at all |
+| Your own team | Status + technical decision made and why | Background everyone already has |
+| Async doc for future readers | The decision and its reasoning | Play-by-play of how you got there |
+
+The common thread: the more removed someone is from the day-to-day work, the less mechanism they need and the more they need the bottom line stated in terms of *their* goals, not yours.
+
+---
+
+## Try This
+
+Find a status update, email, or doc update you sent in the last two weeks — pick one that felt like it took real effort to write. Rewrite its opening using the inverted pyramid:
+
+1. Write the bottom line as a single bolded sentence: status, plus the one fact that matters most.
+2. Add two to three bullet points of supporting detail — the minimum a reader needs to trust the bottom line.
+3. Move everything else — background, narrative, how you got there — below a line, or cut it if nobody's asked for it yet.
+
+Time yourself reading only the bolded line and bullets. If that alone doesn't give an uninformed reader what they need to act, the bottom line isn't actually the bottom line yet — keep revising.
+
+<Quiz question="A teammate asks you to review a design doc before a meeting in ten minutes. The doc is well-written but organized chronologically — motivation, then three approaches considered, then the final recommendation at the end. What's the fastest way to get what you need from it, and what should the author have done differently?">
+<div>
+
+**Jump straight to the recommendation section and read backward into the reasoning only as needed — and the author should have put the recommendation first, structured as an inverted pyramid, with the considered-and-rejected approaches as supporting detail below it.**
+
+Chronological order matches how the author *arrived* at the answer, which is useful during the thinking phase but is exactly backward for a reader under time pressure — you end up hunting for the one sentence you actually need. In the moment, skip to wherever the doc states a decision and read outward from there. But the fix belongs in how the doc gets written: lead with "Recommendation: do X" and a one-line why, then lay out the alternatives and tradeoffs below for anyone who wants to check the reasoning or challenge the call. The chronological narrative of how the author got there is valuable context, not the headline.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Writing clearly gets your ideas across — but a team runs on more than clear writing, it runs on how people give each other feedback. Module 2 starts with a concrete framework for giving feedback that lands, and receiving it without getting defensive.

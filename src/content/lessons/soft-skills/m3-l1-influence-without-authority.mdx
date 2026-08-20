@@ -1,0 +1,94 @@
+---
+title: "Influence Without Authority"
+description: "Build the case, the alliances, and the credibility that get a proposal adopted when you have no formal power to mandate it."
+module: 3
+moduleTitle: "Leadership Without a Title"
+lesson: 1
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Idea That Went Nowhere
+
+An engineer is convinced the team's deploy process is dangerous — no staging environment, manual steps, an incident waiting to happen. They bring it up once in a team meeting: "we should really fix our deploy process." A few people nod. Nothing changes. Three months later there's an incident, exactly the kind they predicted, and in the retro someone says "yeah, we've known about this for a while."
+
+The idea wasn't wrong. What was missing was everything between having the idea and it actually happening — and none of that gap gets closed by being right. Being right earns you nothing on its own; converting "right" into "adopted" is a distinct skill, and it's the core of leading without a title.
+
+---
+
+## Make the Case With Data, Not Conviction
+
+"We should really fix this" is a feeling. It competes for attention against every other feeling in the building, and it loses to whoever's feeling is loudest or most senior. A case, by contrast, is specific enough that a reasonable person examining it would reach your conclusion without needing to trust you.
+
+Compare:
+
+**Conviction:** "I think our deploy process is really risky and we should invest in fixing it."
+
+**Case:** "We've had three production incidents in the last two quarters where the root cause traces to a manual deploy step — here are the incident reports. Each one cost us roughly a day of engineering time to resolve plus visible downtime. A staging environment and an automated deploy script would take about a sprint to build and would have prevented at least two of the three. I've sketched what that sprint would look like."
+
+The case version does four things the conviction version doesn't: cites evidence that already exists and is hard to dispute (past incidents), quantifies the cost in terms decision-makers track (time, downtime), estimates the cost of the fix (so it's a comparison, not an open-ended ask), and shows work already done (the sketch), which signals seriousness and lowers the activation energy for anyone who wants to say yes.
+
+You don't need executive-level data. You need *enough* data that your proposal survives the first skeptical question instead of visibly relying on people just trusting your judgment.
+
+---
+
+## Build Alliances Before You Need Them
+
+Ideas rarely get adopted because they were pitched well once in a big meeting. They get adopted because, by the time they're pitched in the big meeting, two or three other people in the room already think it's a good idea — because you talked to them first.
+
+This isn't political maneuvering, it's basic risk reduction for everyone involved. A stakeholder hearing a new proposal cold, in front of a group, has to evaluate it and take a public position in real time — the safe move is always to be noncommittal or skeptical. The same stakeholder, having heard the idea in a low-stakes 1:1 the week before, has had time to think, ask their questions privately, and arrive at the meeting already leaning yes.
+
+Practically, before you pitch anything with real cost attached:
+
+- **Talk to the person most likely to be skeptical, one-on-one, first.** Their objections in private are gifts — they tell you exactly what to fix in your pitch before it's public.
+- **Find one ally with credibility on the topic** and get their genuine buy-in, not just a favor. If a senior engineer says "yeah, I've seen this cause problems too" in the actual meeting, that's worth more than anything you say yourself.
+- **Loop in whoever owns the budget or the calendar time** your proposal would consume, before the meeting where you'd be asking for it publicly.
+
+<Pitfall title="Mistaking Volume for Influence">
+
+**Weaker approach:** bring up the same concern in every meeting, more insistently each time, when nothing changes. It reads as nagging, costs credibility, and — because nobody trusts a complaint they've heard five times without new information — makes people tune out exactly the person whose concern was legitimate.
+
+**Better approach:** raise it once, clearly, with a case attached. If it doesn't land, find out specifically why — budget, priority, disagreement on the actual risk — and address that specific blocker directly with the specific person who owns it, rather than repeating the original pitch louder to a wider audience. Escalating volume signals you don't have a new argument. Escalating specificity — a sharper case, a more targeted ally, a smaller first ask — signals you're actually listening to why it hasn't happened yet.
+
+</Pitfall>
+
+---
+
+## Lead By Example When You Can't Mandate
+
+Sometimes the fastest way to get something adopted isn't a pitch at all — it's doing it yourself first, at small scale, and letting the result make the case. This works especially well for practices (not big-budget projects): if you think PR descriptions should include reasoning, start writing yours that way. If you think standup should be shorter, keep your own updates tight and watch what happens to the norm.
+
+This has real limits — you can't lead-by-example your way into a new staging environment, that needs budget and buy-in. But for anything within your own control, a working example beats an argument every time, because it removes the hypothetical. Nobody has to imagine whether it would work; they can just look at yours.
+
+| Situation | Best lever |
+|---|---|
+| Needs budget or headcount | Case with data, presented to whoever controls the budget |
+| Needs several people to change behavior | Alliances built before the ask, so buy-in exists before the meeting |
+| Within your own control | Lead by example — do it, let the result argue for itself |
+| Needs a decision only leadership can make | Case + ally with credibility on the topic, escalated through the right channel |
+
+---
+
+## Try This
+
+Pick something you currently believe should change on your team but haven't gotten traction on. Work through it in three steps:
+
+1. Write the "case" version of your pitch — the evidence, the quantified cost of the status quo, and the estimated cost of the fix. If you can't fill in the numbers, that's useful information about what to go find first.
+2. Name the one person most likely to push back, and draft the one-on-one conversation you'd have with them before any group pitch — what would you ask, what would you want to learn from their objection?
+3. Identify anything in the proposal that's actually within your own control to just start doing, independent of anyone else agreeing.
+
+<Quiz question="You want your team to adopt a new code review checklist, but you're not the tech lead and have no authority to require it. You mention it once in a team channel; two people react with a thumbs-up emoji and nothing changes. What's the most effective next move?">
+<div>
+
+**Talk to the tech lead (or whoever's most likely to be skeptical) one-on-one, get specific about what's not landing, and start using the checklist yourself on your own PRs in the meantime.**
+
+A thumbs-up in a channel is not buy-in — it costs nothing to give and commits nobody to anything, which is exactly why a channel message rarely changes team behavior on its own. The move that actually works has two parts: find out, from the person whose adoption would matter most, what's actually stopping this — is it more process for its own sake, does it duplicate something else, is there a specific case that hasn't been made yet — and address that specific blocker. In parallel, start using the checklist on your own reviews regardless of whether it's officially adopted; a few weeks of it visibly catching real issues in your own PRs is a far stronger case than the original channel message, and it costs you nothing to start.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Influence gets an idea adopted. The next lesson covers what happens after that — how to hand off real ownership of the work to someone else, through mentoring and delegation, without either micromanaging or disappearing.

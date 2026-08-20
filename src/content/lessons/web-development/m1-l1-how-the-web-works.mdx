@@ -1,0 +1,140 @@
+---
+title: "How the Web Works"
+description: "Trace what actually happens between typing a URL and seeing a page, so every HTML tag you write next has a home in a bigger system."
+module: 1
+moduleTitle: "Web Foundations"
+lesson: 1
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Trick That Looks Like Magic
+
+You type `github.com` into a browser, hit enter, and half a second later a page appears. That half-second hides five separate systems handing work to each other in sequence. None of it is magic — it's a chain of very literal steps, and understanding the chain will make every tool you touch in this course make more sense.
+
+This course builds one real project: a personal portfolio site. Before you write a single tag, you need the mental model of *where* that HTML actually lives and *how* it reaches a visitor's screen. That's this lesson. Lesson 2 gets your hands on the keyboard.
+
+---
+
+## Step 1: Turning a Name Into an Address
+
+Computers don't route traffic by name — they route by number. `github.com` isn't an address, it's a nickname for one. The **Domain Name System (DNS)** is the phonebook that resolves it.
+
+When you hit enter, your browser asks a DNS resolver: "what's the IP address for github.com?" That resolver checks a cache, and if it doesn't know, it asks up a chain of servers until one answers authoritatively. You get back something like `140.82.112.3` — an IP address, the actual number a computer can route to.
+
+| Term | What it is |
+|---|---|
+| Domain name | Human-readable name (`github.com`) |
+| DNS | The lookup system that maps names to IP addresses |
+| IP address | The actual numeric address of a server |
+
+This lookup is cached aggressively — by your browser, your OS, your router — which is why the *second* visit to a site feels instant while the first has a small delay.
+
+---
+
+## Step 2: Opening a Connection
+
+With an IP address in hand, your browser opens a connection to that server using **TCP** (Transmission Control Protocol), the reliable-delivery layer underneath the web. On top of that connection, if the site uses HTTPS (almost all do now), your browser and the server perform a **TLS handshake** — they agree on encryption keys so nobody snooping on the network in between can read or tamper with the traffic.
+
+You'll see this reflected in the little padlock icon in the address bar. No padlock, no encryption — a real warning sign on any site asking for a password or payment info.
+
+---
+
+## Step 3: The Request and the Response
+
+Now your browser sends an **HTTP request** — a plain-text message that says, in effect, "GET me the resource at this path." The server processes it and sends back an **HTTP response**: a status code, some headers, and a body.
+
+```
+GET /clarkngo HTTP/1.1
+Host: github.com
+```
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html>...
+```
+
+That **status code** is the single most important part of the response to internalize now — you'll rely on it constantly once you start fetching data from APIs in Module 4.
+
+| Code range | Meaning | Example |
+|---|---|---|
+| 200–299 | Success | `200 OK` |
+| 300–399 | Redirect | `301 Moved Permanently` |
+| 400–499 | Client made a bad request | `404 Not Found` |
+| 500–599 | Server broke | `500 Internal Server Error` |
+
+<svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of the request-response cycle: browser sends an HTTP GET request across the network to a server, the server processes it and sends back an HTTP response containing a status code and an HTML body, and the browser then renders that HTML into a page.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <rect x="20" y="90" width="150" height="90" rx="10" fill="none" stroke="#3b63f5" stroke-width="2.5"/>
+    <text x="95" y="130" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700">Browser</text>
+    <text x="95" y="150" text-anchor="middle" fill="currentColor" font-size="11" opacity="0.75">(client)</text>
+
+    <rect x="530" y="90" width="150" height="90" rx="10" fill="none" stroke="#3b63f5" stroke-width="2.5"/>
+    <text x="605" y="130" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700">Server</text>
+    <text x="605" y="150" text-anchor="middle" fill="currentColor" font-size="11" opacity="0.75">(hosts the site)</text>
+
+    <line x1="175" y1="115" x2="525" y2="115" stroke="#3b63f5" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="350" y="102" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">GET /index.html →</text>
+
+    <line x1="525" y1="165" x2="175" y2="165" stroke="#6d28d9" stroke-width="2.5" marker-end="url(#arrow2)"/>
+    <text x="350" y="185" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">← 200 OK + HTML body</text>
+
+    <rect x="20" y="230" width="660" height="60" rx="10" fill="none" stroke="#6d28d9" stroke-width="2" stroke-dasharray="5 5"/>
+    <text x="350" y="265" text-anchor="middle" fill="currentColor" font-size="12.5" opacity="0.85">Browser parses the HTML, requests linked CSS/JS/images, then renders pixels</text>
+
+    <defs>
+      <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#3b63f5"/></marker>
+      <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#6d28d9"/></marker>
+    </defs>
+  </g>
+</svg>
+
+---
+
+## Step 4: Turning HTML Into Pixels
+
+The response body is usually raw HTML text. The browser doesn't just dump that text on screen — it **parses** it into a tree structure called the **DOM** (Document Object Model), which you'll manipulate directly with JavaScript starting in Module 3.
+
+While parsing the HTML, the browser finds references to other files — a stylesheet linked with `<link>`, a script tagged with `<script>`, an image referenced with `<img>` — and fires off *more* HTTP requests for each one, following the exact same DNS → connect → request → response cycle you just learned. Once it has the HTML structure and the CSS rules, it computes layout and paints pixels to the screen. That's rendering.
+
+This is why a page with 40 unoptimized images loads slower than one with 4 — every single asset is its own round trip.
+
+<Pitfall title='"The Website" Is Not One File'>
+
+Beginners often picture a website as a single file living on a server. In reality, a typical page is a *bundle*: one HTML file plus every CSS file, JS file, font, and image it references, each fetched separately. When you deploy your portfolio in Module 5, you're not uploading one file — you're uploading a folder, and the HTML file is just the entry point that tells the browser what else to go fetch.
+
+</Pitfall>
+
+---
+
+## Why This Matters Before You Write a Line of HTML
+
+Every concept in this course maps onto a step in this cycle:
+
+- Module 1–2 (HTML/CSS) is the content the server hands back in the response body.
+- Module 3 (JavaScript/DOM) is what runs *after* rendering, letting the page change without a new request.
+- Module 4 (fetch/APIs) is your JavaScript deliberately triggering *new* request/response cycles, on demand, without reloading the whole page.
+- Module 5 (deploying) is putting your files on a server so this whole cycle has something to fetch in the first place.
+
+Once you can trace "user hits enter" all the way to "pixels on screen," nothing in the rest of this course will feel like a black box.
+
+<Quiz question="A visitor's browser shows a padlock icon and the page loads instantly on their second visit but took noticeably longer on their first. What two concepts from this lesson explain that gap?">
+<div>
+
+**TLS/HTTPS explains the padlock, and DNS caching explains the speed difference between the first and second visit.**
+
+The padlock means the browser completed a TLS handshake with the server, encrypting the connection — that happens on every visit, not just the first. The speed gap is separate: on the first visit, the browser had to perform a full DNS lookup to resolve the domain name to an IP address, which takes time. On the second visit, that IP address is already cached locally, so the browser skips straight to opening the connection — shaving a real, noticeable chunk off the total load time.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You now know what a browser does before and after it has your HTML. Next lesson, you write that HTML — starting the portfolio site you'll build, style, script, and ship over the rest of this course.

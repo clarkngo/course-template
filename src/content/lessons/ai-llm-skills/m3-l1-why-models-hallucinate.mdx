@@ -1,0 +1,77 @@
+---
+title: "Why Models Hallucinate (and How to Catch It)"
+description: "Understand the mechanical reason language models state false things confidently, and build a practical checklist for catching hallucinations before you act on them."
+module: 3
+moduleTitle: "Limits, Reasoning, and Trust"
+lesson: 1
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Not a Bug — a Direct Consequence
+
+"Hallucination" is the term for a model stating something false, invented, or unsupported as if it were established fact — a citation that doesn't exist, a function that isn't in the library, a statistic nobody measured. The name makes it sound like a rare malfunction. It's more accurate to think of it as an expected, structural consequence of everything you learned in Module 1: **the model was trained to produce plausible next tokens, not verified ones.**
+
+Nothing in the generation process checks a claim against the world before producing it. There's no separate "is this true?" step. The words "I'm not sure" and the words "the answer is definitely X" are both just token sequences the model can produce with equal fluency — and it will produce whichever one is more statistically probable given the prompt, which is not the same thing as whichever one is *actually true*.
+
+---
+
+## Where Hallucinations Come From
+
+A few concrete patterns explain most hallucinations you'll encounter:
+
+**Gaps in training data, filled with plausible pattern-matching.** Ask about a very obscure paper, an internal company API, or something that happened after the model's training cutoff, and it may still generate a fluent, specific-sounding answer — a citation with a real-looking journal name and a plausible year, a function signature that looks exactly like ones it *has* seen. It's not retrieving a memory of the real thing; it's generating something that pattern-matches the shape of a real answer, in a spot where it has no real answer available.
+
+**Compounding through a chain of reasoning.** Ask a model to work through several steps, and each step is generated conditioned on the ones before it. One shaky claim early on gets treated as established fact for every step after it, and the error compounds rather than getting caught.
+
+**Pressure to answer rather than decline.** A direct, confident-sounding question tends to pull a direct, confident-sounding answer out of the distribution, even when "I don't have reliable information on that" would be the more honest response. This is a property of the kind of text the model was trained on — confident answers are simply more common in typical training text than explicit uncertainty — not a decision the model is making about your specific question.
+
+---
+
+## A Practical Checklist for Catching It
+
+You can't eliminate hallucination from the model's side alone, so the working discipline is to build verification into how you *use* the model:
+
+- **Treat specific, checkable claims as claims, not facts** — names, dates, statistics, citations, API signatures, legal or medical specifics. Anything you'd fact-check from a human source, fact-check from a model too.
+- **Ask the model to show its sources or reasoning**, then actually check them. A fabricated citation often has a subtly wrong detail — a mismatched year, a journal that doesn't publish that kind of paper — that a quick search reveals.
+- **Ask a narrower question.** "What does this exact function do?" with the function's real code pasted in is far more reliable than "What does the `foo` function in library X do?" from memory alone — you've replaced recall with reading comprehension, which the model is much better at.
+- **Cross-check anything load-bearing** — something a decision, a payment, or a public claim will rest on — against an independent source before you rely on it.
+- **Watch for oddly specific numbers with no stated source.** A precise-sounding statistic ("provided a 34.7% improvement") with nothing backing it is a common tell.
+
+None of these make the model more honest. They shift the verification burden to where it belongs: on you, before the claim gets used for something that matters.
+
+---
+
+<Pitfall title="Asking the Model to Grade Its Own Answer">
+
+**Common mistake:** noticing a claim looks shaky, and asking the same model, in the same conversation, "are you sure that's correct?" — then treating a confident "Yes, that's correct" as verification.
+
+The model has no privileged access to ground truth about its own previous answer. Asking it to check its own claim is still just another generation step, conditioned on a conversation that already contains the claim stated confidently — which makes the model *more* likely to defend it than to catch it, not less. A genuine check requires an independent source: a search, a document, a person, code you actually run — not a second question to the same source.
+
+```text
+Weak:    "Are you sure that citation is real?" → "Yes, I'm confident
+          that citation is accurate."  (not verification)
+
+Better:  Search for the paper title and authors independently, or ask
+          the model for a DOI/URL and actually follow it.
+```
+
+</Pitfall>
+
+<Quiz question="A model gives you a citation for a scientific claim: author name, journal, year, all formatted correctly. Is correctly formatted citation metadata good evidence the citation is real?">
+<div>
+
+**No — correct formatting only shows the model has learned what citations look like, not that this specific one exists.**
+
+Citation formatting is exactly the kind of highly regular pattern language models learn extremely well, which means a fabricated citation can be just as well-formatted as a real one. The format is a strong signal about fluency, and essentially no signal about truth, because those two properties are produced by the same undifferentiated generation process. The only way to confirm the citation is real is to independently look it up — search the title and authors, or check the DOI resolves to that actual paper.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+If a model can't be trusted to recall facts perfectly from memory, the fix is to stop asking it to rely on memory alone. The next lesson covers how giving a model real context — through retrieval and tools — changes what it's capable of answering reliably.

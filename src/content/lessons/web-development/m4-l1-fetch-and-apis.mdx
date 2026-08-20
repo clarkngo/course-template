@@ -1,0 +1,220 @@
+---
+title: "Fetching Data from an API"
+description: "Use fetch and async/await to pull real GitHub data over HTTP, check response.ok before parsing, and render results into the portfolio DOM."
+module: 4
+moduleTitle: "Talking to the Web"
+lesson: 1
+duration: "18 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Request/Response Cycle, on Demand
+
+Back in Module 1 you traced what happens when a browser requests a whole page: DNS, connection, HTTP request, HTTP response. `fetch()` is JavaScript triggering that exact same request/response cycle yourself, on demand, without a full page reload — and getting the response back as data you can use.
+
+This lesson has your portfolio fetch your own real public repositories from the GitHub API and render them into the project grid, replacing the hand-typed project cards you've maintained since Module 1.
+
+---
+
+## `fetch` Returns a Promise
+
+```js
+fetch("https://api.github.com/users/octocat/repos")
+  .then((response) => response.json())
+  .then((data) => console.log(data));
+```
+
+`fetch` doesn't return data directly — it returns a **Promise**, a placeholder for a value that will exist *eventually*, once the network request completes. `.then()` schedules a function to run once that promise resolves. This chaining style works, but it gets hard to read once you have more than one step, which is why modern JavaScript almost always prefers `async`/`await` instead — the same mechanism, cleaner syntax:
+
+```js
+async function loadRepos() {
+  const response = await fetch("https://api.github.com/users/octocat/repos");
+  const data = await response.json();
+  console.log(data);
+}
+
+loadRepos();
+```
+
+`async` marks a function as one that can use `await` inside it. `await` pauses execution *of that function* until the promise resolves, then hands you the resolved value directly — no `.then()` nesting required. Both `fetch()` and `response.json()` are asynchronous, so both get an `await`.
+
+---
+
+## Always Check `response.ok` First
+
+Here's the single most important, most commonly skipped step when working with `fetch`: **a failed request does not throw an error on its own.** A 404 or a 500 response still resolves the `fetch` promise successfully — `fetch` only rejects on genuine network failure (offline, DNS failure, and similar). If you call `.json()` on an error response without checking first, you'll either get a confusing parse error or silently render garbage.
+
+```js
+async function loadRepos(username) {
+  const response = await fetch(`https://api.github.com/users/${username}/repos`);
+
+  if (!response.ok) {
+    throw new Error(`GitHub API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data;
+}
+```
+
+`response.ok` is `true` for any 2xx status code and `false` otherwise. `response.status` gives you the exact numeric code (404, 500, and so on) for a useful error message. Checking `response.ok` before parsing is not optional defensive coding — it's the correct, expected way to use `fetch`, every time.
+
+---
+
+## Handling Real Failure With try/catch
+
+Network requests fail for real reasons: the user is offline, the API is down, a typo in the URL. Wrap `await` calls in `try`/`catch` so a failure produces a handled error instead of crashing silently:
+
+```js
+async function loadRepos(username) {
+  try {
+    const response = await fetch(`https://api.github.com/users/${username}/repos`);
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to load repos:", error.message);
+    return null;
+  }
+}
+```
+
+A `throw` inside the `try` block — whether from `fetch` itself failing, or your own `if (!response.ok)` check — is caught by `catch`, where you can log it and decide what the rest of your app should do (here, returning `null` so calling code can check for that and show a fallback message).
+
+<svg viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flowchart: fetch is called, then the code checks if response.ok is true. If true, it parses the JSON and renders it. If false, it throws an error which is caught and an error message is shown to the user instead.">
+  <g font-family="system-ui, -apple-system, sans-serif" font-size="12.5">
+    <rect x="270" y="15" width="160" height="45" rx="8" fill="#3b63f5" opacity="0.85"/>
+    <text x="350" y="42" text-anchor="middle" fill="#ffffff" font-weight="700">await fetch(url)</text>
+
+    <line x1="350" y1="60" x2="350" y2="95" stroke="currentColor" stroke-width="2" marker-end="url(a3)"/>
+
+    <rect x="250" y="95" width="200" height="45" rx="8" fill="none" stroke="currentColor" stroke-width="2"/>
+    <text x="350" y="122" text-anchor="middle" fill="currentColor" font-weight="700">response.ok ?</text>
+
+    <line x1="350" y1="140" x2="150" y2="190" stroke="#3b63f5" stroke-width="2" marker-end="url(a3)"/>
+    <text x="200" y="170" fill="currentColor" font-weight="700">true</text>
+    <rect x="40" y="190" width="220" height="50" rx="8" fill="#3b63f5" opacity="0.15" stroke="#3b63f5" stroke-width="2"/>
+    <text x="150" y="220" text-anchor="middle" fill="currentColor" font-weight="700">parse .json(), render data</text>
+
+    <line x1="350" y1="140" x2="550" y2="190" stroke="#dc2626" stroke-width="2" marker-end="url(a3)"/>
+    <text x="500" y="170" fill="currentColor" font-weight="700">false</text>
+    <rect x="440" y="190" width="220" height="50" rx="8" fill="#dc2626" opacity="0.12" stroke="#dc2626" stroke-width="2"/>
+    <text x="550" y="215" text-anchor="middle" fill="currentColor" font-weight="700">throw Error(status)</text>
+    <text x="550" y="232" text-anchor="middle" fill="currentColor" font-weight="700">caught → show fallback UI</text>
+
+    <defs>
+      <marker id="a3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="currentColor"/></marker>
+    </defs>
+  </g>
+</svg>
+
+---
+
+## Rendering Fetched Data Into the DOM
+
+Once you have the data, use the DOM techniques from Module 3 to turn it into real elements:
+
+```js
+function renderRepos(repos) {
+  const grid = document.querySelector(".project-grid");
+  grid.innerHTML = ""; // clear the hand-typed placeholder cards
+
+  repos.forEach((repo) => {
+    const card = document.createElement("article");
+    card.dataset.category = "web";
+
+    const title = document.createElement("h3");
+    title.textContent = repo.name;
+
+    const description = document.createElement("p");
+    description.textContent = repo.description || "No description provided.";
+
+    const link = document.createElement("a");
+    link.href = repo.html_url;
+    link.textContent = "View on GitHub";
+
+    card.append(title, description, link);
+    grid.appendChild(card);
+  });
+}
+```
+
+`repo.description || "No description provided."` is a common fallback pattern: if `repo.description` is `null` (GitHub allows repos with no description), the `||` operator falls through to the string on the right. `card.append(title, description, link)` inserts multiple elements at once — a shorthand for calling `appendChild` three times.
+
+<CodeLab title="Fetch and Render Your Real GitHub Repos">
+
+**Step 1** — In `script.js`, write the fetch function with error handling:
+
+```js
+async function loadRepos(username) {
+  try {
+    const response = await fetch(`https://api.github.com/users/${username}/repos?sort=updated`);
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to load repos:", error.message);
+    return null;
+  }
+}
+```
+
+**Step 2** — Add the `renderRepos` function from above.
+
+**Step 3** — Call both, handling the failure case explicitly:
+
+```js
+loadRepos("YOUR-GITHUB-USERNAME").then((repos) => {
+  if (repos) {
+    renderRepos(repos.slice(0, 4)); // just the 4 most recently updated
+  } else {
+    document.querySelector(".project-grid").textContent =
+      "Couldn't load projects right now — check back soon.";
+  }
+});
+```
+
+**Step 4** — Replace `"YOUR-GITHUB-USERNAME"` with an actual GitHub username, reload the page, and confirm real repository cards render. Open dev tools' Network tab to see the actual HTTP request and JSON response — the same request/response mechanics from Module 1, now visible.
+
+</CodeLab>
+
+<Pitfall title="Parsing JSON Before Checking response.ok">
+
+```js
+// Wrong: skips the ok check entirely
+async function loadRepos(username) {
+  const response = await fetch(`https://api.github.com/users/${username}/repos`);
+  const data = await response.json(); // if username is wrong, this "succeeds"
+  return data; // but data is actually { message: "Not Found" }, not a repo array
+}
+```
+
+```js
+// Right: verify success before trusting the shape of the data
+async function loadRepos(username) {
+  const response = await fetch(`https://api.github.com/users/${username}/repos`);
+  if (!response.ok) {
+    throw new Error(`GitHub API error: ${response.status}`);
+  }
+  return await response.json();
+}
+```
+
+A typo'd username returns a `404`, but the response body is still valid JSON — just an error object like `{ "message": "Not Found" }` instead of an array of repos. Without the `response.ok` check, your code happily parses that error object and then crashes later when it tries to call `.forEach` on something that isn't an array, at a point in the code far from the actual cause. Checking `response.ok` immediately after `fetch` catches the real problem at the source.
+
+</Pitfall>
+
+---
+
+## Up Next
+
+Fetched data currently vanishes on every page reload. Next lesson: `localStorage`, so a small piece of state — like a visitor's dark-mode preference — survives between visits.

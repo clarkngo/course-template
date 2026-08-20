@@ -1,0 +1,118 @@
+---
+title: "Mentoring and Delegation"
+description: "Use a five-level delegation framework to hand off real ownership of work without micromanaging or abandoning the person you're mentoring."
+module: 3
+moduleTitle: "Leadership Without a Title"
+lesson: 2
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Two Ways to Fail at Handing Something Off
+
+There are two opposite ways senior engineers fail at delegation, and both feel, from the inside, like the responsible choice.
+
+The first: you hand off a task but check in every few hours, rewrite chunks of the approach, and end up doing half the work anyway — just with extra steps and a demoralized junior engineer who never got to actually solve anything. The second: you hand off a task, say "let me know if you need anything," and disappear — and three days later discover they've been stuck and silently struggling since hour two, too unsure of the norms to interrupt you.
+
+Both come from the same place: an unclear answer to the question "how much rope does this person actually have right now?" Delegation isn't a single skill you either have or don't — it's a dial you have to set correctly for each person and each task, and reset as the person grows.
+
+---
+
+## Five Levels of Delegation
+
+A useful way to make the dial explicit — for yourself and for the person you're delegating to — is naming the level out loud before the work starts:
+
+1. **Do exactly as I say.** You've specified the steps; they execute. Appropriate for something genuinely high-stakes and unfamiliar to them.
+2. **Research and report back before acting.** They investigate and propose an approach; you approve or redirect before anything happens.
+3. **Decide, but tell me before you act.** They choose the approach and are ready to move, but you get a checkpoint to catch a real problem before it's live.
+4. **Act, then tell me what you did.** They execute and you find out after — appropriate once you trust their judgment on this class of problem.
+5. **Full ownership, no report needed.** You trust it enough that you don't need to hear about it unless something's genuinely unusual.
+
+<svg viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A spectrum from Level 1, Do exactly as I say, on the left, to Level 5, Full ownership, on the right. Moving right along the spectrum increases the other person's autonomy and decreases how closely you check their work. The two failure modes sit off each end: micromanaging is stuck at Level 1 regardless of the person's actual skill, and abandoning is jumping straight to Level 5 without building up trust first.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <line x1="60" y1="110" x2="700" y2="110" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+    <circle cx="90" cy="110" r="7" fill="#db2777"/>
+    <circle cx="240" cy="110" r="7" fill="#db2777"/>
+    <circle cx="390" cy="110" r="7" fill="#db2777"/>
+    <circle cx="540" cy="110" r="7" fill="#db2777"/>
+    <circle cx="670" cy="110" r="7" fill="#db2777"/>
+
+    <text x="90" y="90" text-anchor="middle" fill="currentColor" font-size="12" font-weight="700">L1</text>
+    <text x="240" y="90" text-anchor="middle" fill="currentColor" font-size="12" font-weight="700">L2</text>
+    <text x="390" y="90" text-anchor="middle" fill="currentColor" font-size="12" font-weight="700">L3</text>
+    <text x="540" y="90" text-anchor="middle" fill="currentColor" font-size="12" font-weight="700">L4</text>
+    <text x="670" y="90" text-anchor="middle" fill="currentColor" font-size="12" font-weight="700">L5</text>
+
+    <text x="90" y="140" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.8">Do as told</text>
+    <text x="240" y="140" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.8">Research, report</text>
+    <text x="390" y="140" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.8">Decide, tell before</text>
+    <text x="540" y="140" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.8">Act, tell after</text>
+    <text x="670" y="140" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.8">Full ownership</text>
+
+    <rect x="40" y="20" width="160" height="30" rx="15" fill="#6d28d9"/>
+    <text x="120" y="40" text-anchor="middle" fill="#ffffff" font-size="11.5" font-weight="700">Micromanaging: stuck here</text>
+    <line x1="90" y1="50" x2="90" y2="103" stroke="#6d28d9" stroke-width="2" stroke-dasharray="4 4"/>
+
+    <rect x="560" y="20" width="160" height="30" rx="15" fill="#2563eb"/>
+    <text x="640" y="40" text-anchor="middle" fill="#ffffff" font-size="11.5" font-weight="700">Abandoning: jump here</text>
+    <line x1="670" y1="50" x2="670" y2="103" stroke="#2563eb" stroke-width="2" stroke-dasharray="4 4"/>
+
+    <text x="380" y="180" text-anchor="middle" fill="currentColor" font-size="11" opacity="0.65">Move right, one level at a time, as trust is earned on a given class of problem</text>
+  </g>
+</svg>
+
+The failure modes on the chart are the two from the opening: micromanaging is staying at Level 1 forever regardless of demonstrated skill; abandoning is jumping straight to Level 5 with someone who hasn't built the judgment for it yet. Good delegation is moving deliberately, one level at a time, as someone earns it on a specific *kind* of task — someone can be a confident Level 4 on frontend bugs and a careful Level 2 on anything touching billing, and that's not a contradiction, it's accurate calibration.
+
+---
+
+## Say the Level Out Loud
+
+The single highest-leverage move in this whole framework is naming the level explicitly when you hand something off, instead of leaving it implicit. "This is yours — decide the approach, but loop me in before you touch the production config" is a Level 3 assignment stated in one sentence. Compare that to just saying "can you take this one?" and leaving both people to silently guess how much autonomy was actually intended.
+
+Unstated delegation levels are where both failure modes actually come from. The mentor *thinks* they delegated Level 4 ("I said take it and run") but keeps behaving like Level 1 (rewriting the approach) — that's what reads as micromanaging, even though the mentor doesn't experience it that way. The mentee *thinks* they're at Level 2 (research and check in) but the mentor assumed Level 4 (go, tell me after) — that's what reads as abandonment, from the mentee's side, when they were actually waiting for permission that was never coming.
+
+<Pitfall title="Rescuing at the First Sign of Struggle">
+
+**Weaker:** you delegate a task at Level 3, the person comes back with an approach you wouldn't have chosen, and you take over — "let me just handle this part" — because it's faster and lower-risk than letting them proceed with something you'd have done differently.
+
+This teaches exactly one lesson: bringing you a plan gets it taken away. Next time, they won't bring you a plan; they'll either ask you to just tell them what to do (regression to Level 1) or stop asking at all (false Level 5, without the earned judgment).
+
+**Better:** if their approach isn't dangerous — it's different, not wrong — let it run, even if yours would've been better or faster. Save your intervention for approaches that are actually going to cause real harm. The gap between "not how I'd do it" and "will cause a real problem" is exactly the space where someone builds their own judgment; closing that gap for them every time is how you produce someone who can only execute your decisions, never make their own.
+
+</Pitfall>
+
+---
+
+## Mentoring Is the Same Dial, Applied to Skill-Building
+
+Delegation is about getting work done through someone else. Mentoring is closely related but has a different goal — it's about someone's growth, and sometimes that means *not* optimizing for the fastest or best outcome on this particular task.
+
+Concretely: if a mentee is debugging something and you can see the answer, the delegation instinct says "just tell them, it's faster." The mentoring instinct says ask a question that lets them find it — "what have you ruled out so far?" — even though it takes longer, because the goal of this specific interaction isn't shipping the fix fastest, it's building the debugging skill that makes them faster on the next ten bugs without you.
+
+The practical rule: know, for each interaction, whether you're optimizing for the task or for the person's growth this time. Both are legitimate. The mistake is defaulting to "optimize for the task" (just fix it yourself) every time, because that default quietly trains someone to stay dependent on you.
+
+---
+
+## Try This
+
+Pick someone you currently delegate work to, or want to start mentoring. For the next task you hand them:
+
+1. Decide explicitly which of the five levels fits, based on their track record on this specific kind of task — not their track record in general.
+2. Say the level out loud when you assign it: "this is a Level 3 — decide the approach, tell me before you act on the risky part."
+3. Notice, the next time you're tempted to step in, whether the issue is a real problem or just "not how I'd have done it" — and if it's the latter, practice letting it run.
+
+<Quiz question="You delegate a task at Level 4 (act, then tell me after) to someone who's handled similar work well before. A week later you discover they made a choice you disagree with, and it's now somewhat costly to unwind. What's the right response?">
+<div>
+
+**Address the specific decision and what you'd want differently next time, but don't retroactively punish them by yanking them back to Level 1 — a Level 4 assignment means some decisions will go a way you wouldn't have chosen, and that's the cost of real delegation, not proof it failed.**
+
+If you respond to one costly-but-reasonable decision by suddenly requiring approval on everything going forward, you've taught them that Level 4 was never real — it was Level 1 with extra steps, revoked the first time it produced a result you didn't love. That teaches people to stop taking real ownership, because ownership only feels safe if the downside of a defensible-but-wrong call is a conversation, not a demotion. The better response separates two questions: was this decision made with the information they had at the time (if yes, that's a coaching conversation about judgment, not a trust violation), and is there a genuinely new piece of context — like "loop me in on anything touching this specific system" — worth adding for next time. Keep the level; refine the boundary.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Leadership skills serve you inside your current job. Module 4 turns outward — toward getting your next one, starting with what actually gets a resume or portfolio read in the first ten seconds.

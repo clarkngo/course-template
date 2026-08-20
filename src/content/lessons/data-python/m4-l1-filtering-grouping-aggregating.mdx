@@ -1,0 +1,181 @@
+---
+title: "Filtering, Grouping, and Aggregating"
+description: "Narrow a DataFrame to the rows you care about and summarize it by category using boolean masks, groupby, and aggregation."
+module: 4
+moduleTitle: "Analysis"
+lesson: 1
+duration: "15 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Two Moves Behind Almost Every Analysis
+
+Ask any data analyst what they spend most of their time doing, and after cleaning, the honest answer is some combination of two moves: **narrow the data down to the rows that matter**, and **summarize it by category**. In pandas those are filtering and `groupby`. Master these two and you can answer the large majority of questions anyone will ever ask you about a dataset.
+
+We're back to the clean `corner_cafe_sales.csv` from Module 3, Lesson 1 — twelve rows, three days, four items. Load it and add one more column you'll use throughout this lesson:
+
+```python
+import pandas as pd
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+sales["revenue"] = sales["quantity"] * sales["price"]
+```
+
+`sales["revenue"] = ...` assigns a brand-new column, computed from two existing ones, in one line — no loop required. pandas applies the multiplication to every row at once, a pattern called **vectorization** that's a large part of why pandas is fast: the loop still happens, but it happens inside pandas' optimized internals instead of in your Python code.
+
+---
+
+## Filtering With Boolean Masks
+
+`sales["quantity"] > 4` doesn't filter anything by itself — it produces a Series of `True`/`False`, one per row, exactly like the comparisons from Module 1 but run across an entire column at once. That Series of booleans is a **mask**, and pandas lets you drop it straight inside the DataFrame's square brackets to keep only the rows where it's `True`:
+
+```python
+big_orders = sales[sales["quantity"] > 4]
+print(big_orders)
+```
+
+Combine multiple conditions with `&` (and) / `|` (or) — not Python's `and`/`or`, which don't work element-by-element on a Series — and **parenthesize every individual condition**:
+
+```python
+cold_brew_big = sales[(sales["item"] == "Cold Brew") & (sales["quantity"] > 4)]
+```
+
+Skipping the parentheses is one of the most common pandas errors there is, and it's worth understanding exactly why: Python evaluates `&` before `==`, the opposite of the order you want, so `sales["item"] == "Cold Brew" & sales["quantity"] > 4` doesn't parse as two comparisons joined by `&` — pandas raises an error trying to make sense of it. Parenthesizing each condition sidesteps the whole issue.
+
+## Summarizing With `groupby`
+
+Filtering answers "which rows match?" `groupby` answers a different kind of question: "what does each category look like, summarized?" It works in three conceptual steps — **split** the DataFrame into groups by a column's values, **apply** an aggregation to each group separately, and **combine** the results back into one table:
+
+```python
+by_item = sales.groupby("item").agg(
+    total_quantity=("quantity", "sum"),
+    total_revenue=("revenue", "sum"),
+)
+print(by_item)
+```
+
+<svg viewBox="0 0 680 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Split-apply-combine diagram. A single table splits into four small groups, one per item: Latte, Espresso, Muffin, Cold Brew. Each group has sum applied to it independently. The four sums combine back into one summary table with one row per item.">
+  <g font-family="system-ui, -apple-system, sans-serif" font-size="11.5">
+    <rect x="20" y="30" width="110" height="130" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+    <text x="75" y="20" text-anchor="middle" fill="currentColor" opacity="0.8" font-weight="700">sales (12 rows)</text>
+    <text x="75" y="100" text-anchor="middle" fill="currentColor" opacity="0.6">12 rows,</text>
+    <text x="75" y="116" text-anchor="middle" fill="currentColor" opacity="0.6">4 items</text>
+
+    <text x="165" y="100" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="16">→</text>
+    <text x="165" y="82" text-anchor="middle" fill="currentColor" opacity="0.7" font-size="10.5">split</text>
+
+    <g>
+      <rect x="200" y="20" width="100" height="30" rx="5" fill="#16a34a" opacity="0.15" stroke="#16a34a" stroke-width="1.2"/>
+      <text x="250" y="39" text-anchor="middle" fill="currentColor">Latte</text>
+      <rect x="200" y="58" width="100" height="30" rx="5" fill="#16a34a" opacity="0.15" stroke="#16a34a" stroke-width="1.2"/>
+      <text x="250" y="77" text-anchor="middle" fill="currentColor">Espresso</text>
+      <rect x="200" y="96" width="100" height="30" rx="5" fill="#16a34a" opacity="0.15" stroke="#16a34a" stroke-width="1.2"/>
+      <text x="250" y="115" text-anchor="middle" fill="currentColor">Muffin</text>
+      <rect x="200" y="134" width="100" height="30" rx="5" fill="#16a34a" opacity="0.15" stroke="#16a34a" stroke-width="1.2"/>
+      <text x="250" y="153" text-anchor="middle" fill="currentColor">Cold Brew</text>
+    </g>
+
+    <text x="345" y="100" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="16">→</text>
+    <text x="345" y="82" text-anchor="middle" fill="currentColor" opacity="0.7" font-size="10.5">apply sum()</text>
+
+    <g>
+      <rect x="380" y="20" width="120" height="30" rx="5" fill="#2563eb" opacity="0.12" stroke="#2563eb" stroke-width="1.2"/>
+      <text x="440" y="39" text-anchor="middle" fill="currentColor">qty 9, $40.50</text>
+      <rect x="380" y="58" width="120" height="30" rx="5" fill="#2563eb" opacity="0.12" stroke="#2563eb" stroke-width="1.2"/>
+      <text x="440" y="77" text-anchor="middle" fill="currentColor">qty 14, $38.50</text>
+      <rect x="380" y="96" width="120" height="30" rx="5" fill="#2563eb" opacity="0.12" stroke="#2563eb" stroke-width="1.2"/>
+      <text x="440" y="115" text-anchor="middle" fill="currentColor">qty 6, $19.50</text>
+      <rect x="380" y="134" width="120" height="30" rx="5" fill="#2563eb" opacity="0.12" stroke="#2563eb" stroke-width="1.2"/>
+      <text x="440" y="153" text-anchor="middle" fill="currentColor">qty 15, $60.00</text>
+    </g>
+
+    <text x="535" y="100" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="16">→</text>
+    <text x="535" y="82" text-anchor="middle" fill="currentColor" opacity="0.7" font-size="10.5">combine</text>
+
+    <rect x="565" y="30" width="100" height="130" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+    <text x="615" y="20" text-anchor="middle" fill="currentColor" opacity="0.8" font-weight="700">by_item</text>
+    <text x="615" y="100" text-anchor="middle" fill="currentColor" opacity="0.6">4 rows,</text>
+    <text x="615" y="116" text-anchor="middle" fill="currentColor" opacity="0.6">1 per item</text>
+  </g>
+</svg>
+
+`.agg(total_quantity=("quantity", "sum"), total_revenue=("revenue", "sum"))` builds named output columns from `(source column, aggregation function)` pairs — the result is one row per unique `item` value, with your two new summary columns attached. Run it against the twelve-row sales log and `by_item` should show `Cold Brew` with `total_quantity` `15` and `total_revenue` `60.00` — the single best-selling item in this dataset by both measures.
+
+---
+
+## Sorting and Ranking
+
+`groupby` gives you the summary; `sort_values` puts it in order:
+
+```python
+by_item_sorted = by_item.sort_values("total_revenue", ascending=False)
+print(by_item_sorted)
+```
+
+`ascending=False` puts the largest value first — the default is ascending (smallest first), so for a "top performer" question you'll set this explicitly almost every time. `.value_counts()` is a related shortcut worth knowing: called directly on a column, it counts how often each unique value appears, sorted from most to least common — handy for a quick "how many rows per category" check without writing a full `groupby`:
+
+```python
+sales["item"].value_counts()
+```
+
+<CodeLab title="Find the Top-Revenue Item">
+
+Using `corner_cafe_sales.csv` from Module 3, Lesson 1:
+
+```python
+import pandas as pd
+
+sales = pd.read_csv("corner_cafe_sales.csv")
+sales["revenue"] = sales["quantity"] * sales["price"]
+
+by_item = sales.groupby("item").agg(
+    total_quantity=("quantity", "sum"),
+    total_revenue=("revenue", "sum"),
+).sort_values("total_revenue", ascending=False)
+
+print(by_item)
+
+big_cold_brew = sales[(sales["item"] == "Cold Brew") & (sales["quantity"] > 4)]
+print(f"\nCold Brew orders over 4 units:\n{big_cold_brew}")
+```
+
+Confirm `by_item` ranks `Cold Brew` first at `$60.00`, followed by `Latte` at `$40.50`, `Espresso` at `$38.50`, and `Muffin` last at `$19.50` — and that the filtered `big_cold_brew` result contains exactly two rows (the 6-unit and 5-unit Cold Brew orders).
+
+</CodeLab>
+
+<Pitfall title="Forgetting Parentheses Around Combined Conditions">
+
+This is the single most common `groupby`/filtering mistake in pandas, and it's worth seeing the broken version once so you recognize the error message later.
+
+```python
+# Wrong — Python evaluates & before ==, so this doesn't
+# parse as two comparisons joined by "and"; pandas raises
+# a TypeError trying to interpret it
+sales[sales["item"] == "Latte" & sales["quantity"] > 3]
+```
+
+```python
+# Right — every individual condition wrapped in parentheses
+sales[(sales["item"] == "Latte") & (sales["quantity"] > 3)]
+```
+
+If pandas ever raises an error pointing at a filter line that "looks correct," check for missing parentheses around each comparison first — it's the most likely cause, far more often than an actual logic mistake in the condition itself.
+
+</Pitfall>
+
+<Quiz question="sales.groupby('item')['quantity'].sum() and sales.groupby('item').agg(total_quantity=('quantity', 'sum')) produce the same numbers. What's the practical difference between them?">
+<div>
+
+**The first returns a Series (one column of sums, indexed by item); the second returns a DataFrame with a column explicitly named `total_quantity` — and `.agg()` lets you compute several differently-named summary columns from different source columns in one call, which the shorthand version can't do.**
+
+`sales.groupby("item")["quantity"].sum()` is a convenient shortcut when you only need one summary statistic from one column — quick to type, but the result column just inherits the name `quantity`, which gets confusing once you have both a raw `quantity` column and a summed one in the same script. `.agg(...)` is more verbose but scales to real analysis: you can summarize `quantity` with `sum` and `revenue` with `sum` (or `mean`, or both) in a single call, with output names you choose yourself, like `by_item` above. Reach for the shortcut when exploring quickly in a REPL; reach for `.agg()` the moment the result is going into a report, a chart, or any code someone else will read.
+
+</div>
+</Quiz>
+
+## Up Next
+
+You can now group and summarize a dataset — the mechanical half of analysis. The next lesson uses these same tools to answer specific, real questions about the coffee shop's sales and turn a summary table into a stated conclusion.

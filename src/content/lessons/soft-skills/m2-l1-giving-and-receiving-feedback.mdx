@@ -1,0 +1,100 @@
+---
+title: "Giving and Receiving Feedback"
+description: "Use the situation-behavior-impact framework to give feedback that lands, and a concrete technique for receiving critical feedback without getting defensive."
+module: 2
+moduleTitle: "Working on a Team"
+lesson: 1
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## "Good Job" Isn't Feedback
+
+Most feedback at work fails for one of two opposite reasons: it's so vague it's useless ("nice work on the sprint"), or it's so personal it lands as an attack ("you're not communicating well"). Neither one changes anyone's behavior. Useful feedback does exactly one job — it connects a specific, observable thing someone did to a specific, real effect it had — so the person can decide whether to do more of it or less.
+
+That connection is the entire skill. This lesson gives you a structure for building it, plus what to do when you're on the receiving end and every instinct says defend yourself.
+
+---
+
+## Situation-Behavior-Impact
+
+**Situation-Behavior-Impact (SBI)** is a three-part structure for any piece of feedback, positive or critical:
+
+- **Situation** — the specific moment, named concretely. Not "you always" — one instance.
+- **Behavior** — what the person actually did or said, observable, not your interpretation of their motive.
+- **Impact** — what effect it had, on you, the team, the project, or the outcome.
+
+Compare vague feedback to SBI feedback on the same situation:
+
+**Vague:** "You were kind of dismissive in the design review yesterday."
+
+**SBI:** "In yesterday's design review, when Priya raised the caching concern, you said 'that's not really an issue' and moved to the next slide before she finished her point. *(Situation + Behavior)* Two other people told me afterward they had concerns too but didn't raise them because it seemed like the decision was already made. *(Impact)*"
+
+The SBI version is harder to argue with, not because it's more forceful, but because it's more *falsifiable* — it's a specific claim about what happened and what resulted, not a character judgment. The recipient can say "I didn't realize that's how it landed" and adjust. They can't do much with "you were dismissive" except feel defensive, because it's a verdict on who they are rather than a description of what happened.
+
+The same structure works for positive feedback, and skipping it there is a missed opportunity — "great job in the review" teaches someone nothing about what to repeat. "When you paused and asked Priya to finish her point before responding, it changed the whole tone of the room — three people spoke up who'd been quiet" tells them exactly what worked.
+
+---
+
+## Delivering It Without Softening It Into Mush
+
+A common failure mode, especially with critical feedback, is wrapping the actual point in so much cushioning that it disappears — the "feedback sandwich" where two compliments bury one real note, and the recipient walks away remembering the compliments and missing the point entirely.
+
+SBI doesn't require cushioning, because specificity itself is what makes feedback feel safe to receive — vague criticism feels like a judgment of you, specific criticism feels like information about one moment. A few practical rules for delivery:
+
+- **Say it close to the moment**, not three weeks later in a performance review where it can't be acted on.
+- **Ask before you assert**, when you're not sure of intent: "Can I share something I noticed in yesterday's review?" turns it into a conversation instead of an ambush.
+- **One piece of feedback at a time.** Stacking three issues in one conversation makes all three land softer and harder to act on.
+- **Make the impact concrete**, not "it wasn't great" but what specifically resulted — a person went quiet, a decision got made without input, a deadline slipped.
+
+<Pitfall title="Feedback About the Person Instead of the Moment">
+
+**Weaker:** "You're not a team player. You need to be more collaborative."
+
+This is unfalsifiable, permanent-sounding, and gives the recipient nothing to do differently tomorrow. It also invites exactly the response you don't want — defending their character rather than examining one behavior.
+
+**Better:** "In the last two sprint plannings, when someone proposed an approach different from yours, you listed reasons it wouldn't work before asking any questions about it. Both times the conversation ended there instead of exploring the idea. I want us to get more ideas actually explored before we rule them out."
+
+The better version names a pattern across two specific instances (not "always"), describes an observable behavior, states a concrete impact, and implies a specific change — ask questions before listing objections. It's more work to prepare than "be more collaborative," and it's the only version that gives someone something to actually try differently next time.
+
+</Pitfall>
+
+---
+
+## Receiving Feedback Without Getting Defensive
+
+The other half of this skill is harder for most people: sitting with critical feedback about your own work without your body going straight into defend mode. A few techniques that work in the actual moment, not just in theory:
+
+1. **Separate hearing from responding.** Your first job is to understand what they're saying, not to formulate a rebuttal while they're still talking. If you notice yourself building a defense mid-sentence, that's the signal to slow down.
+2. **Ask a clarifying question before reacting.** "Can you say more about what that looked like from your side?" buys you time, and often surfaces detail that changes how you feel about the feedback.
+3. **Thank them for specifics, even if you disagree with the conclusion.** Specific feedback took effort to prepare; acknowledging that keeps the channel open for next time, independent of whether you act on this particular note.
+4. **Separate "is this true" from "how do I feel about it."** Defensiveness is often really about feeling — embarrassment, surprise, unfairness. You can feel that and still evaluate the claim on its merits, on a short delay if you need one: "I want to sit with this, can we follow up tomorrow?" is a completely legitimate response.
+5. **You don't have to agree to have received it.** "I see it differently, here's why" is a fine outcome, as long as you got to it by actually engaging with what was said rather than deflecting it.
+
+---
+
+## Try This
+
+Think of one piece of feedback you've been meaning to give someone — something you've been sitting on because it felt awkward to bring up. Write it out in SBI form:
+
+1. **Situation:** name one specific instance, not a pattern described vaguely.
+2. **Behavior:** describe only what was observable — what was said or done, not your read on their intent.
+3. **Impact:** state the concrete effect, on you, the team, or the work.
+
+Read it back and check: could the person reasonably respond "that's not what I meant" without it invalidating your feedback? If yes, you've correctly separated behavior from motive — good. Then plan when you'll actually say it, close to the real event, not saved for a review cycle months away.
+
+<Quiz question="Your manager gives you feedback in a 1:1: 'Your last two PRs took longer to review than they should have because the descriptions didn't explain the reasoning behind the approach, just what changed.' Your first internal reaction is that your PR descriptions are fine and this feels unfair. What's the best next move in the conversation?">
+<div>
+
+**Ask a clarifying question about what a better description would have included, rather than defending the descriptions you wrote — treat the specificity of the feedback as useful information, not as an attack to counter.**
+
+Notice this feedback is already well-formed SBI — a specific situation (last two PRs), an observable behavior (descriptions state what changed, not why), and a stated impact (slower reviews). That specificity is a gift: it gives you something concrete to test, like "can you point to a spot in one of those PRs where more reasoning would've helped?" Defending in the moment — "I thought they were clear" — shuts down exactly the information you need to actually evaluate whether the feedback is right. You can still end up disagreeing after you understand it fully; the mistake is skipping straight to the defense before you've actually heard the specific claim being made.
+
+</div>
+</Quiz>
+
+## Up Next
+
+Feedback in a 1:1 is one conversation. The next lesson takes the same underlying skill — separating the work from the person — into a much more public and often more charged setting: disagreement in a PR review.

@@ -1,0 +1,212 @@
+---
+title: "Flexbox and Responsive Design"
+description: "Lay out the portfolio's nav and project cards with Flexbox, then add a media query so the page reflows cleanly on phones."
+module: 2
+moduleTitle: "Styling with CSS"
+lesson: 2
+duration: "16 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## From Single Boxes to Real Layouts
+
+Last lesson gave you control over one box at a time — its padding, border, margin. Real layouts need to arrange *many* boxes together: nav links sitting in a row, project cards wrapping into a grid, a header with a name on the left and links on the right. That's what Flexbox is for, and it's the single most useful layout tool you'll reach for in day-to-day CSS work.
+
+By the end of this lesson your portfolio's nav will be a real horizontal bar, your project cards will sit side by side on wide screens, and the whole page will reflow sensibly on a phone.
+
+---
+
+## Turning On Flexbox
+
+Flexbox works on a **parent-and-children** relationship. You set `display: flex` on a container, and every *direct* child becomes a "flex item" that the container can now arrange.
+
+```css
+nav {
+  display: flex;
+  gap: 1rem;
+}
+```
+
+That's it — the `<a>` links inside `<nav>` now sit in a row instead of stacking, because their parent declared itself a flex container. `gap` puts consistent spacing between items without needing individual margins (and without the margin-collapse surprise from last lesson).
+
+---
+
+## The Two Axes You Control
+
+Flexbox thinking centers on two properties, both set on the *container*, not the children:
+
+| Property | Controls | Common values |
+|---|---|---|
+| `justify-content` | Spacing along the **main axis** (horizontal, by default) | `flex-start`, `center`, `space-between`, `space-around` |
+| `align-items` | Position along the **cross axis** (vertical, by default) | `flex-start`, `center`, `stretch` |
+
+```css
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+```
+
+`space-between` pushes the first and last child to opposite edges, distributing any extra space evenly between the rest — exactly the pattern for "name on the left, nav on the right."
+
+<svg viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of a flex container with three boxes arranged using justify-content: space-between, pushing the first box to the left edge, the last box to the right edge, and distributing space between them, with align-items: center vertically centering all three boxes within the container height.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <rect x="20" y="40" width="600" height="150" fill="none" stroke="#3b63f5" stroke-width="2" stroke-dasharray="5 5" opacity="0.6"/>
+    <text x="30" y="30" fill="currentColor" font-size="12.5" font-weight="700" opacity="0.8">display: flex; justify-content: space-between; align-items: center;</text>
+
+    <rect x="45" y="90" width="90" height="50" rx="6" fill="#3b63f5" opacity="0.75"/>
+    <text x="90" y="120" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="700">Item 1</text>
+
+    <rect x="275" y="90" width="90" height="50" rx="6" fill="#3b63f5" opacity="0.75"/>
+    <text x="320" y="120" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="700">Item 2</text>
+
+    <rect x="505" y="90" width="90" height="50" rx="6" fill="#3b63f5" opacity="0.75"/>
+    <text x="550" y="120" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="700">Item 3</text>
+
+    <line x1="135" y1="115" x2="275" y2="115" stroke="currentColor" stroke-width="1.5" opacity="0.4" marker-end="url(a2)"/>
+    <line x1="365" y1="115" x2="505" y2="115" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+  </g>
+</svg>
+
+---
+
+## Wrapping: From Row to Grid
+
+By default, flex items try to squeeze onto one line, shrinking as needed. For a grid of project cards, you want them to wrap onto new rows once they run out of room:
+
+```css
+.project-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.project-grid article {
+  flex: 1 1 260px;
+}
+```
+
+`flex-wrap: wrap` lets items drop to a new line instead of shrinking indefinitely. `flex: 1 1 260px` on each card means: *grow* to fill space (`1`), *shrink* if needed (`1`), starting from a base width of `260px`. The result is a self-adjusting grid — three cards per row on a wide screen, two on a tablet, one on a phone — with zero media queries needed for the wrapping itself.
+
+---
+
+## Layout the Portfolio With Flexbox
+
+<CodeLab title="Flex the Nav and the Project Grid">
+
+**Step 1** — Update the header rule in `styles.css` to lay itself out with Flexbox:
+
+```css
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 1.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+```
+
+**Step 2** — Style the `<nav>` itself so its links sit in a row with spacing:
+
+```css
+nav {
+  display: flex;
+  gap: 1.5rem;
+}
+
+nav a {
+  color: #3b63f5;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+nav a:hover {
+  text-decoration: underline;
+}
+```
+
+**Step 3** — Wrap your project `<article>` elements in a container in `index.html`:
+
+```html
+<div class="project-grid">
+  <article>...</article>
+  <article>...</article>
+</div>
+```
+
+**Step 4** — Add the grid rule from above to `styles.css`, and adjust the existing `article` rule to remove the old `margin-bottom` (the flex `gap` now handles spacing):
+
+```css
+.project-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+article {
+  flex: 1 1 260px;
+  padding: 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+```
+
+Reload the page and resize the browser window — the cards should reflow between one, two, and three per row as the window shrinks and grows.
+
+</CodeLab>
+
+---
+
+## Media Queries: Intentional Breakpoints
+
+Flex-wrap handles reflow automatically, but sometimes you want to change something *deliberately* below a certain width — stack the header instead of spreading it, shrink a heading, hide something entirely. That's what a **media query** is for:
+
+```css
+@media (max-width: 600px) {
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  header h1 {
+    font-size: 1.75rem;
+  }
+}
+```
+
+This rule only applies when the viewport is 600px or narrower. `flex-direction: column` flips the header's main axis from horizontal to vertical, so the name stacks above the nav instead of sitting beside it — a common, deliberate mobile adjustment. Mobile-specific rules live inside the media query; everything outside it is your default, "desktop-first" or base styling.
+
+<Pitfall title="Forgetting the Viewport Meta Tag Breaks Every Media Query">
+
+If you skipped the `<meta name="viewport" content="width=device-width, initial-scale=1.0">` tag from Module 1, your media queries will silently fail to trigger correctly on real phones — the phone reports a fake, zoomed-out viewport width instead of its actual screen width, so your `max-width: 600px` query never matches when you think it should. Always confirm that meta tag is in `<head>` before debugging a media query that "isn't working" — it's one of the most common causes, and it's easy to forget because desktop browser testing works fine without it.
+
+</Pitfall>
+
+---
+
+## Testing Responsiveness Without a Phone
+
+You don't need a physical phone to test this. Every major browser has device emulation built into its developer tools (in Chrome: right-click → Inspect → the device toolbar icon, top-left of the panel). Toggle it, pick a phone size, and your media queries kick in exactly as they would on the real device.
+
+<Quiz question="You set display: flex and flex-wrap: wrap on a .project-grid container, with each card given flex: 1 1 260px. On a narrow phone screen, only one card fits per row — with no media query written anywhere for this container. Why does it reflow correctly anyway?">
+<div>
+
+**flex-wrap and a flex-basis of 260px make the layout self-adjusting — the cards wrap onto new rows whenever the container isn't wide enough to fit another 260px item, without any explicit breakpoint.**
+
+`flex: 1 1 260px` tells each card to start from a 260px base width, then grow or shrink to fill available space. When the container is wide enough for three 260px-plus cards, three fit per row. As the container narrows, the third card no longer fits, and `flex-wrap: wrap` lets it drop to a new row instead of being forced to shrink below a usable width. This is intrinsic, content-driven responsiveness — genuinely useful for grids of similar-sized items, and it's why not every responsive layout needs a media query. Media queries are for deliberate, specific changes (like stacking a header); flex-wrap handles the general reflow case for free.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+The portfolio finally looks like a real site: structured, spaced, laid out, and responsive. Next module, you bring it to life with JavaScript — starting with the DOM, so the page can react to what a visitor actually does.

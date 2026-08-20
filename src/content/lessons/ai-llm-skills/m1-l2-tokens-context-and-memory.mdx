@@ -1,0 +1,130 @@
+---
+title: "Tokens, Context Windows, and Why Models 'Forget'"
+description: "Learn what tokens actually are, why the context window is a hard limit on what a model can 'see,' and why models appear to forget things they never actually had access to."
+module: 1
+moduleTitle: "How LLMs Actually Work"
+lesson: 2
+duration: "12 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Unit the Model Actually Sees
+
+You type in words. The model never sees words. It sees **tokens** — small chunks of text, often smaller than a whole word, that get mapped to numbers before anything else happens. Understanding this single fact resolves two things people find confusing about LLMs: why usage is measured and billed in a strange unit called "tokens," and why a model can seem to lose track of a long conversation even though it was "right there" a few screens up.
+
+---
+
+## Subword Tokenization, Conceptually
+
+Most modern language models use **subword tokenization**: common whole words often become a single token, but rarer or longer words get split into smaller pieces that recombine to form the word. Roughly, and illustratively:
+
+```text
+"unbelievable"   →  "un" + "believ" + "able"      (3 tokens)
+"cat"            →  "cat"                          (1 token)
+"internationalization" → "international" + "ization"  (2 tokens, illustrative split)
+```
+
+The exact split depends on the specific tokenizer a model uses and isn't something worth memorizing — different models split text differently, and the precise boundaries aren't important for using them well. What *is* worth internalizing is the general shape of the rule: **common patterns become single tokens; uncommon or compound words get broken into pieces.** This is also why unfamiliar proper nouns, code identifiers, or text in a less-common language often "cost" more tokens per word than plain English prose — the tokenizer hasn't seen those exact chunks often enough to have assigned them a single token.
+
+As a rough rule of thumb across many tokenizers, English prose runs somewhere around **3 to 4 tokens for every 4 words** — close to, but reliably more than, a word-for-word count. It's an intuition to hold loosely, not a number to build precise cost calculations on.
+
+It's also worth knowing that text isn't the only thing that consumes tokens. When a model accepts images or documents as input, those get converted into tokens too, following their own conversion rules rather than a word-based one — so a request with an attached image counts against the same context window and the same usage total as a request made of pure text, even though there are no "words" to count in the traditional sense.
+
+<CodeLab title="Words vs. an Illustrative Token Estimate">
+
+You can't get an exact token count without the model's real tokenizer, but you can build the *intuition* — that tokens and words aren't the same thing, and the gap grows with unusual words — using nothing but string splitting.
+
+```python
+import re
+
+def word_count(text: str) -> int:
+    return len(text.split())
+
+def rough_token_estimate(text: str) -> int:
+    """
+    NOT a real tokenizer — just a illustrative heuristic that treats
+    punctuation as its own token and guesses long words split into pieces.
+    Use this only to build intuition, never for real usage/cost math.
+    """
+    pieces = re.findall(r"[A-Za-z]+|[^A-Za-z\s]", text)
+    estimate = 0
+    for piece in pieces:
+        if piece.isalpha() and len(piece) > 7:
+            estimate += (len(piece) // 4) + 1  # long words: guess a split
+        else:
+            estimate += 1
+    return estimate
+
+sample = "The internationalization effort was, frankly, unbelievable."
+print("words:", word_count(sample))
+print("rough token estimate:", rough_token_estimate(sample))
+```
+
+Run it against a short sentence and a sentence full of long, unusual words, and compare the gap between the two counts. The point isn't the exact number — it's seeing that the gap between "words" and "tokens" widens for uncommon vocabulary, which is exactly the pattern real tokenizers show.
+
+</CodeLab>
+
+---
+
+## The Context Window Is a Hard Ceiling
+
+Every model has a **context window** — a fixed maximum number of tokens it can process in a single request, counting your prompt, any conversation history you send, and the response it's about to generate. This isn't a soft guideline; it's a hard architectural limit. Once a conversation's total token count would exceed the window, something has to give.
+
+Two consequences follow directly from this:
+
+- **Longer conversations cost more per turn**, because most chat interfaces resend the *entire* conversation history with every new message — the model has no built-in memory between requests (you'll build this mechanism yourself in Module 4). More history in, more tokens counted against the window.
+- **When a conversation outgrows the window**, the interface or application has to drop or summarize older content to fit. From your side, that can look exactly like the model "forgetting" the beginning of the conversation — but it isn't forgetting in the human sense. The earlier text is usually just no longer part of what got sent.
+
+<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of a context window as a fixed-size box. Early in a conversation, all messages fit inside the box. Later, as more messages accumulate, the box can only hold the most recent ones, and older messages fall outside the box and are no longer sent to the model.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <text x="10" y="24" fill="currentColor" font-size="12" font-weight="700" opacity="0.85">Early in the conversation</text>
+    <rect x="10" y="34" width="360" height="50" rx="8" fill="none" stroke="#1d4ed8" stroke-width="2"/>
+    <rect x="18" y="44" width="60" height="30" rx="5" fill="#1d4ed8" opacity="0.5"/>
+    <rect x="86" y="44" width="60" height="30" rx="5" fill="#1d4ed8" opacity="0.5"/>
+    <rect x="154" y="44" width="60" height="30" rx="5" fill="#1d4ed8" opacity="0.5"/>
+    <text x="200" y="105" fill="currentColor" font-size="10.5" opacity="0.65">all messages fit inside the window</text>
+
+    <text x="10" y="140" fill="currentColor" font-size="12" font-weight="700" opacity="0.85">Later in the conversation</text>
+    <rect x="120" y="150" width="360" height="50" rx="8" fill="none" stroke="#6d28d9" stroke-width="2"/>
+    <rect x="20" y="160" width="55" height="30" rx="5" fill="#94a3b8" opacity="0.4"/>
+    <rect x="82" y="160" width="55" height="30" rx="5" fill="#94a3b8" opacity="0.4"/>
+    <rect x="128" y="160" width="55" height="30" rx="5" fill="#6d28d9" opacity="0.6"/>
+    <rect x="196" y="160" width="55" height="30" rx="5" fill="#6d28d9" opacity="0.6"/>
+    <rect x="264" y="160" width="55" height="30" rx="5" fill="#6d28d9" opacity="0.6"/>
+    <rect x="332" y="160" width="55" height="30" rx="5" fill="#6d28d9" opacity="0.6"/>
+    <rect x="400" y="160" width="55" height="30" rx="5" fill="#6d28d9" opacity="0.6"/>
+    <text x="50" y="212" fill="currentColor" font-size="10" opacity="0.6">dropped —</text>
+    <text x="50" y="223" fill="currentColor" font-size="10" opacity="0.6">outside the window</text>
+  </g>
+</svg>
+
+---
+
+<Pitfall title="“I Told It Earlier” Isn't Always True Anymore">
+
+**Wrong assumption:** "I mentioned my constraint at the start of this long chat, so the model still knows it."
+
+**What's actually happening:** if the conversation has grown long enough, the application layer may have already trimmed, summarized, or dropped that early message to stay inside the context window — the model literally never sees it on later turns. It isn't choosing to ignore your constraint; it may not be receiving it at all.
+
+The fix is simple and worth making a habit for anything important: **restate critical constraints periodically in long conversations**, especially before an important request, instead of assuming everything you've said is still in view.
+
+</Pitfall>
+
+<Quiz question="You're 80 messages into a long chat and the model suddenly seems to ignore an instruction you gave in message 3. What's the most likely explanation?">
+<div>
+
+**Message 3 has likely fallen outside the context window and is no longer part of what's actually being sent to the model on this turn.**
+
+This isn't the model "choosing" to forget or getting confused about priorities — it's a direct consequence of the context window being a fixed-size input, not a growing memory. Once a conversation's token count exceeds that limit, older content is the first thing to get trimmed or summarized away by the surrounding application. The practical fix is to restate important instructions periodically, rather than assuming everything ever said in a long conversation is still visible to the model on every new turn.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You now understand the mechanics under the hood: token-by-token prediction, bounded by a fixed context window. Module 2 turns to the part you actually control — how to write prompts that reliably steer that prediction process toward what you actually want.

@@ -1,0 +1,174 @@
+---
+title: "Reading Real Files: CSV and JSON"
+description: "Load data from CSV and JSON files with Python's built-in csv and json modules, and handle the type conversion that real files always require."
+module: 2
+moduleTitle: "Data Structures for Data Work"
+lesson: 2
+duration: "13 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Data Doesn't Start Inside Your Script
+
+Every dataset you've used so far, you typed by hand. Real data doesn't work that way — it lives in files, exported from a point-of-sale system, a spreadsheet, or an API, almost always as **CSV** (comma-separated values, the universal export format for anything table-shaped) or **JSON** (a text format built on the same lists-and-dicts shape you learned last lesson). This lesson is where those two worlds meet: you'll read both formats into the exact list-of-dicts structure you already know how to work with.
+
+From here on, this course follows one running dataset — a small coffee shop's daily sales log, `corner_cafe_sales.csv`. Every module through the capstone builds on it, so get comfortable with its shape now:
+
+```
+date,item,quantity,price
+2024-01-02,Latte,3,4.50
+2024-01-02,Espresso,5,2.75
+2024-01-02,Muffin,2,3.25
+2024-01-03,Latte,4,4.50
+2024-01-03,Cold Brew,6,4.00
+2024-01-03,Muffin,1,3.25
+```
+
+The first line is the **header** — column names, comma-separated, same as dict keys. Every line after it is one row, values in the same order as the header.
+
+---
+
+## Reading CSV Files
+
+Python's built-in `csv` module handles the fiddly parts of CSV — quoted fields with commas inside them, different line endings — that you'd get wrong trying to split lines yourself with `line.split(",")`. Save the sample above as `corner_cafe_sales.csv`, in the same folder as your script, then read it:
+
+```python
+import csv
+
+with open("corner_cafe_sales.csv") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        print(row)
+```
+
+`with open(...) as f` is Python's standard pattern for working with files — it opens the file, hands you a handle (`f`) to read from, and automatically closes it when the indented block ends, even if an error happens partway through. Always prefer `with` over calling `open()` and `close()` yourself; forgetting to close a file is a common source of subtle bugs in longer programs.
+
+`csv.DictReader` turns each row into a dictionary, using the header line as keys — which means the very first row you get back looks like `{"date": "2024-01-02", "item": "Latte", "quantity": "3", "price": "4.50"}`. That's exactly the list-of-dicts shape from Lesson 1, produced automatically from a file instead of typed by hand.
+
+## Everything From CSV Is a String
+
+Look closely at that dict again: `"quantity": "3"`, not `"quantity": 3`. CSV is a text format — there's no way to tell from the file alone that `"3"` should become a number instead of staying text. `csv.DictReader` doesn't guess; every single value comes back as a `str`, and it's your job to convert the ones you'll do math with:
+
+```python
+with open("corner_cafe_sales.csv") as f:
+    reader = csv.DictReader(f)
+    sales = []
+    for row in reader:
+        sales.append({
+            "date": row["date"],
+            "item": row["item"],
+            "quantity": int(row["quantity"]),
+            "price": float(row["price"]),
+        })
+
+for row in sales:
+    revenue = row["quantity"] * row["price"]
+    print(f"{row['item']}: ${revenue:.2f}")
+```
+
+This conversion step — read as strings, then explicitly convert the numeric columns — is so universal in data work that pandas (Module 3) automates most of it for you. But knowing it happens, and why, is what lets you catch it when pandas' automatic guess gets a column wrong.
+
+---
+
+## Reading JSON Files
+
+JSON (JavaScript Object Notation) is a text format that maps directly onto Python's lists and dicts — objects `{}` become dicts, arrays `[]` become lists. The same sales data, as JSON:
+
+```json
+[
+  {"date": "2024-01-02", "item": "Latte", "quantity": 3, "price": 4.50},
+  {"date": "2024-01-02", "item": "Espresso", "quantity": 5, "price": 2.75},
+  {"date": "2024-01-03", "item": "Cold Brew", "quantity": 6, "price": 4.00}
+]
+```
+
+Save that as `corner_cafe_sales.json` and load it with the built-in `json` module:
+
+```python
+import json
+
+with open("corner_cafe_sales.json") as f:
+    sales = json.load(f)
+
+print(sales[0])
+print(sales[0]["item"])
+```
+
+Notice the difference from CSV: `json.load()` hands back `3` as an actual `int` and `4.50` as an actual `float`, not strings — because JSON's format distinguishes numbers from text natively, unlike CSV's plain comma-separated lines. This is one real advantage JSON has over CSV for data that mixes types: less manual conversion on your end. The tradeoff is that JSON is harder for a human to skim or edit by hand, and less universally supported by simple tools like spreadsheets — which is exactly why CSV remains the more common export format for table-shaped data, JSON's typing advantage notwithstanding.
+
+<CodeLab title="Load and Total the Sales Log">
+
+Create `corner_cafe_sales.csv` with the six rows from the top of this lesson, then save this as `load_sales.py` in the same folder:
+
+```python
+import csv
+
+def load_sales(path):
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        sales = []
+        for row in reader:
+            sales.append({
+                "date": row["date"],
+                "item": row["item"],
+                "quantity": int(row["quantity"]),
+                "price": float(row["price"]),
+            })
+    return sales
+
+sales = load_sales("corner_cafe_sales.csv")
+
+print(f"Loaded {len(sales)} rows")
+print("First row:", sales[0])
+
+total_revenue = sum(row["quantity"] * row["price"] for row in sales)
+print(f"Total revenue: ${total_revenue:.2f}")
+```
+
+`sum(row["quantity"] * row["price"] for row in sales)` is a **generator expression** — a compact way to write "compute this for every row, then add it all up" in one line instead of a separate loop with a running total. Run the script and confirm the total matches what you'd get adding the six rows by hand: $79.00.
+
+</CodeLab>
+
+<Pitfall title="Comparing an Unconverted String to a Number">
+
+Forgetting to convert a numeric column doesn't always crash loudly — sometimes it just silently gives you the wrong answer, which is worse.
+
+```python
+# Wrong — quantity is still the string "6" here,
+# and "6" > 5 raises a TypeError comparing str to int
+with open("corner_cafe_sales.csv") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        if row["quantity"] > 5:
+            print(row["item"])
+```
+
+```python
+# Right — convert before comparing
+with open("corner_cafe_sales.csv") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        if int(row["quantity"]) > 5:
+            print(row["item"])
+```
+
+Comparing a string to a number raises a clear `TypeError` in Python 3, which is actually the friendlier failure — you'll know immediately something's wrong. The more dangerous version is comparing two strings numerically by accident, like sorting `"10"` before `"9"` because string comparison works character-by-character, not by numeric value. Whenever a column will be filtered, sorted, or used in arithmetic, convert it right after reading — don't wait until the operation that needs it.
+
+</Pitfall>
+
+<Quiz question="A teammate's script reads corner_cafe_sales.csv and immediately does total = sum(row['price'] for row in sales) without converting row['price'] to float first. What happens?">
+<div>
+
+**Python raises a `TypeError`, because `sum()` tries to add the string values together with `+`, and Python's `+` on strings means concatenation, not addition — it can't combine that with the integer `0` that `sum()` starts from.**
+
+`sum()` starts an internal total at `0` (an `int`) and adds each item to it in turn. The moment it tries `0 + "4.50"`, Python has an `int` and a `str` and no defined meaning for `+` between them, so it raises `TypeError: unsupported operand type(s)`. This is actually a mild mercy — Python refuses to guess, rather than silently doing something like treating the strings as text and concatenating them into `"4.502.754.00"`. The fix is exactly the one this lesson covers: convert `price` to `float` for every row at load time, before it's used anywhere downstream, so no later line of code has to remember to do it.
+
+</div>
+</Quiz>
+
+## Up Next
+
+You can now get real data into Python, row by row, as a list of dicts. Module 3 introduces pandas — a library built specifically for table-shaped data — where this same sales log becomes a DataFrame, and operations that took a `for` loop here become a single line.

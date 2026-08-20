@@ -1,0 +1,150 @@
+---
+title: "What a Language Model Is (and Isn't)"
+description: "Understand what a large language model actually does under the hood — next-token prediction over learned patterns — so you can build accurate intuitions instead of sci-fi ones."
+module: 1
+moduleTitle: "How LLMs Actually Work"
+lesson: 1
+duration: "11 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## One Job, Repeated Very Fast
+
+Strip away the chat bubble, the friendly tone, and the instant replies, and a large language model is doing exactly one thing: **predicting the next token, over and over.** That's it. Everything you've seen it do — write code, summarize a contract, hold a conversation, explain a joke — is that one prediction step, chained thousands of times in a row.
+
+This isn't a simplification you can safely forget once you know more. It's the fact that explains almost every quirk you'll run into later: why models "hallucinate," why they're sensitive to how you phrase things, why they forget what you said ten messages ago. Get this model right in your head first, and the rest of the course will make a lot more sense.
+
+---
+
+## How the Prediction Actually Works
+
+A language model is trained on an enormous amount of text — books, articles, code, conversations. During training, it's repeatedly shown a chunk of text with the next piece hidden, and it adjusts billions of internal numbers (called **parameters** or **weights**) to get better at guessing what comes next.
+
+After training, those weights are frozen. When you send a prompt, the model doesn't look anything up. It runs your text through that fixed network of weights and produces a probability distribution over "what token is likely to come next" — then picks one, appends it to the text, and repeats the whole process to pick the *next* one. This is called **autoregressive generation**: each new token is generated conditioned on everything before it, including the tokens it just generated itself.
+
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of autoregressive generation: the prompt 'The capital of France is' feeds into the model, which outputs a probability distribution over candidate next tokens, picks the highest one, 'Paris', appends it to the text, and feeds the longer sequence back in for the next step.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <rect x="10" y="30" width="220" height="50" rx="8" fill="#1d4ed8" opacity="0.15" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="120" y="60" text-anchor="middle" fill="currentColor" font-size="13" font-weight="600">"The capital of France is"</text>
+
+    <line x1="230" y1="55" x2="290" y2="55" stroke="currentColor" stroke-width="2" opacity="0.5" marker-end="url(#arrow1)"/>
+
+    <rect x="295" y="15" width="130" height="80" rx="10" fill="#6d28d9" opacity="0.85"/>
+    <text x="360" y="60" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700">Model</text>
+    <text x="360" y="78" text-anchor="middle" fill="#ffffff" font-size="10" opacity="0.85">(frozen weights)</text>
+
+    <line x1="425" y1="55" x2="480" y2="55" stroke="currentColor" stroke-width="2" opacity="0.5" marker-end="url(#arrow1)"/>
+
+    <g font-size="11.5">
+      <text x="490" y="30" fill="currentColor" opacity="0.9">Paris — 71%</text>
+      <text x="490" y="48" fill="currentColor" opacity="0.65">Lyon — 4%</text>
+      <text x="490" y="66" fill="currentColor" opacity="0.65">a — 3%</text>
+      <text x="490" y="84" fill="currentColor" opacity="0.5">…</text>
+    </g>
+
+    <line x1="360" y1="95" x2="360" y2="150" stroke="currentColor" stroke-width="2" opacity="0.5" marker-end="url(#arrow1)"/>
+    <text x="375" y="128" fill="currentColor" font-size="10.5" opacity="0.7">picks "Paris",</text>
+    <text x="375" y="141" fill="currentColor" font-size="10.5" opacity="0.7">appends it</text>
+
+    <rect x="10" y="160" width="330" height="50" rx="8" fill="#1d4ed8" opacity="0.15" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="175" y="190" text-anchor="middle" fill="currentColor" font-size="13" font-weight="600">"The capital of France is Paris"</text>
+
+    <path d="M 175 160 C 175 120, 30 100, 30 80" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" stroke-dasharray="4 4" marker-end="url(#arrow1)"/>
+    <text x="60" y="115" fill="currentColor" font-size="10" opacity="0.6">fed back in for the next token</text>
+
+    <defs>
+      <marker id="arrow1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="currentColor" opacity="0.6"/>
+      </marker>
+    </defs>
+  </g>
+</svg>
+
+Notice what's *not* in that loop: no database lookup, no fact-checking step, no understanding in the way a person understands. It's pattern completion, shaped by training data, applied one token at a time.
+
+---
+
+## What This Means in Practice
+
+Because the model is predicting *plausible continuations*, not retrieving *verified facts*, a few things follow directly:
+
+- **Fluency and correctness are separate properties.** A model can produce a grammatically perfect, confident-sounding sentence that is completely false, because fluency is exactly what it was trained to produce. Correctness is a side effect, not the objective.
+- **It has no persistent memory of you.** Each request is processed fresh against the frozen weights. Anything it "remembers" about your conversation is only there because the previous messages were literally re-sent as part of the current prompt — more on this in the next lesson.
+- **Phrasing changes output.** Since generation is conditioned on the exact token sequence you provide, two prompts that mean the same thing to a human can lead the model down different probability paths and produce different answers.
+- **Output isn't perfectly repeatable.** Most model APIs, including Claude's, sample from that probability distribution rather than always taking the single most likely token — which is why asking the exact same question twice can produce two differently worded (and occasionally differently reasoned) answers, even with nothing else changed.
+
+These aren't edge cases to memorize — they're the same underlying mechanism showing up in different situations. Every quirk in this list traces back to the one sentence at the top of this lesson: next-token prediction, repeated.
+
+<CodeLab title="Watch a Toy Predictor Choose Its Words">
+
+Real models use billions of learned weights, but you can build intuition for *autoregressive* generation with a tiny toy version — a hardcoded table of "if you just said this word, here's what's likely next" — and a loop that keeps picking and re-feeding.
+
+```python
+# A miniature, hand-built stand-in for "next-token prediction."
+# Real models learn these probabilities from data; here we just fake a few.
+next_word_probs = {
+    "the": {"capital": 0.4, "cat": 0.3, "weather": 0.3},
+    "capital": {"of": 0.9, "city": 0.1},
+    "of": {"france": 0.5, "japan": 0.3, "spain": 0.2},
+    "france": {"is": 1.0},
+    "is": {"paris": 0.8, "lovely": 0.2},
+}
+
+import random
+
+def generate(start_word, steps=5):
+    sequence = [start_word]
+    current = start_word
+    for _ in range(steps):
+        choices = next_word_probs.get(current)
+        if not choices:
+            break
+        # Pick the next word weighted by its probability, like sampling
+        # from a real model's output distribution.
+        next_word = random.choices(
+            list(choices.keys()), weights=choices.values()
+        )[0]
+        sequence.append(next_word)
+        current = next_word
+    return " ".join(sequence)
+
+print(generate("the"))
+# e.g. "the capital of france is paris"
+```
+
+Run it a few times. You'll sometimes get "the cat" instead of "the capital" — same mechanism a real model uses, just with a probability table you can actually see, instead of billions of learned weights you can't.
+
+</CodeLab>
+
+---
+
+## The Misconceptions Worth Killing Early
+
+<Pitfall title="“It Looked Things Up” vs. What Actually Happened">
+
+**Wrong mental model:** "I asked it a factual question and it checked its database, like a search engine."
+
+**What actually happened:** the model generated the most statistically plausible continuation of your prompt, based on patterns absorbed during training. If that pattern happens to match a true fact — which it very often does, since true statements are common in training data — you got a right answer. If the pattern that felt most plausible was wrong or the fact was rare, you got a wrong answer stated with exactly the same confidence.
+
+Treat every factual claim from a model as a **claim to verify**, not a **lookup result** — especially for anything specific, recent, or high-stakes. Module 3 goes deep on why this happens and how to catch it.
+
+</Pitfall>
+
+<Quiz question="A colleague says: 'The model told me the meeting is on Thursday, and it sounded really confident, so it must be right.' What's wrong with that reasoning?">
+<div>
+
+**Confidence in tone is not evidence of correctness — a language model's fluency comes from its training to sound plausible, not from checking facts.**
+
+The model's "confidence" isn't a signal it computed about its own accuracy; it's just the natural byproduct of generating fluent, well-formed language, which it does whether the underlying claim is true or invented. A wrong answer and a right answer can be phrased with identical certainty. The fix isn't to distrust the model less confidently — it's to verify specific, checkable claims (like a meeting date) against a real source, regardless of how the answer was delivered.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Now that you know a model works one token at a time, the next question is: what exactly *is* a token, and why does that unit — not words, not characters — explain why models have a fixed-size "memory" that fills up and why they sometimes seem to forget the start of a long conversation.

@@ -1,0 +1,153 @@
+---
+title: "Giving Models Context: RAG and Tool Use, Conceptually"
+description: "See how retrieval-augmented generation and tool use fix the hallucination problem structurally, by letting a model answer from real, current data instead of frozen training memory."
+module: 3
+moduleTitle: "Limits, Reasoning, and Trust"
+lesson: 2
+duration: "13 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Stop Asking It to Remember — Show It Instead
+
+The last lesson's fix for hallucination was mostly defensive: verify claims after the fact. This lesson covers the offensive version — **changing what you give the model in the first place**, so it's answering from information actually in front of it instead of trying to recall something from frozen training weights.
+
+Two techniques do almost all of this work in practice: **retrieval-augmented generation (RAG)**, which fetches relevant real documents and puts them in the prompt before asking the question, and **tool use**, which lets the model request a live action — a search, a calculation, a database query — and read back the real result before answering. Both replace "please recall this" with "here it is, use it." That single shift is one of the biggest reliability improvements you can make to how you use a model.
+
+---
+
+## Retrieval-Augmented Generation
+
+A model's training data is frozen at some point in the past and can't include your company's internal wiki, this morning's data, or a PDF you just received. RAG works around this without retraining anything:
+
+1. **Retrieve** — given the user's question, search a knowledge base (documents, a database, a set of web pages) for the most relevant chunks of text.
+2. **Augment** — insert those chunks directly into the prompt, ahead of the question.
+3. **Generate** — ask the model to answer *using the provided material*, not its own memory.
+
+```text
+Use ONLY the information in the CONTEXT below to answer the question.
+If the context doesn't contain the answer, say so explicitly.
+
+CONTEXT:
+"""
+[Excerpt from the company's Q3 refund policy document, retrieved
+ because it matched the user's question]
+Refunds are issued within 5 business days for unused items returned
+within 30 days of purchase, provided the original receipt is included.
+"""
+
+QUESTION: How long does a refund take once I return an item?
+```
+
+The model isn't recalling a refund policy from training — it can't, it's never seen this company's document. It's reading comprehension over text you handed it directly, which is a task language models are genuinely reliable at. This is why "chat with your PDF" or "ask your docs a question" products work: under the hood, they're almost always retrieval plus a prompt like the one above.
+
+<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of a retrieval-augmented generation pipeline: a user question goes to a retriever, which searches a knowledge base and returns relevant chunks; those chunks and the original question are combined into a prompt sent to the model, which generates an answer grounded in the retrieved text.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <rect x="10" y="80" width="120" height="50" rx="8" fill="#1d4ed8" opacity="0.15" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="70" y="110" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">User question</text>
+
+    <line x1="130" y1="105" x2="185" y2="105" stroke="currentColor" stroke-width="2" opacity="0.5" marker-end="url(#a2)"/>
+
+    <rect x="190" y="80" width="120" height="50" rx="8" fill="#6d28d9" opacity="0.2" stroke="#6d28d9" stroke-width="1.5"/>
+    <text x="250" y="103" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">Retriever</text>
+    <text x="250" y="119" text-anchor="middle" fill="currentColor" font-size="9.5" opacity="0.7">searches docs</text>
+
+    <line x1="250" y1="80" x2="250" y2="35" stroke="currentColor" stroke-width="2" opacity="0.4" marker-end="url(#a2)"/>
+    <rect x="190" y="5" width="120" height="30" rx="6" fill="#94a3b8" opacity="0.25" stroke="#94a3b8" stroke-width="1"/>
+    <text x="250" y="24" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.75">Knowledge base</text>
+
+    <line x1="310" y1="105" x2="365" y2="105" stroke="currentColor" stroke-width="2" opacity="0.5" marker-end="url(#a2)"/>
+
+    <rect x="370" y="70" width="160" height="70" rx="8" fill="#1d4ed8" opacity="0.15" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="450" y="98" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">Prompt =</text>
+    <text x="450" y="114" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.75">question + retrieved</text>
+    <text x="450" y="128" text-anchor="middle" fill="currentColor" font-size="10.5" opacity="0.75">chunks</text>
+
+    <line x1="530" y1="105" x2="585" y2="105" stroke="currentColor" stroke-width="2" opacity="0.5" marker-end="url(#a2)"/>
+
+    <rect x="590" y="80" width="120" height="50" rx="8" fill="#6d28d9" opacity="0.85"/>
+    <text x="650" y="110" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="700">Grounded answer</text>
+
+    <defs>
+      <marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="currentColor" opacity="0.6"/>
+      </marker>
+    </defs>
+  </g>
+</svg>
+
+---
+
+## Tool Use: Letting the Model Ask for Real Data
+
+RAG solves "the model doesn't have this document." **Tool use** (also called function calling) solves a broader problem: "the model can't compute this, look this up live, or take this action." Instead of retrieving static text ahead of time, you describe a set of actions the model is *allowed to request* — a weather lookup, a calculator, a database query, sending an email — and let it ask for one mid-conversation when it decides it needs one.
+
+The shape of the interaction is a loop, not a single request:
+
+1. You send the user's question, plus a list of tools the model may use.
+2. The model decides it needs live data and responds with a structured *request* to run a specific tool with specific inputs — not the final answer yet.
+3. Your code actually runs that action (calls the real weather API, queries the real database) and sends the real result back.
+4. The model reads the real result and generates its final answer, now grounded in something it didn't have to guess.
+
+<CodeLab title="Trace a Tool-Use Loop by Hand">
+
+Before Module 5 has you wire this up against the real Claude API, trace the loop conceptually with a stand-in. Here's a simplified, non-API sketch of the pattern — the actual `tools` parameter and message shapes come in Module 5:
+
+```python
+# Conceptual sketch — NOT real API code, just the shape of the loop.
+
+def get_stock_price(ticker: str) -> float:
+    # In reality this hits a real, live data source.
+    live_prices = {"ACME": 142.17}
+    return live_prices.get(ticker, None)
+
+def handle_conversation(user_question, model_decides_to_call_tool):
+    if model_decides_to_call_tool:
+        # 1. Model requests: "run get_stock_price('ACME')"
+        requested_ticker = "ACME"
+
+        # 2. Your code runs the REAL function — not the model guessing.
+        real_result = get_stock_price(requested_ticker)
+
+        # 3. Feed the real result back so the model's final answer
+        #    is grounded in a live number, not a memorized guess.
+        return f"ACME is currently trading at ${real_result}, based on live data."
+    else:
+        # Model answers directly, no live data needed.
+        return "..."
+
+print(handle_conversation("What's ACME trading at?", model_decides_to_call_tool=True))
+```
+
+The key idea to carry forward: the model never "knows" the stock price. It knows *when to ask*, and your code supplies the real number. That division of labor — model decides intent, your code supplies ground truth — is the core of every tool-use system, including the one you'll build in Module 5.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Retrieval Without a Relevance Check">
+
+**Common mistake:** wiring up RAG so that *something* always gets retrieved and stuffed into the prompt, even when nothing in the knowledge base is actually relevant to the question.
+
+If the retriever returns weakly related or irrelevant chunks and the prompt doesn't allow for "none of this applies," the model will often still try to construct an answer from the mismatched material — producing something that sounds grounded but is quietly wrong, which can be more dangerous than an answer that was obviously guessed. Always instruct the model explicitly to say when the retrieved context doesn't contain the answer, the way the example prompt earlier in this lesson does, rather than assuming retrieval alone guarantees a good answer.
+
+</Pitfall>
+
+<Quiz question="A support bot uses RAG over your company's help docs. A user asks a question that isn't covered anywhere in those docs, but the bot confidently answers anyway, plausibly but incorrectly. What most likely went wrong?">
+<div>
+
+**The prompt didn't instruct the model to say when the retrieved context doesn't contain the answer, so it fell back to generating a plausible-sounding answer from general knowledge instead of admitting the gap.**
+
+RAG only grounds an answer *if the model is told to prefer the provided context and to acknowledge when that context is insufficient.* Without that explicit instruction, an underspecified question behaves like Module 2 warned: the model fills the gap with the most statistically plausible continuation, which can look exactly as confident as a properly grounded answer. The fix is a prompt-level one — explicitly tell the model to say "I don't have information on that" when the retrieved material doesn't cover the question, rather than assuming retrieval alone prevents guessing.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You've now covered the concepts end to end: how models generate text, how to prompt them well, and how to keep them honest with real context. Module 4 moves from concept to code — you'll make your first real call to the Claude API and get a live response back.

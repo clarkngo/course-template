@@ -1,0 +1,175 @@
+---
+title: "Capstone: Build a Small Agent"
+description: "Combine system prompts, conversation state, and tool use into a working agent loop that calls tools on its own, repeatedly, until it can give a final grounded answer."
+module: 5
+moduleTitle: "Build a Real Tool"
+lesson: 2
+duration: "16 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Everything You've Learned, in One Loop
+
+Look back at what each module gave you: Module 1 explained how the model generates text one token at a time inside a fixed context window. Module 2 taught you to specify prompts precisely and shape output with examples. Module 3 explained why models hallucinate and how giving them real context fixes it structurally. Module 4 showed you the mechanics of calling the API and managing conversation state by hand. Module 5's last lesson added a single tool call to that loop.
+
+An **agent**, in the sense this course means it, is not a new concept — it's those pieces assembled into one running loop: the model can call a tool, look at the real result, decide whether it needs *another* tool call to finish answering, and keep going until it has what it needs. This lesson builds exactly that, with two tools instead of one, so the model has to actually decide which one it needs and when it's done.
+
+---
+
+## The Shape of an Agent Loop
+
+The single-call pattern from the last lesson was: call, check for `tool_use`, run the tool, call again, done. An agent loop is that same pattern, but wrapped so it can repeat an arbitrary number of times — because a real task might need two, three, or more tool calls chained together before there's enough information to answer.
+
+```text
+while the model's response requests a tool:
+    run the requested tool for real
+    send the real result back
+    ask the model again
+return the model's final text answer
+```
+
+The loop ends the moment the model responds with `stop_reason` other than `"tool_use"` — meaning it decided it has enough information and produced a normal text answer instead of another request.
+
+---
+
+<CodeLab title="Build a Two-Tool Agent">
+
+This agent can look up a city's current weather and convert between temperature units — two small, real functions — and has to decide on its own whether it needs one, both, or neither to answer a given question.
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+SYSTEM_PROMPT = (
+    "You are a helpful trip-planning assistant. Use the available "
+    "tools whenever you need current data or a calculation — don't "
+    "guess a number you could look up or compute exactly."
+)
+
+def get_weather(city: str) -> str:
+    fake_data = {"tokyo": "22°C, partly cloudy", "austin": "37°C, sunny"}
+    return fake_data.get(city.lower(), "No data for that city.")
+
+def celsius_to_fahrenheit(celsius: float) -> float:
+    return round((celsius * 9 / 5) + 32, 1)
+
+tools = [
+    {
+        "name": "get_weather",
+        "description": "Get current weather conditions (in Celsius) for a named city.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
+    },
+    {
+        "name": "celsius_to_fahrenheit",
+        "description": "Convert a Celsius temperature to Fahrenheit.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"celsius": {"type": "number"}},
+            "required": ["celsius"],
+        },
+    },
+]
+
+TOOL_FUNCTIONS = {
+    "get_weather": lambda i: get_weather(i["city"]),
+    "celsius_to_fahrenheit": lambda i: celsius_to_fahrenheit(i["celsius"]),
+}
+
+def run_agent(user_question: str, max_steps: int = 5) -> str:
+    messages = [{"role": "user", "content": user_question}]
+
+    for step in range(max_steps):
+        response = client.messages.create(
+            model="claude-sonnet-5",
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
+            tools=tools,
+            messages=messages,
+        )
+
+        if response.stop_reason != "tool_use":
+            # The model has enough information — this is the final answer.
+            return response.content[0].text
+
+        # Record what the model asked for.
+        messages.append({"role": "assistant", "content": response.content})
+
+        # A single response can contain multiple tool_use blocks — handle each.
+        tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
+        tool_results = []
+        for block in tool_use_blocks:
+            real_result = TOOL_FUNCTIONS[block.name](block.input)
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": str(real_result),
+            })
+
+        messages.append({"role": "user", "content": tool_results})
+
+    return "Reached the step limit without a final answer — investigate the loop."
+
+answer = run_agent("What's the weather in Tokyo right now, in Fahrenheit?")
+print(answer)
+```
+
+Trace what actually happens: the model first calls `get_weather("Tokyo")`, gets back `"22°C, partly cloudy"`, then — needing Fahrenheit, not Celsius — calls `celsius_to_fahrenheit(22)` in a *second* loop iteration, and only then produces a final answer. Nobody hardcoded that two-step plan; the model decided it based on the tools' descriptions and the question actually asked.
+
+</CodeLab>
+
+---
+
+## Why `max_steps` Isn't Optional
+
+The loop above caps itself at `max_steps`, and that cap is doing real work, not just tidying up the code. Without it, a model that keeps deciding it needs "just one more" tool call — because a tool returned an unexpected value, or the question was ambiguous, or a bug in your tool function returns something confusing — would spin the loop indefinitely, and every iteration is a real, billed API call. A step limit turns a silent runaway cost into a clear, debuggable stopping point.
+
+This is the general shape of running any agent in production: **bound the loop, log each step, and treat "hit the limit" as a signal to inspect what happened**, not just noise to raise the limit past.
+
+---
+
+<Pitfall title="No Step Limit on the Loop">
+
+**Common mistake:** writing the `while` loop from the pseudocode literally, with no maximum iteration count, on the assumption that the model will always converge to a final answer quickly.
+
+```python
+# Risky — nothing bounds how many real, billed calls this can make:
+while response.stop_reason == "tool_use":
+    ...
+    response = client.messages.create(...)
+
+# Safer — same logic, but with a hard ceiling and a visible failure mode:
+for step in range(max_steps):
+    ...
+    if response.stop_reason != "tool_use":
+        return response.content[0].text
+return "Hit the step limit — investigate."
+```
+
+Most tool calls do resolve in one or two steps. But "most of the time" isn't a safety property — the one time a tool returns something the model finds confusing, or two tools' outputs conflict, an unbounded loop keeps calling the API for as long as the model keeps requesting tools. A small, explicit limit costs nothing on the happy path and prevents the unbounded one.
+
+</Pitfall>
+
+<Quiz question="In the two-tool agent above, why does asking 'What's the weather in Tokyo in Fahrenheit?' take two loop iterations instead of one, even though the final answer is a single sentence?">
+<div>
+
+**Because the model can only request one grounded piece of information at a time per tool, and it needs the real Celsius reading from get_weather before it can request the real conversion from celsius_to_fahrenheit — it can't skip straight to a converted number it hasn't actually retrieved yet.**
+
+The system prompt instructs the model not to guess a number it could look up or compute exactly, so it treats the unit conversion as something to run for real rather than approximate from memory. That means the loop has to complete a full request-run-respond cycle for `get_weather` first, since `celsius_to_fahrenheit` depends on a real Celsius value that doesn't exist yet on the first call. This is exactly the kind of multi-step dependency an agent loop is built to handle, and why a single request-response pair isn't enough once a task needs more than one grounded fact.
+
+</div>
+</Quiz>
+
+---
+
+## What You Built
+
+Ten lessons ago you started with "a language model predicts the next token." You end this course having built a small agent that decides, on its own, which real functions to call, in what order, based on nothing but a question and a set of tool descriptions — grounded at every step by real data instead of memorized guesses.
+
+That's the whole arc: understand the mechanism, learn to steer it precisely, learn where to distrust it and how to check, then hand it real tools and watch it use them correctly. Everything you build from here — a support bot, a data agent, an internal ops tool — is this same loop, with more tools, better prompts, and the judgment this course was built to give you about where the model can be trusted and where you still need to verify.
