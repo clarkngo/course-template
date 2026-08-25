@@ -79,7 +79,7 @@ This is the fundamental trade-off of third-party gateway services: you gain mode
 
 The external actors change compared to Module 2: instead of "Google Cloud / Gemini API," the external entity is now **OpenRouter API** — the gateway that handles model routing.
 
-![Level 0 context diagram for the dad_joke_agent showing Web Browser User and OpenRouter API as external rectangles, the dad_joke_agent system as center, with labeled data flows and red dashed trust boundaries](/courses/images/secure-agentic-ai/m3/level0-dfd.png)
+![Level 0 context diagram for the dad_joke_agent showing Web Browser User and OpenRouter API as external rectangles, the dad_joke_agent system as center, with labeled data flows and red dashed trust boundaries](/courses/images/secure-agentic-ai/m3/level0-dfd.webp)
 
 **Level 1 — Decomposed View**
 
@@ -93,7 +93,7 @@ Five internal components, with two new ones compared to Module 2:
 
 The **LiteLLM Routing Layer boundary** wraps the LiteLLM process. Arrows crossing it in both directions — prompts going out, LLM responses coming back — are threat intersections.
 
-![Level 1 decomposed DFD showing adk web and .env File inside the HOS03A Server boundary, agent.py inside the .venv boundary, LiteLLM inside its own Routing Layer boundary, get_dad_joke inside the Tool Execution Layer boundary, with red X marks at trust boundary crossings](/courses/images/secure-agentic-ai/m3/level1-dfd.png)
+![Level 1 decomposed DFD showing adk web and .env File inside the HOS03A Server boundary, agent.py inside the .venv boundary, LiteLLM inside its own Routing Layer boundary, get_dad_joke inside the Tool Execution Layer boundary, with red X marks at trust boundary crossings](/courses/images/secure-agentic-ai/m3/level1-dfd.webp)
 
 ---
 

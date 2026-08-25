@@ -63,12 +63,12 @@ A **Data Flow Diagram (DFD)** makes trust boundaries visible. Two levels matter 
 **Level 0 — Context Diagram**
 The highest-level view. The entire system is one box. External entities (browser, Google Cloud) are rectangles. Arrows show what data flows in and out. Red dashed lines mark trust boundaries.
 
-![Level 0 context diagram showing Web Browser User and Google Cloud as external entities flanking the greeting_agent system, with labeled data flows and red dashed trust boundaries](/courses/images/secure-agentic-ai/m1/level0-dfd.png)
+![Level 0 context diagram showing Web Browser User and Google Cloud as external entities flanking the greeting_agent system, with labeled data flows and red dashed trust boundaries](/courses/images/secure-agentic-ai/m1/level0-dfd.webp)
 
 **Level 1 — Decomposed View**
 "Explodes" the system box into its internal components. This is where threats become specific.
 
-![Level 1 decomposed DFD showing adk web and .env File inside the HOS01A Server boundary, agent.py inside the .venv boundary, with red external boundaries, a green internal boundary, and red X marks at threat intersections](/courses/images/secure-agentic-ai/m1/level1-dfd.png)
+![Level 1 decomposed DFD showing adk web and .env File inside the HOS01A Server boundary, agent.py inside the .venv boundary, with red external boundaries, a green internal boundary, and red X marks at threat intersections](/courses/images/secure-agentic-ai/m1/level1-dfd.webp)
 
 The boundaries and symbols:
 - **Red dashed lines** (external) — left edge (browser side) and right edge (Google Cloud side). These are the outer walls.

@@ -135,97 +135,100 @@ const base = import.meta.env.BASE_URL;
   </div>
 </BaseLayout>
 
-<!-- Lightbox overlay -->
-<div id="lightbox" role="dialog" aria-modal="true" aria-label="Image preview">
+<!-- Lightbox overlay: persisted across client-side navigations so its listeners are bound once -->
+<div id="lightbox" role="dialog" aria-modal="true" aria-label="Image preview" transition:persist>
   <button id="lightbox-close" aria-label="Close">&times;</button>
   <img id="lightbox-img" src="" alt="" />
 </div>
 
 <script>
-  // Lightbox
-  const lightbox = document.getElementById('lightbox');
-  const lightboxImg = document.getElementById('lightbox-img');
-  const lightboxClose = document.getElementById('lightbox-close');
-
   function openLightbox(src, alt) {
+    const lightboxImg = document.getElementById('lightbox-img');
     lightboxImg.src = src;
     lightboxImg.alt = alt || '';
-    lightbox.classList.add('open');
+    document.getElementById('lightbox').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
   function closeLightbox() {
-    lightbox.classList.remove('open');
+    document.getElementById('lightbox').classList.remove('open');
     document.body.style.overflow = '';
   }
 
-  document.querySelectorAll('.lesson-prose img').forEach(img => {
-    img.addEventListener('click', () => openLightbox(img.src, img.alt));
-  });
+  // Delegated + bound once: works for images on every page without rebinding per navigation.
+  if (!window.__lightboxBound) {
+    window.__lightboxBound = true;
 
-  lightboxClose.addEventListener('click', closeLightbox);
-  lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+    document.addEventListener('click', e => {
+      const img = e.target.closest('.lesson-prose img');
+      if (img) { openLightbox(img.src, img.alt); return; }
+      if (e.target.id === 'lightbox') closeLightbox();
+      if (e.target.closest('#lightbox-close')) closeLightbox();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+  }
 </script>
 
 <script define:vars={{ courseLessons: courseLessons.map(l => ({ slug: l.slug, title: l.data.title })), courseSlug, slug, base: import.meta.env.BASE_URL }}>
-  const STORAGE_KEY = 'course-progress';
+  document.addEventListener('astro:page-load', () => {
+    const STORAGE_KEY = 'course-progress';
 
-  function getProgress() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
-  }
-  function setProgress(p) { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); }
+    function getProgress() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+    }
+    function setProgress(p) { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); }
 
-  // Mark visited
-  const completeBtn = document.getElementById('complete-btn');
-  if (slug) {
-    const progress = getProgress();
-    if (!progress[slug]) { progress[slug] = 'visited'; setProgress(progress); }
+    // Mark visited
+    const completeBtn = document.getElementById('complete-btn');
+    if (slug) {
+      const progress = getProgress();
+      if (!progress[slug]) { progress[slug] = 'visited'; setProgress(progress); }
 
-    // Restore complete state
-    if (progress[slug] === 'complete') {
-      completeBtn.textContent = '✅ Completed!';
-      completeBtn.disabled = true;
-      completeBtn.classList.add('opacity-60');
+      // Restore complete state
+      if (progress[slug] === 'complete') {
+        completeBtn.textContent = '✅ Completed!';
+        completeBtn.disabled = true;
+        completeBtn.classList.add('opacity-60');
+      }
+
+      completeBtn?.addEventListener('click', () => {
+        const p = getProgress();
+        p[slug] = 'complete';
+        setProgress(p);
+        document.querySelectorAll(`[data-lesson-slug="${slug}"] .status-icon`).forEach(el => el.textContent = '✅');
+        completeBtn.textContent = '✅ Completed!';
+        completeBtn.disabled = true;
+        completeBtn.classList.add('opacity-60');
+      });
     }
 
-    completeBtn?.addEventListener('click', () => {
-      const p = getProgress();
-      p[slug] = 'complete';
-      setProgress(p);
-      document.querySelectorAll(`[data-lesson-slug="${slug}"] .status-icon`).forEach(el => el.textContent = '✅');
-      completeBtn.textContent = '✅ Completed!';
-      completeBtn.disabled = true;
-      completeBtn.classList.add('opacity-60');
+    // Build prev/next links
+    const currentIdx = courseLessons.findIndex(l => l.slug === slug);
+    const prev = courseLessons[currentIdx - 1];
+    const next = courseLessons[currentIdx + 1];
+
+    function lessonHref(fullSlug) {
+      const lessonSlug = fullSlug.replace(courseSlug + '/', '');
+      return `${base}${courseSlug}/lessons/${lessonSlug}`;
+    }
+
+    if (prev) {
+      document.getElementById('prev-lesson-nav').innerHTML =
+        `<a href="${lessonHref(prev.slug)}" class="btn-ghost text-sm w-full sm:w-auto justify-center">← ${prev.title}</a>`;
+    }
+    if (next) {
+      document.getElementById('next-lesson-nav').innerHTML =
+        `<a href="${lessonHref(next.slug)}" class="btn-primary text-sm w-full sm:w-auto justify-center">${next.title} →</a>`;
+    }
+
+    // Restore all sidebar states
+    const allProgress = getProgress();
+    document.querySelectorAll('[data-lesson-slug]').forEach(el => {
+      const s = el.getAttribute('data-lesson-slug');
+      if (s && allProgress[s]) {
+        el.setAttribute('data-status', allProgress[s]);
+        const icon = el.querySelector('.status-icon');
+        if (icon) icon.textContent = allProgress[s] === 'complete' ? '✅' : '📖';
+      }
     });
-  }
-
-  // Build prev/next links
-  const currentIdx = courseLessons.findIndex(l => l.slug === slug);
-  const prev = courseLessons[currentIdx - 1];
-  const next = courseLessons[currentIdx + 1];
-
-  function lessonHref(fullSlug) {
-    const lessonSlug = fullSlug.replace(courseSlug + '/', '');
-    return `${base}${courseSlug}/lessons/${lessonSlug}`;
-  }
-
-  if (prev) {
-    document.getElementById('prev-lesson-nav').innerHTML =
-      `<a href="${lessonHref(prev.slug)}" class="btn-ghost text-sm w-full sm:w-auto justify-center">← ${prev.title}</a>`;
-  }
-  if (next) {
-    document.getElementById('next-lesson-nav').innerHTML =
-      `<a href="${lessonHref(next.slug)}" class="btn-primary text-sm w-full sm:w-auto justify-center">${next.title} →</a>`;
-  }
-
-  // Restore all sidebar states
-  const allProgress = getProgress();
-  document.querySelectorAll('[data-lesson-slug]').forEach(el => {
-    const s = el.getAttribute('data-lesson-slug');
-    if (s && allProgress[s]) {
-      el.setAttribute('data-status', allProgress[s]);
-      const icon = el.querySelector('.status-icon');
-      if (icon) icon.textContent = allProgress[s] === 'complete' ? '✅' : '📖';
-    }
   });
 </script>

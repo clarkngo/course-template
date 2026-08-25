@@ -195,143 +195,156 @@ function lessonHref(fullSlug: string) {
 </style>
 
 <script>
-  const STORAGE_KEY = 'course-progress';
-  let progress: Record<string, string> = {};
-  try { progress = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch {}
+  document.addEventListener('astro:page-load', () => {
+    const STORAGE_KEY = 'course-progress';
+    let progress: Record<string, string> = {};
+    try { progress = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch {}
 
-  let total = 0;
-  let done = 0;
+    let total = 0;
+    let done = 0;
 
-  document.querySelectorAll('[data-lesson-slug]').forEach(el => {
-    total++;
-    const slug = el.getAttribute('data-lesson-slug')!;
-    const state = progress[slug];
-    if (state) {
-      el.setAttribute('data-status', state);
-      const icon = el.querySelector('.status-icon');
-      if (icon) icon.textContent = state === 'complete' ? '✅' : '📖';
-      if (state === 'complete') done++;
-    }
+    document.querySelectorAll('[data-lesson-slug]').forEach(el => {
+      total++;
+      const slug = el.getAttribute('data-lesson-slug')!;
+      const state = progress[slug];
+      if (state) {
+        el.setAttribute('data-status', state);
+        const icon = el.querySelector('.status-icon');
+        if (icon) icon.textContent = state === 'complete' ? '✅' : '📖';
+        if (state === 'complete') done++;
+      }
+    });
+
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const bar = document.getElementById('progress-bar');
+    const label = document.getElementById('progress-label');
+    if (bar) bar.style.width = `${pct}%`;
+    if (label) label.textContent = `${pct}%`;
   });
-
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  const bar = document.getElementById('progress-bar');
-  const label = document.getElementById('progress-label');
-  if (bar) bar.style.width = `${pct}%`;
-  if (label) label.textContent = `${pct}%`;
 </script>
 
 <script>
-  const sidebar = document.getElementById('course-sidebar');
-  const backdrop = document.getElementById('sidebar-backdrop');
-  const toggleBtn = document.getElementById('sidebar-toggle');
-  const closeBtn = document.getElementById('sidebar-close');
-  const collapseBtn = document.getElementById('sidebar-collapse');
-  const expandBtn = document.getElementById('sidebar-expand');
-  const hoverZone = document.getElementById('sidebar-hover-zone');
-  const hoverToggle = document.getElementById('sidebar-hover-toggle');
-
-  function openSidebar() {
-    sidebar?.classList.remove('-translate-x-full');
-    backdrop?.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeSidebar() {
-    sidebar?.classList.add('-translate-x-full');
-    backdrop?.classList.add('hidden');
-    document.body.style.overflow = '';
-  }
-
-  toggleBtn?.addEventListener('click', openSidebar);
-  closeBtn?.addEventListener('click', closeSidebar);
-  backdrop?.addEventListener('click', closeSidebar);
-
-  sidebar?.querySelectorAll('a').forEach((a) => {
-    a.addEventListener('click', () => {
-      if (window.innerWidth < 768) closeSidebar();
+  // Escape-to-close for the mobile sidebar: bound once ever (this listener outlives
+  // any single navigation), so it always looks up the current sidebar/backdrop live
+  // rather than closing over elements that get replaced on the next page.
+  if (!(window as any).__sidebarEscBound) {
+    (window as any).__sidebarEscBound = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      document.getElementById('course-sidebar')?.classList.add('-translate-x-full');
+      document.getElementById('sidebar-backdrop')?.classList.add('hidden');
+      document.body.style.overflow = '';
     });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeSidebar();
-  });
-
-  // Desktop collapse/expand (persisted across pages). Defaults to collapsed;
-  // hovering the left edge peeks the sidebar open without changing the pinned state.
-  const COLLAPSE_KEY = 'course-sidebar-collapsed';
-  let collapsed = true;
-  try {
-    const stored = localStorage.getItem(COLLAPSE_KEY);
-    collapsed = stored === null ? true : stored === '1';
-  } catch {}
-
-  function updateA11y() {
-    const visible = !collapsed || sidebar?.classList.contains('is-hover-peek');
-    sidebar?.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }
 
-  function setCollapsed(value: boolean) {
-    collapsed = value;
-    try { localStorage.setItem(COLLAPSE_KEY, value ? '1' : '0'); } catch {}
-    sidebar?.classList.toggle('is-collapsed', value);
-    if (!value) sidebar?.classList.remove('is-hover-peek');
-    collapseBtn?.setAttribute('aria-expanded', String(!value));
-    expandBtn?.classList.toggle('md:flex', value);
+  document.addEventListener('astro:page-load', () => {
+    const sidebar = document.getElementById('course-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const closeBtn = document.getElementById('sidebar-close');
+    const collapseBtn = document.getElementById('sidebar-collapse');
+    const expandBtn = document.getElementById('sidebar-expand');
+    const hoverZone = document.getElementById('sidebar-hover-zone');
+    const hoverToggle = document.getElementById('sidebar-hover-toggle');
+
+    function openSidebar() {
+      sidebar?.classList.remove('-translate-x-full');
+      backdrop?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      sidebar?.classList.add('-translate-x-full');
+      backdrop?.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    toggleBtn?.addEventListener('click', openSidebar);
+    closeBtn?.addEventListener('click', closeSidebar);
+    backdrop?.addEventListener('click', closeSidebar);
+
+    sidebar?.querySelectorAll('a').forEach((a) => {
+      a.addEventListener('click', () => {
+        if (window.innerWidth < 768) closeSidebar();
+      });
+    });
+
+    // Desktop collapse/expand (persisted across pages). Defaults to collapsed;
+    // hovering the left edge peeks the sidebar open without changing the pinned state.
+    const COLLAPSE_KEY = 'course-sidebar-collapsed';
+    let collapsed = true;
+    try {
+      const stored = localStorage.getItem(COLLAPSE_KEY);
+      collapsed = stored === null ? true : stored === '1';
+    } catch {}
+
+    function updateA11y() {
+      const visible = !collapsed || sidebar?.classList.contains('is-hover-peek');
+      sidebar?.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+
+    function setCollapsed(value: boolean) {
+      collapsed = value;
+      try { localStorage.setItem(COLLAPSE_KEY, value ? '1' : '0'); } catch {}
+      sidebar?.classList.toggle('is-collapsed', value);
+      if (!value) sidebar?.classList.remove('is-hover-peek');
+      collapseBtn?.setAttribute('aria-expanded', String(!value));
+      expandBtn?.classList.toggle('md:flex', value);
+      updateA11y();
+    }
+
+    function setHoverPeek(value: boolean) {
+      if (!collapsed) return;
+      sidebar?.classList.toggle('is-hover-peek', value);
+      updateA11y();
+    }
+
+    sidebar?.classList.toggle('is-collapsed', collapsed);
+    expandBtn?.classList.toggle('md:flex', collapsed);
+    collapseBtn?.setAttribute('aria-expanded', String(!collapsed));
     updateA11y();
-  }
 
-  function setHoverPeek(value: boolean) {
-    if (!collapsed) return;
-    sidebar?.classList.toggle('is-hover-peek', value);
-    updateA11y();
-  }
+    collapseBtn?.addEventListener('click', () => setCollapsed(true));
+    expandBtn?.addEventListener('click', () => setCollapsed(false));
 
-  sidebar?.classList.toggle('is-collapsed', collapsed);
-  expandBtn?.classList.toggle('md:flex', collapsed);
-  collapseBtn?.setAttribute('aria-expanded', String(!collapsed));
-  updateA11y();
+    let peekLeaveTimer: ReturnType<typeof setTimeout>;
+    function peekIn() {
+      if (!hoverEnabled) return;
+      clearTimeout(peekLeaveTimer);
+      setHoverPeek(true);
+    }
+    function peekOut() {
+      clearTimeout(peekLeaveTimer);
+      peekLeaveTimer = setTimeout(() => setHoverPeek(false), 150);
+    }
 
-  collapseBtn?.addEventListener('click', () => setCollapsed(true));
-  expandBtn?.addEventListener('click', () => setCollapsed(false));
+    hoverZone?.addEventListener('mouseenter', peekIn);
+    sidebar?.addEventListener('mouseenter', peekIn);
+    hoverZone?.addEventListener('mouseleave', peekOut);
+    sidebar?.addEventListener('mouseleave', peekOut);
 
-  let peekLeaveTimer: ReturnType<typeof setTimeout>;
-  function peekIn() {
-    if (!hoverEnabled) return;
-    clearTimeout(peekLeaveTimer);
-    setHoverPeek(true);
-  }
-  function peekOut() {
-    clearTimeout(peekLeaveTimer);
-    peekLeaveTimer = setTimeout(() => setHoverPeek(false), 150);
-  }
+    // Let users turn peek-on-hover off entirely (persisted across pages)
+    const HOVER_ENABLED_KEY = 'course-sidebar-hover-enabled';
+    let hoverEnabled = true;
+    try {
+      const storedHover = localStorage.getItem(HOVER_ENABLED_KEY);
+      hoverEnabled = storedHover === null ? true : storedHover === '1';
+    } catch {}
 
-  hoverZone?.addEventListener('mouseenter', peekIn);
-  sidebar?.addEventListener('mouseenter', peekIn);
-  hoverZone?.addEventListener('mouseleave', peekOut);
-  sidebar?.addEventListener('mouseleave', peekOut);
-
-  // Let users turn peek-on-hover off entirely (persisted across pages)
-  const HOVER_ENABLED_KEY = 'course-sidebar-hover-enabled';
-  let hoverEnabled = true;
-  try {
-    const storedHover = localStorage.getItem(HOVER_ENABLED_KEY);
-    hoverEnabled = storedHover === null ? true : storedHover === '1';
-  } catch {}
-
-  function applyHoverToggleUI() {
-    hoverToggle?.setAttribute('aria-checked', String(hoverEnabled));
-    hoverToggle?.classList.toggle('bg-brand-500', hoverEnabled);
-    hoverToggle?.classList.toggle('bg-gray-200', !hoverEnabled);
-    const dot = hoverToggle?.querySelector('span');
-    dot?.classList.toggle('translate-x-3.5', hoverEnabled);
-    dot?.classList.toggle('translate-x-0.5', !hoverEnabled);
-  }
-  applyHoverToggleUI();
-
-  hoverToggle?.addEventListener('click', () => {
-    hoverEnabled = !hoverEnabled;
-    try { localStorage.setItem(HOVER_ENABLED_KEY, hoverEnabled ? '1' : '0'); } catch {}
+    function applyHoverToggleUI() {
+      hoverToggle?.setAttribute('aria-checked', String(hoverEnabled));
+      hoverToggle?.classList.toggle('bg-brand-500', hoverEnabled);
+      hoverToggle?.classList.toggle('bg-gray-200', !hoverEnabled);
+      const dot = hoverToggle?.querySelector('span');
+      dot?.classList.toggle('translate-x-3.5', hoverEnabled);
+      dot?.classList.toggle('translate-x-0.5', !hoverEnabled);
+    }
     applyHoverToggleUI();
-    if (!hoverEnabled) setHoverPeek(false);
+
+    hoverToggle?.addEventListener('click', () => {
+      hoverEnabled = !hoverEnabled;
+      try { localStorage.setItem(HOVER_ENABLED_KEY, hoverEnabled ? '1' : '0'); } catch {}
+      applyHoverToggleUI();
+      if (!hoverEnabled) setHoverPeek(false);
+    });
   });
 </script>

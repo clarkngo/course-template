@@ -213,7 +213,7 @@ python threat_model.py --dfd | dot -Tpng -o dfd.png
 
 Your `dfd.png` should match this — note the new Tool Execution Layer boundary containing the two tool processes, with arrows crossing it from `agent.py` in both directions:
 
-![pytm-generated DFD for the weather_time_agent system showing five boundary boxes (Google Cloud Platform, HOS02A Server, Python Virtual Environment, Internet, Tool Execution Layer), with get_weather and get_current_time processes inside the Tool Execution Layer boundary, and tool call and result arrows crossing that boundary from agent.py](/courses/images/secure-agentic-ai/m2/pytm-dfd.png)
+![pytm-generated DFD for the weather_time_agent system showing five boundary boxes (Google Cloud Platform, HOS02A Server, Python Virtual Environment, Internet, Tool Execution Layer), with get_weather and get_current_time processes inside the Tool Execution Layer boundary, and tool call and result arrows crossing that boundary from agent.py](/courses/images/secure-agentic-ai/m2/pytm-dfd.webp)
 
 Compare this with your hand-drawn Level 1 DFD from Lesson 2. Did pytm capture every element? Any component missing from the model isn't being analyzed — gaps here are gaps in your security coverage.
 
