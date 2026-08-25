@@ -8,6 +8,7 @@ duration: "13 min"
 ---
 
 import CodeLab from '@components/CodeLab.astro';
+import LoopDiagram from '@components/LoopDiagram.astro';
 import Pitfall from '@components/Pitfall.astro';
 import Quiz from '@components/Quiz.astro';
 
@@ -22,6 +23,18 @@ The loop, in order:
 3. **Critique the machine**
 4. **Transfer to a new context**
 5. **Reflect on the tool**
+
+<LoopDiagram
+  label="The five-step loop: attempt, question, critique, transfer, reflect — a repeating cycle for moving an assignment above the line"
+  colors={['#6d28d9', '#7c3aed', '#8b5cf6']}
+  steps={[
+    { title: "Attempt", subtitle: "before assistance" },
+    { title: "Question", subtitle: "not completion" },
+    { title: "Critique", subtitle: "the machine" },
+    { title: "Transfer", subtitle: "new context" },
+    { title: "Reflect", subtitle: "on the tool" },
+  ]}
+/>
 
 ---
 
