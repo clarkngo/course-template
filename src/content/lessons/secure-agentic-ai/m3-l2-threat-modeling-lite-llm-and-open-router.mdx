@@ -45,7 +45,7 @@ Five trust boundaries exist in this system. Boundaries 4 and 5 are new:
 | Boundary | Components | What crosses it | Why it matters |
 |---|---|---|---|
 | **1** | Browser ↔ `adk web` | User prompt (text) | User input is untrusted — could contain injected instructions |
-| **2** | `agent.py` ↔ Gemini API (via OpenRouter) | Prompt + tool definitions + API key | External network; credentials must not be exposed in transit |
+| **2** | LiteLLM Layer ↔ OpenRouter API | Prompt + tool definitions + API key | OpenRouter is a third-party external gateway; credentials must not be exposed in transit |
 | **3** | `.env` file ↔ `agent.py` | `OPENROUTER_API_KEY` | File permissions determine who can read the credential |
 | **4 (NEW)** | LLM reasoning output ↔ Tool Execution Layer | Tool call arguments and tool return values | GPT-4.1 generates tool arguments from user input — prompt injection can propagate into local function calls |
 | **5 (NEW)** | `agent.py` ↔ LiteLLM Layer | Prompt, tool definitions, tool results | LiteLLM is an in-process translation layer, but its output crosses to an external third-party gateway (OpenRouter). This routing boundary didn't exist when calling Gemini directly. |

@@ -1,10 +1,385 @@
 ---
 title: "OWASP Threat Modeling a Multi-Agent System"
-description: "Placeholder — content coming soon."
+description: "Encode the manager multi-agent system in pytm with a boundary per sub-agent and an external Yahoo Finance dependency, then build a threat_modeling_agent that reasons about cross-agent injection risk."
 module: 7
 moduleTitle: "Experiencing a Multi-Agent System"
 lesson: 3
-duration: "TBD"
+duration: "55 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What's New in the Threat Model
+
+Every pytm model you've built so far has had a handful of boundaries wrapping a small, flat set of processes. The `manager` MAS needs four new boundaries — one per sub-agent, plus one for the new external dependency:
+
+- `Boundary("Stock Analyst Agent Boundary")`
+- `Boundary("Funny Nerd Agent Boundary")`
+- `Boundary("News Analyst AgentTool Boundary")`
+- `Boundary("Yahoo Finance (External Market Data)")`
+
+Each sub-agent boundary wraps its own `Process`, with `sanitizesInput = False` — matching the finding from Lesson 2 that none of the sub-agent outputs are sanitized before `manager` uses them. The Yahoo Finance boundary wraps a new `Actor`, since it's an external system you don't control, exactly like the Google Gemini API actor from every earlier module.
+
+---
+
+## Step 1: Install pytm and Graphviz
+
+If you already installed these in an earlier module, skip this step.
+
+```bash
+# GitHub Codespaces / Ubuntu Linux
+sudo apt-get update && sudo apt-get install -y graphviz
+
+# macOS
+brew install graphviz
+
+# Windows — download from https://graphviz.org/download/
+# and add Graphviz's bin/ directory to your system PATH
+```
+
+Add to `requirements.txt` if not already present:
+
+```
+pytm==1.3.1
+```
+
+```bash
+pip install -r requirements.txt
+python -c "from pytm import TM; print('pytm installed successfully')"
+dot -V
+```
+
+---
+
+## Step 2: Write the Threat Model
+
+Create `threat_model.py` in the project root (not inside `manager/`):
+
+```bash
+touch threat_model.py
+```
+
+Comments marked `# NEW` highlight everything this architecture adds over a single-agent model:
+
+```python
+from pytm import TM, Actor, Boundary, Dataflow, Datastore, Process, Classification
+
+tm = TM("Manager MAS Threat Model")
+tm.description = "Threat model for the manager multi-agent system."
+tm.isOrdered = True
+tm.mergeResponses = True
+
+# --- Trust Boundaries ---
+internet        = Boundary("Internet")
+gcp_boundary    = Boundary("Google Cloud Platform")
+server_boundary = Boundary("Manager Server")
+venv_boundary   = Boundary("Python Virtual Environment (.venv)")
+stock_boundary  = Boundary("Stock Analyst Agent Boundary")   # NEW
+funny_boundary  = Boundary("Funny Nerd Agent Boundary")      # NEW
+news_boundary   = Boundary("News Analyst AgentTool Boundary")  # NEW
+yahoo_boundary  = Boundary("Yahoo Finance (External Market Data)")  # NEW
+
+# --- External Actors ---
+user = Actor("Web Browser User")
+user.inBoundary = internet
+
+google_llm = Actor("Google Gemini API")
+google_llm.inBoundary = gcp_boundary
+
+yahoo_finance = Actor("Yahoo Finance API (yfinance)")  # NEW
+yahoo_finance.inBoundary = yahoo_boundary
+
+# --- Internal Processes ---
+adk_web_ui = Process("adk web (Dev UI)")
+adk_web_ui.inBoundary = server_boundary
+adk_web_ui.sanitizesInput = False
+
+manager_agent = Process("manager (root_agent)")
+manager_agent.inBoundary = venv_boundary
+manager_agent.sanitizesInput = False
+manager_agent.validatesInput = False
+
+stock_analyst = Process("stock_analyst (sub-agent, delegation)")  # NEW
+stock_analyst.inBoundary = stock_boundary
+stock_analyst.sanitizesInput = False
+
+funny_nerd = Process("funny_nerd (sub-agent, delegation)")  # NEW
+funny_nerd.inBoundary = funny_boundary
+funny_nerd.sanitizesInput = False
+
+news_analyst = Process("news_analyst (AgentTool, agent-as-tool)")  # NEW
+news_analyst.inBoundary = news_boundary
+news_analyst.sanitizesInput = False
+
+get_current_time_func = Process("get_current_time (tool)")
+get_current_time_func.inBoundary = venv_boundary
+
+# --- Data Store ---
+env_file = Datastore("manager/.env File")
+env_file.inBoundary = server_boundary
+env_file.isEncrypted = False
+env_file.storesSensitiveData = True
+env_file.classification = Classification.SECRET
+
+# --- Data Flows ---
+user_to_ui = Dataflow(user, adk_web_ui, "User Prompt (HTTP)")
+user_to_ui.protocol    = "HTTP"
+user_to_ui.isEncrypted = False
+user_to_ui.sanitizes   = False
+
+env_to_manager = Dataflow(env_file, manager_agent, "API Key + Config")
+env_to_manager.isEncrypted    = False
+env_to_manager.classification = Classification.SECRET
+
+manager_to_llm = Dataflow(manager_agent, google_llm, "Delegation Request + Prompt (HTTPS)")
+manager_to_llm.protocol       = "HTTPS"
+manager_to_llm.isEncrypted    = True
+manager_to_llm.classification = Classification.SENSITIVE
+
+llm_to_manager = Dataflow(google_llm, manager_agent, "Delegation Decision / Response (HTTPS)")
+llm_to_manager.protocol    = "HTTPS"
+llm_to_manager.isEncrypted = True
+
+manager_to_stock = Dataflow(manager_agent, stock_analyst,  # NEW
+    "Delegated Financial Query (sub-agent delegation)")
+manager_to_stock.sanitizes = False
+
+stock_to_yahoo = Dataflow(stock_analyst, yahoo_finance,  # NEW
+    "Stock Data Request (yfinance, HTTPS)")
+stock_to_yahoo.protocol    = "HTTPS"
+stock_to_yahoo.isEncrypted = True
+
+yahoo_to_stock = Dataflow(yahoo_finance, stock_analyst, "Market Data Response")  # NEW
+yahoo_to_stock.sanitizes = False
+
+stock_to_manager = Dataflow(stock_analyst, manager_agent, "Financial Analysis Result")  # NEW
+stock_to_manager.sanitizes = False
+
+manager_to_funny = Dataflow(manager_agent, funny_nerd,  # NEW
+    "Delegated Joke Request (sub-agent delegation)")
+manager_to_funny.sanitizes = False
+
+funny_to_manager = Dataflow(funny_nerd, manager_agent, "Joke Result")  # NEW
+funny_to_manager.sanitizes = False
+
+manager_to_news = Dataflow(manager_agent, news_analyst, "AgentTool Call (synchronous)")  # NEW
+manager_to_news.sanitizes = False
+
+news_to_manager = Dataflow(news_analyst, manager_agent, "News Analysis Result")  # NEW
+news_to_manager.sanitizes = False
+
+manager_to_time = Dataflow(manager_agent, get_current_time_func, "get_current_time() call")
+time_to_manager = Dataflow(get_current_time_func, manager_agent, "Current Timestamp")
+
+ui_to_user = Dataflow(adk_web_ui, user, "Response (HTTP)")
+ui_to_user.isEncrypted = False
+
+if __name__ == "__main__":
+    tm.process()
+```
+
+<CodeLab title="Every Sub-Agent Dataflow Has sanitizes = False — On Purpose">
+
+Look for the pattern across every new dataflow: `manager_to_stock.sanitizes = False`, `stock_to_manager.sanitizes = False`, `manager_to_funny.sanitizes = False`, `funny_to_manager.sanitizes = False`, `manager_to_news.sanitizes = False`, `news_to_manager.sanitizes = False`. Not one of the six new dataflows sanitizes what crosses it.
+
+This is the pytm-as-code version of the cross-agent output injection finding from Lesson 2. Every `False` here is a deliberate statement that no control exists yet — and pytm reads each one to generate a Tampering or Elevation of Privilege threat automatically. If you later add output sanitization between `manager` and its specialists, you'd flip the relevant flags to `True` and re-run the model; the threat report should shrink exactly where you added the control.
+
+`news_to_manager` deserves particular attention: it represents the `AgentTool` synchronous call result being injected directly into `manager`'s context, unsanitized — the pytm encoding of the "`AgentTool` output looks like a function return, but isn't one" pitfall from Lesson 2.
+
+`Classification.SECRET` on `env_file` and `Classification.SENSITIVE` on `manager_to_llm` continue driving pytm's information disclosure detection, the same as in every earlier module's model.
+
+</CodeLab>
+
+---
+
+## Step 3: Generate the DFD and Threat Report
+
+**Threat report:**
+
+```bash
+python threat_model.py --report threats.md
+```
+
+Open `threats.md`. You should see threats covering:
+- Unsanitized sub-agent outputs injected into `manager`'s context (Tampering / Elevation of Privilege)
+- Adversarial prompts manipulating delegation decisions (Elevation of Privilege)
+- Yahoo Finance data manipulation via `yfinance` (Tampering / Information Disclosure)
+- Unencrypted HTTP between the browser and `adk web` (Information Disclosure)
+- No logging of delegation events (Repudiation)
+- Sub-agent unavailability blocking agent responses (Denial of Service)
+
+**DFD diagram:**
+
+```bash
+python threat_model.py --dfd | dot -Tpng -o dfd.png
+```
+
+`dfd.png` should show a node for each process, actor, and data store; an arrow for every data flow, including the six new sub-agent and `AgentTool` flows; and dashed lines at every trust boundary, including the three new agent boundaries and the Yahoo Finance boundary.
+
+Compare `dfd.png` with your hand-drawn DFD from Lesson 2. Did pytm capture every element you drew manually? Is each sub-agent boundary visible as its own box? Are there elements in your manual DFD you forgot to include in the pytm model? Anything missing from the model isn't being analyzed.
+
+---
+
+## Step 4: Build the Threat Modeling Agent
+
+Create `threat_agent/` alongside `manager/`:
+
+```bash
+mkdir threat_agent
+touch threat_agent/__init__.py
+touch threat_agent/agent.py
+cp manager/.env threat_agent/.env
+```
+
+Your project structure:
+
+```
+your-project/
+├── manager/                  ← from Lesson 1, leave untouched
+│   ├── __init__.py
+│   ├── agent.py
+│   ├── .env
+│   ├── sub_agents/
+│   └── tools/
+├── threat_agent/             ← new
+│   ├── __init__.py
+│   ├── agent.py
+│   └── .env
+├── threat_model.py
+├── threats.md                 ← generated by pytm
+├── dfd.png                    ← generated by pytm
+└── requirements.txt
+```
+
+**`threat_agent/__init__.py`:**
+
+```python
+from . import agent
+```
+
+**`threat_agent/agent.py`:**
+
+```python
+import os
+from google.adk.agents import Agent
+
+_REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "threats.md")
+
+
+def _load_report(path):
+    resolved = os.path.abspath(path)
+    if not os.path.exists(resolved):
+        return "Threat report not found. Run: python threat_model.py --report threats.md"
+    with open(resolved, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+_report = _load_report(_REPORT_PATH)
+
+root_agent = Agent(
+    name="threat_modeling_agent",
+    model="gemini-3.5-flash",
+    description="Security analyst for the manager multi-agent system.",
+    instruction=f"""
+You are an expert application security engineer and AI safety specialist.
+
+You have been given the following pytm-generated threat report:
+
+---
+{_report}
+---
+
+Your responsibilities:
+1. Answer questions about the threats clearly and accurately.
+2. Identify threats pytm may have missed, especially multi-agent threats:
+   - Prompt Injection (LLM01): user input targeting delegation decisions or sub-agent
+     instructions via the manager's orchestration logic
+   - Sensitive Information Disclosure (LLM02): financial data, news content, or PII
+     exposed through cross-agent communication or logs
+   - Model Denial of Service (LLM04): adversarial prompts causing excessive delegation
+     loops or sub-agent resource exhaustion
+   - Insecure Output Handling (LLM05): sub-agent outputs rendered without sanitization
+   - Tool Misuse (ASI02): manager invoking sub-agents with attacker-controlled arguments
+     due to prompt injection targeting delegation logic
+   - Cross-Agent Output Injection: unsanitized sub-agent results injected into the
+     manager's context, enabling second-order prompt injection attacks
+3. Recommend specific, actionable mitigations using STRIDE categories.
+4. When asked to prioritize, use Risk = Likelihood x Impact.
+""",
+)
+```
+
+<CodeLab title="Cross-Agent Output Injection: A Category Beyond the Standard List">
+
+Compare this instruction with Module 4's `threat_agent`. The first five items — LLM01, LLM02, LLM04, LLM05, and ASI02 — carry over, but ASI02 (Tool Misuse) now means something new: it's not about a plain function tool receiving bad arguments, it's about `manager` invoking a *sub-agent* with attacker-controlled arguments because prompt injection targeted its delegation logic.
+
+The sixth item, **Cross-Agent Output Injection**, isn't a numbered OWASP Top 10 entry at all — it's added explicitly to cover second-order injection attacks that cross agent boundaries: content one sub-agent produces (possibly influenced by an untrusted external source, like Yahoo Finance data) becoming input that manipulates a different agent (`manager`) downstream. pytm can flag that a dataflow doesn't sanitize (`sanitizes = False`), but it can't reason about *what a sub-agent might be tricked into saying* — that reasoning gap is what this agent exists to fill.
+
+This agent uses `model="gemini-3.5-flash"` — a newer model than the `gemini-2.0-flash` powering every agent in the `manager` system it's analyzing, the same pattern used by every threat-modeling agent in this course so far.
+
+</CodeLab>
+
+---
+
+## Step 5: Run the Agent and Explore Security Questions
+
+Navigate to the project root (not inside `threat_agent/`) and launch:
+
+```bash
+adk web
+```
+
+Select **threat_modeling_agent** from the dropdown. Start with:
+
+- `"What are the top three threats in the manager MAS by severity?"`
+- `"Does the threat report cover cross-agent prompt injection? What would that attack look like?"`
+- `"What new threats does the multi-agent architecture introduce compared to a single-agent system?"`
+- `"How does sub-agent delegation differ from agent-as-tool in terms of security? Which is more dangerous?"`
+- `"What threats exist at the boundary between the manager and stock_analyst?"`
+
+Then try these advanced prompts:
+
+- `"Walk me through an attack scenario where prompt injection causes the manager to delegate to stock_analyst with a manipulated ticker symbol."`
+- `"How can the news_analyst AgentTool be used to exfiltrate information from the manager agent's context?"`
+- `"OWASP ASI02 covers Tool Misuse. How does this apply to the AgentTool(news_analyst) pattern compared to simple tool calling?"`
+- `"What are the security implications of stock_analyst having direct access to Yahoo Finance via yfinance? What if the data is stale or manipulated?"`
+- `"How does the trust hierarchy — manager above its sub-agents — change the attack surface compared to a flat single-agent design?"`
+
+Notice where the agent accurately summarizes the pytm report, where it adds insight pytm couldn't generate on its own (especially around cross-agent injection scenarios), and where it's uncertain or wrong.
+
+<Pitfall title="The Agent Is a Starting Point, Not a Final Authority">
+
+The `threat_modeling_agent` can make mistakes. It may miss threats, misclassify severity, or suggest mitigations that don't fit your specific environment — this is true of any AI security tool, in any module of this course.
+
+The value is speed and coverage: it surfaces candidates faster than a manual review would. The job of the human engineer is to verify, challenge, and prioritize what the agent produces. Never ship a mitigation solely because an AI agent recommended it — verify every recommendation against authoritative sources: OWASP documentation, CVE databases, your organization's security policies.
+
+</Pitfall>
+
+---
+
+<Quiz question="threats.md was generated from a pytm model where every sub-agent dataflow has sanitizes = False. Does adding output sanitization to manager's code (without updating threat_model.py) make the threat_modeling_agent's answers about cross-agent injection more accurate or less accurate?">
+
+<div>
+
+**Less accurate** — and this is worth internalizing as a general rule, not just a fact about this lesson.
+
+`threat_modeling_agent` doesn't inspect your running code. It reasons entirely from the text of `threats.md`, which was generated from `threat_model.py` at a specific point in time. If you patch `manager` to sanitize sub-agent output but never re-run `python threat_model.py --report threats.md`, the model — and therefore the agent — keeps describing a system that no longer exists. It will keep warning about a cross-agent injection risk you already fixed, and a teammate reading its answers has no way to know the report is stale.
+
+This is the same tampering/staleness risk that Module 1's threat agent surfaced for `threats.md` in general, but it matters more here: a multi-agent system's threat model has more moving pieces (four processes, six new dataflows) that can silently drift out of sync with the code. Treat `threat_model.py` as something you update in the same commit as the architecture change it describes — not as a one-time exercise.
+
+</div>
+</Quiz>
+
+---
+
+## What You've Built Across Module 7
+
+Over three lessons you went from a single-agent architecture to a coordinated team of specialists, and threat modeled every new piece of that coordination:
+
+1. **Lesson 1** — Built the `manager` MAS: two sub-agents (`stock_analyst`, `funny_nerd`) via sub-agent delegation, one agent (`news_analyst`) wrapped as a tool via `AgentTool`, and understood why the built-in-tool restriction dictates which pattern each specialist uses.
+2. **Lesson 2** — Mapped three new trust boundaries (one per sub-agent, plus `AgentTool`) and a new external dependency (Yahoo Finance), and identified cross-agent output injection as the standout new threat.
+3. **Lesson 3** — Encoded the multi-agent architecture in pytm with a boundary per specialist, confirmed every new dataflow lacks sanitization, and built a `threat_modeling_agent` that reasons about cross-agent injection scenarios beyond what static analysis can detect.
+
+**Module 8** introduces a stateful multi-agent system — giving this same team of specialists shared memory across turns. The first thing we'll examine is how persistent state changes what a compromised sub-agent can do to the rest of the system, not just to a single response.

@@ -1,10 +1,178 @@
 ---
 title: "Threat Modeling Structured Outputs"
-description: "Placeholder — content coming soon."
+description: "Extend the STRIDE model to cover the email_agent's Pydantic validation boundary — the new trust boundary that takes the place of tool execution when output_schema is set."
 module: 4
 moduleTitle: "Experiencing Structured Outputs"
 lesson: 2
-duration: "TBD"
+duration: "45 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What Changed from the Tool-Enabled Agent?
+
+Module 2's `weather_time_agent` called Gemini, received a tool call request, executed Python code locally, and fed the result back — creating a Tool Execution Layer trust boundary. The `email_agent` from Lesson 1 takes a different path entirely.
+
+Because `output_schema=EmailContent` is set, `email_agent` **cannot call tools**. There is no Tool Execution Layer in this system at all. In its place is a new kind of boundary: the point where Gemini's raw JSON output is checked against the `EmailContent` schema before anything downstream is allowed to trust it. That's the **Pydantic Validation Layer** — and it has its own attack surface that a tool-calling boundary never did.
+
+---
+
+## The System: Data Flow Overview
+
+The `email_agent` has seven data flows. Flows 4–6 are restructured compared to Module 2 — there's no LLM-decides-to-call-a-tool step; instead there's an LLM-produces-JSON-then-gets-validated step:
+
+1. **User → Agent (HTTP):** The user's email request travels from the browser to `adk web` on port 8000.
+2. **Agent → `.env` file (file system read):** At startup, `agent.py` reads `GOOGLE_API_KEY` from the `.env` file.
+3. **Agent → Gemini API (HTTPS):** `agent.py` sends the user prompt and the `EmailContent` schema definition to the Gemini API. The schema is auto-injected into the prompt by `LlmAgent`.
+4. **Gemini API → Agent (HTTPS):** Gemini generates a JSON response intended to conform to `EmailContent` and returns it.
+5. **Agent → Pydantic Validator (in-process):** The raw JSON is passed to Pydantic for validation against `EmailContent`. If it fails, ADK automatically re-prompts Gemini to correct the output.
+6. **Pydantic Validator → `output_key` Store (in-process):** The validated `EmailContent` object is stored under the key `"email"`.
+7. **Agent → Browser (HTTP):** The structured response is returned for display.
+
+The key difference from Module 2: **the LLM's raw output is no longer trusted just because it arrived — it has to pass a schema check before it's usable, and a failed check triggers an automatic retry loop.**
+
+---
+
+## Trust Boundaries
+
+Five trust boundaries exist in this system. Boundaries 4 and 5 are new, and they replace the Tool Execution Layer boundary that existed in Module 2:
+
+| Boundary | Components | What crosses it | Why it matters |
+|---|---|---|---|
+| **1** | Browser ↔ `adk web` | User email request (text) | User input is untrusted and could contain prompt injection designed to override email generation instructions |
+| **2** | `agent.py` ↔ Gemini API | Prompt + `EmailContent` schema definition + API key | External network; the schema definition reveals internal data structure; credentials must not be exposed in transit |
+| **3** | `.env` file ↔ `agent.py` | `GOOGLE_API_KEY` | File permissions determine who can read the credential |
+| **4 (NEW)** | Gemini JSON output ↔ Pydantic Validation Layer | Raw LLM JSON, pending validation | Raw JSON must pass `EmailContent` schema validation before it's accepted. A failure triggers automatic re-prompting — a potential denial-of-service vector — and validation error messages may disclose schema details |
+| **5 (NEW)** | Pydantic Validation Layer ↔ `output_key` Store | Validated `EmailContent` object | Access controls on this in-memory store determine who can read the generated subject and body |
+
+<CodeLab title="The Pydantic Validation Layer Replaces Tool Execution">
+
+In Module 2, the boundary that mattered most was the one around tool execution — LLM output becoming executable input to local Python functions. Here, there's no local function being called with LLM-chosen arguments. Instead, the LLM's raw output has to survive a schema check before your application will treat it as real data.
+
+That reframes the threat: instead of asking *"can the LLM manipulate what arguments a tool receives?"* you ask *"can the LLM produce output that technically passes schema validation but is still harmful?"* Pydantic validates **shape** — that `subject` and `body` are both strings — but it says nothing about **content**. A phishing email with a perfectly innocuous-looking subject line and a malicious body still satisfies `EmailContent`.
+
+The other new risk is the retry loop itself. `output_schema` validation failures trigger automatic re-prompting. That's a reliability feature — but from a security standpoint, it's also a mechanism an attacker could try to trigger repeatedly to burn through API quota.
+
+</CodeLab>
+
+---
+
+## Data Flow Diagrams
+
+**Level 0 — Context Diagram**
+
+Same two external entities as Module 1 and 2 — Web Browser User and Google Cloud / Gemini API — but the labeled flows change: the request now carries a schema definition outbound, and the response is explicitly a "validated EmailContent response," not a plain-text reply.
+
+**Level 1 — Decomposed View**
+
+Five internal components, with two new ones replacing the tool processes from Module 2:
+
+- `adk web` (Dev UI) — receives the browser request on port 8000
+- `agent.py` (`email_agent`, `LlmAgent`) — core logic; sends the prompt and schema to Gemini and coordinates validation
+- **Pydantic Validator (`EmailContent`)** — validates the raw JSON response against the schema (NEW)
+- **`output_key` Store (`email`)** — stores the validated `EmailContent` object (NEW)
+- `.env` File — stores `GOOGLE_API_KEY`
+
+There is no Tool Execution Layer box in this diagram — `output_schema` removed it. The **Pydantic Validation Layer** boundary takes its place, wrapping the validator process. Every arrow crossing it — raw JSON going in, the validated object coming out — is a threat intersection worth the same scrutiny the Tool Execution Layer got in Module 2.
+
+---
+
+## STRIDE Analysis
+
+| DFD Element | S | T | R | I | D | E | Threat Description |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|---|
+| **User Prompt** (Browser → Dev UI) | ✓ | | | | | ✓ | S: Attacker spoofs an authorized user identity. E: Prompt injection overrides email generation instructions or injects malicious content into the JSON output |
+| **`.env` File** (Data Store) | | ✓ | | ✓ | | | T: API key tampered if file permissions are too permissive. I: `GOOGLE_API_KEY` disclosed via accidental git commit |
+| **Agent → Gemini API Request** (Flow) | | | ✓ | ✓ | ✓ | | R: API calls not logged, preventing audit of agent behavior. I: Prompt and `EmailContent` schema sent to an external service expose system design. D: Adversarial prompt triggers repeated re-prompting, exhausting API quota |
+| **JSON Response: Gemini → Agent** (Flow) | | ✓ | | ✓ | | | T: LLM outputs malformed or injected JSON content. I: Validation error messages reveal `EmailContent` schema structure |
+| **Pydantic Validation Layer** (Process, NEW) | | ✓ | | ✓ | ✓ | ✓ | T: Crafted prompt causes schema mismatch, exploiting re-prompt behavior. I: Validation errors expose schema field names and types. E: Attacker forces repeated re-prompting by crafting prompts that reliably fail validation |
+| **`output_key` Store (`email`)** (Data Store, NEW) | | ✓ | | ✓ | | | T: Stored `EmailContent` object tampered in memory between validation and delivery. I: Generated email subject and body exposed to unauthorized parties or logged insecurely |
+| **`adk web` Dev UI** (Process) | ✓ | | | ✓ | ✓ | ✓ | S: If exposed beyond localhost, any network user can send requests. I: Dev UI exposes event traces. D: No rate limiting. E: Debug interface enables privilege escalation |
+| **`agent.py`** (Process) | | ✓ | ✓ | | | | T: Malicious LLM response embeds instructions that shape the next re-prompt attempt. R: No logging of validation outcomes or retry attempts |
+
+---
+
+## Mitigations
+
+### JSON Injection via Prompt (Tampering / Elevation of Privilege)
+
+**Threat:** An attacker crafts a user prompt that causes the LLM to generate a JSON response containing injected content in the `subject` or `body` fields (e.g., phishing text, HTML/script tags).
+
+**Mitigation:** Sanitize and validate the *content* of `subject` and `body` after Pydantic validation passes. Apply output encoding before rendering email content in any browser or downstream system.
+
+**Type:** Prevention + Detection
+
+---
+
+### Schema Information Disclosure
+
+**Threat:** Validation error messages returned when Pydantic rejects a malformed JSON response expose the `EmailContent` schema structure — field names and types — to an attacker.
+
+**Mitigation:** Catch Pydantic `ValidationError` exceptions and return a generic error message to the user. Log full validation details server-side for debugging without exposing them externally.
+
+**Type:** Prevention
+
+---
+
+### API Key Information Disclosure
+
+**Threat:** `GOOGLE_API_KEY` in the `.env` file is accidentally committed to a public GitHub repository.
+
+**Mitigation:** Confirm `.env` is listed in `.gitignore`. Enable GitHub secret scanning. Rotate the key immediately if exposure is detected.
+
+**Type:** Prevention + Detection
+
+---
+
+### Re-prompt Denial of Service
+
+**Threat:** An adversarial prompt deliberately causes the LLM to produce JSON that fails Pydantic validation repeatedly, triggering the automatic re-prompting loop and exhausting API quota.
+
+**Mitigation:** Set a maximum retry count for re-prompting on validation failure. Alert on repeated validation failures and set a budget limit in the Google AI Studio console.
+
+**Type:** Prevention + Detection
+
+---
+
+### `output_key` Store Exposure
+
+**Threat:** The validated `EmailContent` stored under `output_key="email"` contains sensitive email content that gets logged insecurely or read by unauthorized processes in a multi-agent workflow.
+
+**Mitigation:** Treat `output_key` store entries as sensitive data — don't log email body content. Apply access controls in multi-agent workflows to restrict which agents can read the `"email"` key.
+
+**Type:** Prevention
+
+<Pitfall title="Schema Validation Checks Shape, Not Intent">
+
+It's tempting to treat `output_schema` as a security control — after all, it rejects malformed output. But Pydantic validates *structure*: is `subject` a string, is `body` a string. It has no opinion on whether that string is a legitimate business email or a phishing attempt with a company logo pasted in.
+
+A perfectly schema-valid `EmailContent` object can still contain content you don't want sent. Structured output guarantees give you a reliable *shape* to build content filtering on top of — they are not a substitute for it.
+
+</Pitfall>
+
+---
+
+<Quiz question="A teammate argues that removing tool use with output_schema makes the email_agent strictly safer than the weather_time_agent from Module 2, since there's no Tool Execution Layer to attack. Is that right?">
+
+<div>
+
+Not quite — it's safer *in one specific way* and introduces new risk in another.
+
+**What genuinely improves:** there's no tool parameter injection risk, because there's no tool. An attacker can't manipulate the LLM into calling a local function with unintended arguments, because no local function is ever called.
+
+**What's new instead:** the Pydantic Validation Layer. The `email_agent` trades tool-call risk for two threats that didn't exist before — a re-prompt denial-of-service vector (an attacker crafting prompts that reliably fail validation to burn API quota) and schema information disclosure (validation error messages revealing the shape of `EmailContent` to a probing attacker).
+
+The honest framing is that `output_schema` **changes** the attack surface rather than shrinking it uniformly. Whether that's a net improvement depends on what you're protecting: if tool misuse was your biggest concern, this is a real win. If availability (API quota, uptime) or schema secrecy matters more, you've added new things to defend.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You've mapped the Pydantic Validation Layer as the boundary that takes the place of tool execution, with re-prompt denial of service and schema disclosure as the standout new threats.
+
+In **Lesson 3**, we encode this in pytm — adding the validation process and `output_key` store to the threat model, and building a security analyst agent that reasons about structured-output-specific threats using Gemini 3.5 Flash.

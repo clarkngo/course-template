@@ -1,10 +1,362 @@
 ---
 title: "OWASP Threat Modeling Structured Outputs"
-description: "Placeholder — content coming soon."
+description: "Add the Pydantic Validation Layer and output_key store to the pytm model, generate the updated DFD and threat report, and build a threat analyst agent that reasons about structured-output-specific OWASP risks."
 module: 4
 moduleTitle: "Experiencing Structured Outputs"
 lesson: 3
-duration: "TBD"
+duration: "55 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What's New in the Threat Model
+
+The Module 2 pytm model had a `tool_boundary` wrapping two tool processes, with tool call and result dataflows crossing it. The `email_agent`'s `output_schema` removes tool use entirely — so **there is no tool execution boundary in this model at all**. That's a real structural difference from Module 2 and Module 3, not just a renamed component.
+
+In its place, the pytm model gains:
+
+- One new `Boundary`: `Pydantic Validation Layer`
+- One new `Process`: `Pydantic Validator (EmailContent)`, with `validatesInput = True` — the only process in the model with that flag set
+- One new `Datastore`: `output_key Store (email)`, classified `SENSITIVE`
+- Three new `Dataflow` objects modeling the validation and storage pipeline
+
+When you add these, pytm surfaces threats around unvalidated input reaching the validator and an unencrypted sensitive data store — threats that had no equivalent in the tool-calling model.
+
+---
+
+## Step 1: Install pytm and Graphviz
+
+If already installed from a previous module, skip this step.
+
+```bash
+# GitHub Codespaces / Ubuntu Linux
+sudo apt-get update && sudo apt-get install -y graphviz
+
+# macOS
+brew install graphviz
+
+# Windows — download from https://graphviz.org/download/
+# and add Graphviz's bin/ directory to your system PATH
+```
+
+Add to `requirements.txt` if not already present:
+
+```
+pytm==1.3.1
+```
+
+```bash
+pip install -r requirements.txt
+python -c "from pytm import TM; print('pytm installed successfully')"
+dot -V
+```
+
+---
+
+## Step 2: Write the Threat Model
+
+Create `threat_model.py` in the project root (not inside `email_agent/`):
+
+```bash
+touch threat_model.py
+```
+
+Comments marked `# NEW` highlight the additions over a tool-calling model like Module 2's:
+
+```python
+from pytm import TM, Actor, Boundary, Dataflow, Datastore, Process, Classification
+
+tm = TM("HOS04A Email Agent Threat Model")
+tm.description = "Threat model for the HOS04A email_agent with Pydantic structured output."
+tm.isOrdered = True
+tm.mergeResponses = True
+
+# --- Trust Boundaries ---
+internet          = Boundary("Internet")
+gcp_boundary      = Boundary("Google Cloud Platform")
+server_boundary   = Boundary("HOS04A Server")
+venv_boundary     = Boundary("Python Virtual Environment (.venv)")
+pydantic_boundary = Boundary("Pydantic Validation Layer")  # NEW
+
+# --- External Actors ---
+user = Actor("Web Browser User")
+user.inBoundary = internet
+
+google_llm = Actor("Google Gemini API")
+google_llm.inBoundary = gcp_boundary
+
+# --- Internal Processes ---
+adk_web_ui = Process("adk web (Dev UI)")
+adk_web_ui.inBoundary = server_boundary
+adk_web_ui.sanitizesInput = False
+
+agent_process = Process("agent.py (email_agent)")
+agent_process.inBoundary = venv_boundary
+agent_process.sanitizesInput = False
+agent_process.validatesInput  = False
+
+pydantic_validator = Process("Pydantic Validator (EmailContent)")  # NEW
+pydantic_validator.inBoundary = pydantic_boundary
+pydantic_validator.sanitizesInput = False
+pydantic_validator.validatesInput  = True  # Pydantic enforces schema validation
+
+# --- Data Stores ---
+env_file = Datastore(".env File")
+env_file.inBoundary = server_boundary
+env_file.isEncrypted = False
+env_file.storesSensitiveData = True
+env_file.classification = Classification.SECRET
+
+output_key_store = Datastore("output_key Store (email)")  # NEW
+output_key_store.inBoundary = venv_boundary
+output_key_store.isEncrypted = False
+output_key_store.storesSensitiveData = True
+output_key_store.classification = Classification.SENSITIVE
+
+# --- Data Flows ---
+user_to_ui = Dataflow(user, adk_web_ui, "User Email Request (HTTP)")
+user_to_ui.protocol    = "HTTP"
+user_to_ui.isEncrypted = False
+user_to_ui.sanitizes   = False
+
+ui_to_agent = Dataflow(adk_web_ui, agent_process, "Routed Prompt")
+ui_to_agent.sanitizes = False
+
+env_to_agent = Dataflow(env_file, agent_process, "API Key + Config")
+env_to_agent.isEncrypted    = False
+env_to_agent.classification = Classification.SECRET
+
+agent_to_llm = Dataflow(agent_process, google_llm, "API Request + EmailContent Schema (HTTPS)")
+agent_to_llm.protocol       = "HTTPS"
+agent_to_llm.isEncrypted    = True
+agent_to_llm.classification = Classification.SENSITIVE
+
+llm_to_agent = Dataflow(google_llm, agent_process, "JSON Response (HTTPS)")
+llm_to_agent.protocol    = "HTTPS"
+llm_to_agent.isEncrypted = True
+
+agent_to_pydantic = Dataflow(agent_process, pydantic_validator, "Raw JSON for Validation")  # NEW
+agent_to_pydantic.sanitizes = False
+
+pydantic_to_store = Dataflow(pydantic_validator, output_key_store, "Validated EmailContent")  # NEW
+
+store_to_agent = Dataflow(output_key_store, agent_process, 'Validated Output (output_key["email"])')  # NEW
+
+agent_to_ui = Dataflow(agent_process, adk_web_ui, "Structured Email Response")
+agent_to_ui.sanitizes = False
+
+ui_to_user = Dataflow(adk_web_ui, user, "Response (HTTP)")
+ui_to_user.isEncrypted = False
+
+if __name__ == "__main__":
+    tm.process()
+```
+
+<CodeLab title="No Tool Execution Boundary — And Why validatesInput Is True Here">
+
+Two things about this model are different from every tool-calling model you've written so far.
+
+**There's no `tool_boundary`.** Compare this to Module 2's or Module 3's `threat_model.py` — both define a `Boundary("Tool Execution Layer")` wrapping tool processes. `output_schema` disables tool use in `LlmAgent`, so that boundary and everything inside it simply doesn't exist here. This isn't an oversight — it's the model accurately reflecting the architecture.
+
+**`pydantic_validator.validatesInput = True`.** Every other process in every threat model you've built so far — `adk_web_ui`, `agent_process`, tool functions in earlier modules — has `sanitizesInput = False` and no `validatesInput` override, meaning pytm treats them as not validating what they receive. `pydantic_validator` is the first process anywhere in this course's models to flip that flag to `True`, because Pydantic genuinely does enforce schema validation on its input. pytm uses this to generate a different threat profile for this process than for the others — it still flags Information Disclosure risk (validation errors can leak schema details), but it doesn't flag the same blind Tampering risk it would for a process that validates nothing.
+
+The `output_key_store` gets `Classification.SENSITIVE` rather than `SECRET` — the generated email content is sensitive user data, but it's not a credential in the way `GOOGLE_API_KEY` is.
+
+</CodeLab>
+
+---
+
+## Step 3: Generate the DFD and Threat Report
+
+**Threat report:**
+
+```bash
+python threat_model.py --report threats.md
+```
+
+Open `threats.md`. You should see threats covering:
+- Input validation failures on the raw JSON passed to Pydantic (Tampering / Elevation of Privilege)
+- Sensitive data stored in a plaintext `.env` file (Information Disclosure)
+- Unencrypted HTTP data flows (Information Disclosure)
+- Missing authentication on the dev UI endpoint (Spoofing)
+- Unsanitized data flowing from `agent.py` to the Pydantic validator (Tampering)
+- Sensitive email content stored in an unencrypted `output_key` store (Information Disclosure)
+
+**DFD diagram:**
+
+```bash
+python threat_model.py --dfd | dot -Tpng -o dfd.png
+```
+
+`dfd.png` should show: nodes for each process, actor, and data store; arrows for each data flow, including the new Pydantic validation and `output_key` flows; and dashed lines at trust boundaries, including the new Pydantic Validation Layer — with no Tool Execution Layer boundary anywhere in the diagram.
+
+Compare `dfd.png` with your hand-drawn DFD from Lesson 2. Did pytm capture every element you identified manually? Any component missing from the model is not being analyzed.
+
+---
+
+## Step 4: Build the Security Analyst Agent
+
+Create the `threat_agent` directory alongside `email_agent`:
+
+```bash
+mkdir threat_agent
+touch threat_agent/__init__.py
+touch threat_agent/agent.py
+cp email_agent/.env threat_agent/.env
+```
+
+Your project structure:
+
+```
+your-project/
+├── email_agent/             ← from Lesson 1, leave untouched
+│   ├── __init__.py
+│   ├── agent.py
+│   └── .env
+├── threat_agent/            ← new
+│   ├── __init__.py
+│   ├── agent.py
+│   └── .env
+├── threat_model.py
+├── threats.md                ← generated by pytm
+├── dfd.png                   ← generated by pytm
+└── requirements.txt
+```
+
+**`threat_agent/__init__.py`:**
+```python
+from . import agent
+```
+
+**`threat_agent/agent.py`:**
+
+```python
+import os
+from google.adk.agents import Agent
+
+_REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "threats.md")
+
+def _load_report(path):
+    resolved = os.path.abspath(path)
+    if not os.path.exists(resolved):
+        return "Threat report not found. Run: python threat_model.py --report threats.md"
+    with open(resolved, "r", encoding="utf-8") as f:
+        return f.read()
+
+_report = _load_report(_REPORT_PATH)
+
+root_agent = Agent(
+    name="threat_modeling_agent",
+    model="gemini-3.5-flash",
+    description="A security analyst agent that reviews threat models for structured-output AI agent systems.",
+    instruction=f"""
+You are an expert application security engineer and AI safety specialist.
+
+You have been given the following pytm-generated threat report for a structured-output AI agent:
+
+---
+{_report}
+---
+
+Your responsibilities:
+1. Answer questions about the threats clearly and accurately.
+2. Identify threats pytm may have missed, especially LLM-specific and structured-output threats such as:
+   - Prompt Injection (LLM01): user input overriding email generation instructions or injecting
+     malicious content into the structured JSON output fields
+   - Sensitive Information Disclosure (LLM02): agent revealing sensitive data in email subject or
+     body, or exposing the EmailContent schema through validation errors
+   - Model Denial of Service (LLM04): adversarial prompts causing repeated Pydantic re-prompting
+     loops that exhaust API quota or compute resources
+   - Insecure Output Handling (LLM05): email body content rendered without sanitization, enabling
+     HTML/script injection in downstream email clients or browser displays
+   - Structured Output Exploitation: prompts crafted so the LLM generates JSON that passes schema
+     validation but contains harmful or misleading data
+   - output_key Store Exposure: validated EmailContent stored insecurely or passed unsanitized to
+     other agents or systems in a multi-agent workflow
+3. Recommend specific, actionable mitigations using STRIDE categories.
+4. When asked to prioritize, use Risk = Likelihood × Impact.
+5. Keep responses concise but precise. Use bullet points for lists.
+6. If uncertain, say so rather than guessing.
+7. Ground all answers in the system described in the threat report.
+""",
+)
+```
+
+<CodeLab title="Two New Categories Beyond the Standard OWASP List">
+
+Compare the instruction with Module 2's threat agent. Four items carry over directly (LLM01, LLM02, LLM04, LLM05) — the fifth item in Module 2, **ASI02: Tool Misuse**, is gone, because there's no tool call surface here to misuse.
+
+In its place are two items that aren't numbered OWASP Top 10 entries at all: **Structured Output Exploitation** and **`output_key` Store Exposure**. These are attack surfaces specific to `output_schema` and `output_key` — pytm can flag that the validator's input is unsanitized or that the store is unencrypted, but it can't reason about the LLM producing schema-valid JSON that's still semantically harmful, or about how a downstream agent might mishandle the stored result. That reasoning gap is exactly what this agent is built to fill.
+
+Note also this agent uses `model="gemini-3.5-flash"` — a newer model than the `gemini-2.0-flash` powering `email_agent` itself. There's no requirement that a threat analyst agent use the same model version as the system it's analyzing.
+
+</CodeLab>
+
+---
+
+## Step 5: Run the Agent and Explore Security Questions
+
+Navigate to the project root (not inside `threat_agent/`) and launch:
+
+```bash
+adk web
+```
+
+Select **threat_modeling_agent** from the dropdown. Work through these prompts:
+
+**Understanding the report:**
+- `"What are the top three threats in this system by severity?"`
+- `"Does the threat report cover JSON injection via prompt? What would that attack look like for the email_agent?"`
+- `"What new threats does using output_schema=EmailContent introduce compared to a basic agent that returns free-form text?"`
+
+**Exploring specific components:**
+- `"The .env file stores the GOOGLE_API_KEY in plaintext. What are three ways to improve this?"`
+- `"What threats exist at the Pydantic Validation Layer trust boundary?"`
+
+**Advanced scenarios:**
+- `"Walk me through a complete attack scenario where prompt injection causes the email_agent to generate a phishing email that passes Pydantic validation."`
+- `"Can an attacker deliberately cause repeated Pydantic validation failures to exhaust API quota? What STRIDE category covers this, and what is the mitigation?"`
+- `"OWASP LLM05 covers Insecure Output Handling. How does the email body field being rendered in a browser or email client create specific risks for this agent?"`
+- `"What are the privacy implications of storing user-generated email content in the output_key store? Does pytm detect these risks?"`
+- `"How does removing the Tool Execution Layer change the risk profile compared to the Module 2 and Module 3 agents?"`
+
+Notice where the agent accurately summarizes the pytm report, where it adds insight beyond what pytm generated (especially for Structured Output Exploitation), and where it's uncertain or wrong.
+
+<Pitfall title="The Agent Is a Starting Point, Not a Final Authority">
+
+The `threat_modeling_agent` can make mistakes. It may miss threats, misclassify severity, or suggest mitigations that don't fit your environment.
+
+This is true of any AI security tool. The value is speed and coverage — it surfaces candidates faster than a manual review. The human engineer's job is to verify, challenge, and prioritize what the agent produces.
+
+Never ship a mitigation solely because an AI agent recommended it. Verify every recommendation against authoritative sources: OWASP documentation, CVE databases, your organization's security policies.
+
+</Pitfall>
+
+---
+
+<Quiz question="The pytm model has no tool_boundary at all — the first model in this course without one. Does that mean the email_agent has fewer total threats than the weather_time_agent from Module 2?">
+
+<div>
+
+Not necessarily — it means the threats shifted, not that they shrank.
+
+Module 2's model generates threats around tool parameter injection: an LLM-chosen argument reaching a Python function without validation. That entire category is genuinely absent here, because there's no tool call. But this model introduces its own new threats that Module 2 never had: unsanitized data reaching the Pydantic validator (`agent_to_pydantic.sanitizes = False`), an unencrypted `SENSITIVE`-classified `output_key` store, and — outside of what pytm can even model — the re-prompt denial-of-service risk from Lesson 2.
+
+A smaller pytm diagram (no tool boundary, no tool processes) is not the same thing as a smaller attack surface. It just means the attack surface moved from "what can the LLM make local code do" to "what can the LLM get past schema validation, and what happens to the validated result afterward." Comparing threat model *size* across systems is far less useful than comparing what *categories* of risk each one contains.
+
+</div>
+</Quiz>
+
+---
+
+## What You've Built Across Module 4
+
+Over three lessons you replaced tool execution with schema-enforced structured output:
+
+1. **Lesson 1** — Built the `email_agent` using Pydantic's `BaseModel` and ADK's `output_schema`/`output_key`, and saw that structured output and tool use are mutually exclusive
+2. **Lesson 2** — Mapped the Pydantic Validation Layer as the trust boundary that replaces tool execution, with re-prompt denial of service and schema disclosure as the standout new threats
+3. **Lesson 3** — Encoded the validation layer and `output_key` store in pytm, confirmed there's no tool execution boundary in this architecture, and built a threat agent that reasons about structured-output-specific risks beyond the standard OWASP list
+
+**Module 5** introduces sessions and state management — giving agents memory across turns and requests. The first thing we'll do is examine how state persistence changes both the architecture and the threat model once again.

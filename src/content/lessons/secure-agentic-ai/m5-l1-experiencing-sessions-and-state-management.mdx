@@ -1,10 +1,297 @@
 ---
 title: "Experiencing Sessions and State Management"
-description: "Placeholder — content coming soon."
+description: "Build a question_answering_agent that uses InMemorySessionService, Runner, and placeholder substitution to remember user context across a conversation — the course's first stateful agent."
 module: 5
 moduleTitle: "Experiencing Sessions and State Management"
 lesson: 1
-duration: "TBD"
+duration: "45 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What Changed from Modules 1–4?
+
+Every agent you've built so far — `greeting_agent`, `weather_time_agent`, the LiteLLM/OpenRouter agents, `email_agent` — has no memory of its own. You've been running them through `adk web`, whose dev UI happens to keep a chat thread visible in the browser, but the agent itself never held onto anything between turns beyond what that UI replayed back to it. Restart the server, or call the agent from a script instead of the browser, and there is no state at all: no name, no preferences, nothing carried from one interaction to the next.
+
+This module introduces the ADK components that make an agent's memory an explicit, engineered part of the system: **Session**, **SessionService**, and **Runner**. Instead of letting `adk web` hide the plumbing, you'll write the script that creates a session, seeds it with data, and runs the agent against it directly — the first time in this course you build the orchestration layer yourself instead of relying on the dev UI to do it for you.
+
+---
+
+## Session, SessionService, and Runner
+
+Three concepts do the actual work of giving an agent memory:
+
+**Session** — a record of one ongoing conversation between a user and an agent. It's uniquely identified and holds two things: the conversation's event history and a `state` dictionary — arbitrary key-value data the agent can read, and that the framework can update as the conversation proceeds. Without a session, every message is a new, isolated request; the agent "forgets" everything from the message before.
+
+**SessionService** — the object responsible for a session's entire lifecycle: create, retrieve, update, delete. ADK ships three implementations:
+
+| Service | Persistence | Best for |
+|---|---|---|
+| `InMemorySessionService` | None — all data is lost when the process restarts | Local development, quick testing, demos |
+| `DatabaseSessionService` | Yes — SQLite, MySQL, PostgreSQL | Production without a dependency on a specific cloud provider |
+| `VertexAiSessionService` | Yes — Google Cloud managed infrastructure | Production at scale on Vertex AI Agent Engine |
+
+This lesson uses `InMemorySessionService` — the simplest option, and the one you reach for first. Its trade-off is right there in the name: everything it holds lives in the process's RAM, with no external setup required and no way to survive a restart. **Module 6** picks this up again with `DatabaseSessionService`.
+
+**Runner** — the engine that ties an agent to a session service and drives a single interaction end to end. It takes a new user message, hands it to the agent (with the session's state available for placeholder substitution), processes whatever events the agent produces, and coordinates saving any state changes back through the SessionService. You've been using a Runner all along — `adk web` creates and drives one behind the scenes. This lesson is the first time you instantiate one yourself.
+
+---
+
+## Two New Ingredients: asyncio and uuid
+
+Writing your own Runner script — instead of relying on `adk web` — means writing async Python directly for the first time in this course.
+
+- **`asyncio`** — Python's built-in library for non-blocking concurrency. `SessionService` methods like `create_session()` and `get_session()` are `async def` functions: calling a remote model or a database means waiting, and `asyncio` lets the program avoid freezing while it waits. You'll mark your entry point `async def main():` and launch it with `asyncio.run(main())`.
+- **`uuid`** — Python's built-in module for generating unique identifiers. `uuid.uuid4()` produces a random 128-bit value used as the session ID — how the SessionService tells one conversation apart from every other conversation it's holding.
+
+---
+
+## Placeholder Substitution
+
+An agent's `instruction` string can contain placeholders like `{user_name}` and `{user_preferences}`. When the Runner executes a turn, ADK fills these in with the *current* values from the session's `state` dictionary before the instruction is sent to the model as the system prompt.
+
+This is how session state actually reaches the LLM — not through a tool call, but by being spliced directly into the text the model treats as its own instructions. Keep that mechanism in mind; it's the center of the threat model in Lesson 2.
+
+---
+
+## System Architecture
+
+Here's the full path a request takes through the system you're about to build:
+
+1. `basic_stateful_session.py` starts, reads `GOOGLE_API_KEY` from `.env`, and creates an `InMemorySessionService`.
+2. It seeds a new session with `initial_state` — a dictionary containing `user_name` and `user_preferences` — under a fresh `uuid.uuid4()` session ID.
+3. A `Runner` is created, wired to both `question_answering_agent` and the session service.
+4. A user query is packaged as a `types.Content` object and handed to `runner.run()`.
+5. The Runner reads the session's current state and substitutes it into `question_answering_agent`'s `{user_name}` / `{user_preferences}` placeholders, producing a personalized system prompt.
+6. The personalized prompt is sent to Gemini over HTTPS. Gemini's response comes back the same way.
+7. The Runner surfaces the final response as an event; the script prints it, then re-fetches the session via `get_session()` and prints its final `state` — showing the state persisted for the lifetime of this run.
+
+Compare this to Module 4's `email_agent`: there, the interesting step was Pydantic validating the agent's *output*. Here, the interesting step happens *before* the model ever sees the request — state flowing into the prompt itself. That data path doesn't exist in any stateless agent from Modules 1–4.
+
+---
+
+## What You'll Build
+
+A `question_answering_agent` that answers questions about a specific user's preferences — without ever being told those preferences in the prompt itself. Its knowledge comes entirely from session state, injected via placeholder substitution.
+
+---
+
+## Step 1: Project Structure
+
+This continues the same project as your earlier agents. Add the new pieces:
+
+```bash
+touch basic_stateful_session.py
+mkdir question_answering_agent
+touch question_answering_agent/__init__.py
+touch question_answering_agent/agent.py
+touch question_answering_agent/.env
+```
+
+Add to `requirements.txt`:
+
+```
+google-adk[database]==1.6.1
+google-genai==1.30.0
+python-dotenv==1.1.1
+```
+
+```bash
+pip install -r requirements.txt
+```
+
+`google-genai` and `python-dotenv` are new pins. Earlier modules relied on `adk web` to quietly load `.env` and construct message objects for you. `basic_stateful_session.py` does both by hand — it calls `load_dotenv()` explicitly and builds `types.Content` objects directly from `google.genai.types` — so both libraries need to be importable on their own.
+
+---
+
+## Step 2: `question_answering_agent/agent.py`
+
+```python
+from google.adk.agents import Agent
+
+# Create the root agent
+question_answering_agent = Agent(
+    name="question_answering_agent",
+    model="gemini-2.0-flash",
+    description="Question answering agent",
+    instruction="""
+    You are a helpful assistant that answers questions about the user's preferences.
+
+    Here is some information about the user:
+
+    Name:
+    {user_name}
+
+    Preferences:
+    {user_preferences}
+    """,
+)
+```
+
+Notice this agent isn't named `root_agent` this time — `question_answering_agent`. That's fine for a script you drive yourself with an explicit `Runner`; a module-level variable only needs to be named `root_agent` when `adk web` or `adk run` is expected to discover it automatically by convention. The `{user_name}` and `{user_preferences}` placeholders are plain text in this string until the Runner substitutes them at execution time.
+
+**`question_answering_agent/__init__.py`:**
+```python
+from .agent import question_answering_agent
+```
+
+**`question_answering_agent/.env`:**
+```
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=your_actual_api_key_here
+```
+
+---
+
+## Step 3: `basic_stateful_session.py`
+
+Build this file piece by piece.
+
+**Imports and environment:**
+```python
+import uuid
+import asyncio
+
+from dotenv import load_dotenv
+
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+
+from google.genai import types
+
+from question_answering_agent import question_answering_agent
+
+load_dotenv()
+```
+
+**Session service and initial state:**
+```python
+# Create a new session service to store state
+session_service_stateful = InMemorySessionService()
+
+initial_state = {
+    "user_name": "Brandon Hancock",
+    "user_preferences": """
+        I like to play Pickleball, Disc Golf, and Tennis.
+        My favorite food is Mexican.
+        My favorite TV show is Game of Thrones.
+        Loves it when people like and subscribe to his YouTube channel.
+    """,
+}
+```
+
+`session_service_stateful` is a temporary, in-memory storage box for conversation data — nothing here survives the process exiting. `initial_state` is what the session gets seeded with the moment it's created: this is what makes the agent "already know" the user before a single message is exchanged.
+
+<CodeLab title="Building main()">
+
+```python
+async def main():
+    # Create a NEW session
+    APP_NAME = "Brandon Bot"
+    USER_ID = "brandon_hancock"
+    SESSION_ID = str(uuid.uuid4())
+    stateful_session = await session_service_stateful.create_session(
+        app_name=APP_NAME,
+        user_id=USER_ID,
+        session_id=SESSION_ID,
+        state=initial_state,
+    )
+    print("CREATED NEW SESSION:")
+    print(f"\tSession ID: {SESSION_ID}")
+
+    runner = Runner(
+        agent=question_answering_agent,
+        app_name=APP_NAME,
+        session_service=session_service_stateful,
+    )
+
+    new_message = types.Content(
+        role="user", parts=[types.Part(text="What is Brandon's favorite TV show?")]
+    )
+
+    for event in runner.run(
+        user_id=USER_ID,
+        session_id=SESSION_ID,
+        new_message=new_message,
+    ):
+        if event.is_final_response():
+            if event.content and event.content.parts:
+                print(f"Final Response: {event.content.parts[0].text}")
+
+    print("==== Session Event Exploration ====")
+    session = await session_service_stateful.get_session(
+        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+    )
+
+    # Log final Session state
+    print("=== Final Session State ===")
+    for key, value in session.state.items():
+        print(f"{key}: {value}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Walking through the pieces:
+
+| Piece | What it does |
+|---|---|
+| `SESSION_ID = str(uuid.uuid4())` | Generates a random, effectively-unique session identifier — the key the SessionService uses to find this exact conversation again. |
+| `await session_service_stateful.create_session(...)` | Builds the session, seeded with `initial_state`, under `app_name` / `user_id` / `session_id`. |
+| `Runner(agent=..., app_name=..., session_service=...)` | Wires the agent to the session service so the Runner can read state for placeholder substitution and write state updates back. |
+| `types.Content(role="user", parts=[types.Part(text=...)])` | The structured message format the Runner expects — not a raw string. `role="user"` marks who's speaking; `parts` allows multimodal content (text here, but images or other data are possible). |
+| `for event in runner.run(...)` | `runner.run()` is a generator, not a single return value — it yields events as the agent works. `event.is_final_response()` filters for the one that's the agent's actual answer. |
+| `await session_service_stateful.get_session(...)` | Re-fetches the session after the run so you can inspect what its `state` looks like now. |
+
+</CodeLab>
+
+---
+
+## Step 4: Run the Three Examples
+
+Run the script:
+
+```bash
+python basic_stateful_session.py
+```
+
+**Example 1 — asking about Brandon's TV show:**
+With `new_message` set to `"What is Brandon's favorite TV show?"`, the response should reference *Game of Thrones* — pulled from `user_preferences`, not typed anywhere in the query.
+
+**Example 2 — asking about Brandon's food:**
+Change the query to `"What is Brandon's favorite food?"` and re-run. The response should mention Mexican food.
+
+**Example 3 — asking about a name that isn't in state:**
+Change the query to ask about *your own* name instead of Brandon's — for example, `"What is Sam's favorite food?"`. Re-run. Because `initial_state["user_name"]` is still `"Brandon Hancock"`, the agent has no session data about anyone named "Sam." Watch how it responds: does it say it doesn't know, or does it guess?
+
+<Pitfall title="The Agent Only Knows What's in State">
+
+This is the whole point of Example 3: the agent isn't reasoning from general knowledge about "the user" — it's reciting whatever `initial_state` happened to contain at session creation. Change the name in the query without changing `initial_state`, and you're testing whether the model honestly says "I don't have that information" or confabulates an answer instead.
+
+That gap — between what's actually in session state and what the model might produce anyway — is exactly the kind of thing a security review needs to account for. You'll formalize it in Lesson 2.
+
+</Pitfall>
+
+---
+
+<Quiz question="The Runner substitutes {user_name} and {user_preferences} directly into question_answering_agent's instruction string before sending it to Gemini. What does this imply about anything that ends up inside initial_state?">
+
+<div>
+
+It implies that `initial_state` values are treated as trusted instruction text, not as inert data. Placeholder substitution doesn't distinguish between "this is a name to mention" and "this is a command to follow" — whatever string sits in `state["user_name"]` or `state["user_preferences"]` becomes part of the literal system prompt the model reads.
+
+That means if session state could ever be set from an untrusted source — a user profile field, an external API response, anything not hard-coded — its contents would need the same scrutiny you'd give raw user input, not the lighter treatment you might give a simple data value. In this lesson, `initial_state` is hard-coded in the script, so the risk is dormant. Lesson 2 treats it as the real trust boundary it is.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You now have an agent whose responses are shaped by data injected into its prompt at runtime — the first agent in this course with real memory across a session.
+
+In **Lesson 2**, we threat model this. `InMemorySessionService` and placeholder substitution introduce two new trust boundaries that don't exist in any stateless agent from Modules 1–4: one around the session state store itself, and one around the moment that state is spliced into the prompt.

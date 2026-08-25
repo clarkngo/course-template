@@ -1,10 +1,384 @@
 ---
 title: "OWASP Threat Modeling a Stateful Multi-Agent System"
-description: "Placeholder — content coming soon."
+description: "Encode the shared session state boundary and cross-agent dataflows in pytm, generate the DFD and threat report, and build a threat analyst agent that reasons about cross-agent state poisoning — the course capstone."
 module: 8
 moduleTitle: "Experiencing a Stateful Multi-Agent System"
 lesson: 3
-duration: "TBD"
+duration: "55 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What's New in the Threat Model
+
+Module 7's `pytm` model had one boundary per sub-agent pattern conceptually, but didn't need to model state at all — every agent was stateless. This module's model adds:
+
+- Four new `Boundary` objects: one each for `stock_analyst`, `funny_nerd`, and `news_analyst` — separating each sub-agent into its own trust domain instead of lumping them together — plus a `Yahoo Finance` boundary for the new external data source
+- One new `Boundary`: `Shared Session State Layer`
+- One new `Datastore`: `Shared Session State Store`, classified `SENSITIVE`, `isEncrypted = False`
+- Five new `Dataflow` objects modeling session state moving between `manager`, `stock_analyst`, and the store — the cross-agent read/write pattern from Lesson 2
+
+This is the same pattern every module in this course has followed: the architecture changes, the model changes with it, and `pytm` surfaces a different set of threats as a result.
+
+---
+
+## Step 1: Install pytm and Graphviz
+
+If already installed from a previous module, skip this step.
+
+```bash
+# GitHub Codespaces / Ubuntu Linux
+sudo apt-get update && sudo apt-get install -y graphviz
+
+# macOS
+brew install graphviz
+
+# Windows — download from https://graphviz.org/download/
+# and add Graphviz's bin/ directory to your system PATH
+```
+
+Add to `requirements.txt` if not already present:
+
+```
+pytm==1.3.1
+```
+
+```bash
+pip install -r requirements.txt
+python -c "from pytm import TM; print('pytm installed successfully')"
+dot -V
+```
+
+---
+
+## Step 2: Write the Threat Model
+
+Create `threat_model.py` in the project root (not inside `manager/`):
+
+```bash
+touch threat_model.py
+```
+
+Comments marked `# NEW` are additions over Module 7's stateless manager model:
+
+```python
+from pytm import TM, Actor, Boundary, Dataflow, Datastore, Process, Classification
+
+tm = TM("HOS08A Manager MAS Threat Model")
+tm.description = "Threat model for the HOS08A manager multi-agent system."
+tm.isOrdered = True
+tm.mergeResponses = True
+
+# --- Trust Boundaries ---
+internet         = Boundary("Internet")
+gcp_boundary     = Boundary("Google Cloud Platform")
+server_boundary  = Boundary("HOS08A Server")
+venv_boundary    = Boundary("Python Virtual Environment (.venv)")
+stock_boundary   = Boundary("Stock Analyst Agent Boundary")          # NEW
+funny_boundary   = Boundary("Funny Nerd Agent Boundary")             # NEW
+news_boundary    = Boundary("News Analyst AgentTool Boundary")       # NEW
+yahoo_boundary   = Boundary("Yahoo Finance (External Market Data)")  # NEW
+session_boundary = Boundary("Shared Session State Layer")            # NEW vs Module 7
+
+# --- External Actors ---
+user = Actor("Web Browser User")
+user.inBoundary = internet
+
+google_llm = Actor("Google Gemini API")
+google_llm.inBoundary = gcp_boundary
+
+yahoo_finance = Actor("Yahoo Finance API (yfinance)")  # NEW
+yahoo_finance.inBoundary = yahoo_boundary
+
+# --- Internal Processes ---
+adk_web_ui = Process("adk web (Dev UI)")
+adk_web_ui.inBoundary = server_boundary
+adk_web_ui.sanitizesInput = False
+
+manager_agent = Process("manager (root_agent)")
+manager_agent.inBoundary = venv_boundary
+manager_agent.sanitizesInput = False
+manager_agent.validatesInput = False
+
+stock_analyst = Process("stock_analyst (sub-agent, delegation)")  # NEW
+stock_analyst.inBoundary = stock_boundary
+stock_analyst.sanitizesInput = False
+
+funny_nerd = Process("funny_nerd (sub-agent, delegation)")  # NEW
+funny_nerd.inBoundary = funny_boundary
+funny_nerd.sanitizesInput = False
+
+news_analyst = Process("news_analyst (AgentTool, agent-as-tool)")  # NEW
+news_analyst.inBoundary = news_boundary
+news_analyst.sanitizesInput = False
+
+get_current_time_func = Process("get_current_time (tool)")
+get_current_time_func.inBoundary = venv_boundary
+
+# --- Data Stores ---
+env_file = Datastore("manager/.env File")
+env_file.inBoundary = server_boundary
+env_file.isEncrypted = False
+env_file.storesSensitiveData = True
+env_file.classification = Classification.SECRET
+
+session_store = Datastore("Shared Session State Store")  # NEW vs Module 7
+session_store.inBoundary = session_boundary
+session_store.isEncrypted = False
+session_store.storesSensitiveData = True
+session_store.classification = Classification.SENSITIVE
+
+# --- Data Flows ---
+user_to_ui = Dataflow(user, adk_web_ui, "User Prompt (HTTP)")
+user_to_ui.protocol    = "HTTP"
+user_to_ui.isEncrypted = False
+user_to_ui.sanitizes   = False
+
+env_to_manager = Dataflow(env_file, manager_agent, "API Key + Config")
+env_to_manager.isEncrypted    = False
+env_to_manager.classification = Classification.SECRET
+
+manager_to_llm = Dataflow(manager_agent, google_llm, "Delegation Request + Prompt (HTTPS)")
+manager_to_llm.protocol       = "HTTPS"
+manager_to_llm.isEncrypted    = True
+manager_to_llm.classification = Classification.SENSITIVE
+
+llm_to_manager = Dataflow(google_llm, manager_agent, "Delegation Decision / Response (HTTPS)")
+llm_to_manager.protocol    = "HTTPS"
+llm_to_manager.isEncrypted = True
+
+manager_to_stock = Dataflow(manager_agent, stock_analyst, "Delegated Financial Query (sub-agent delegation)")  # NEW
+manager_to_stock.sanitizes = False
+
+stock_to_yahoo = Dataflow(stock_analyst, yahoo_finance, "Stock Data Request (yfinance, HTTPS)")  # NEW
+stock_to_yahoo.protocol    = "HTTPS"
+stock_to_yahoo.isEncrypted = True
+
+yahoo_to_stock = Dataflow(yahoo_finance, stock_analyst, "Market Data Response")  # NEW
+yahoo_to_stock.sanitizes = False
+
+stock_to_manager = Dataflow(stock_analyst, manager_agent, "Financial Analysis Result")  # NEW
+stock_to_manager.sanitizes = False
+
+manager_to_funny = Dataflow(manager_agent, funny_nerd, "Delegated Joke Request (sub-agent delegation)")  # NEW
+manager_to_funny.sanitizes = False
+
+funny_to_manager = Dataflow(funny_nerd, manager_agent, "Joke Result")  # NEW
+funny_to_manager.sanitizes = False
+
+manager_to_news = Dataflow(manager_agent, news_analyst, "AgentTool Call (synchronous)")  # NEW
+manager_to_news.sanitizes = False
+
+news_to_manager = Dataflow(news_analyst, manager_agent, "News Analysis Result")  # NEW
+news_to_manager.sanitizes = False
+
+manager_to_time = Dataflow(manager_agent, get_current_time_func, "get_current_time() call")
+time_to_manager = Dataflow(get_current_time_func, manager_agent, "Current Timestamp")
+
+session_to_manager = Dataflow(session_store, manager_agent, "Session State (user context)")  # NEW vs Module 7
+session_to_manager.sanitizes = False
+
+manager_to_session = Dataflow(manager_agent, session_store, "Updated State")  # NEW vs Module 7
+
+session_to_stock = Dataflow(session_store, stock_analyst, "Session State (cross-agent read)")  # NEW vs Module 7
+session_to_stock.sanitizes = False
+
+stock_to_session = Dataflow(stock_analyst, session_store, "State Update (cross-agent write)")  # NEW vs Module 7
+
+ui_to_user = Dataflow(adk_web_ui, user, "Response (HTTP)")
+ui_to_user.isEncrypted = False
+
+if __name__ == "__main__":
+    tm.process()
+```
+
+<CodeLab title="Reading the New Boundaries">
+
+- `yahoo_boundary` and the `yahoo_finance` `Actor` model the new external financial data source — a trust boundary Module 7 never had, since `stock_analyst` didn't exist yet in a stateful form.
+- `stock_boundary`, `funny_boundary`, and `news_boundary` each wrap a single sub-agent. Splitting them out (rather than one shared boundary for "sub-agents") is what lets `pytm` reason about each agent's trust domain independently — which matters once you're asking "could *this specific* agent poison state" rather than "could *a* sub-agent poison state."
+- Every sub-agent dataflow — `manager_to_stock`, `stock_to_manager`, and the rest — has `sanitizes = False`. That's `pytm`'s way of flagging that sub-agent output flows into `manager`'s context unsanitized, the risk from Lesson 2.
+- `session_store` is a new `Datastore` with `isEncrypted = False` and `storesSensitiveData = True`. The `session_to_stock` and `stock_to_session` dataflows are what let `pytm` detect cross-agent state mutation as a distinct threat category — the model's most direct encoding of what Lesson 2 called the cross-agent state mutation boundary.
+- `Classification.SECRET` on `env_file` versus `Classification.SENSITIVE` on `session_store` reflects the same distinction Module 4 drew: the API key is a credential; the session state is sensitive user context, not a credential in the same sense.
+
+</CodeLab>
+
+---
+
+## Step 3: Generate the DFD and Threat Report
+
+**Threat report:**
+
+```bash
+python threat_model.py --report threats.md
+```
+
+Open `threats.md`. You should see threats covering:
+
+- Input validation failures on data reaching `manager` and each sub-agent (Tampering / Elevation of Privilege)
+- Sensitive data stored in a plaintext `.env` file (Information Disclosure)
+- Unencrypted HTTP data flows and an unencrypted, `SENSITIVE`-classified session state store (Information Disclosure)
+- Missing authentication on the dev UI endpoint (Spoofing)
+- Unsanitized data flowing between `manager` and every sub-agent, including the cross-agent session state flows (Tampering)
+
+**DFD diagram:**
+
+```bash
+python threat_model.py --dfd | dot -Tpng -o dfd.png
+```
+
+`dfd.png` should show: a node for each process, actor, and data store; arrows for every data flow, including the new cross-agent session state flows; and dashed lines at every trust boundary, including the four new per-agent boundaries and the Shared Session State Layer.
+
+Compare `dfd.png` with your Lesson 2 analysis. Did `pytm` capture the cross-agent state mutation boundary the way you described it? Is `session_store` visibly connected to more than one process? Any element in your Lesson 2 analysis that isn't in this diagram isn't being analyzed by `pytm` — that gap is worth noting.
+
+---
+
+## Step 4: Creating the Threat Modeling AI Agent
+
+Build a `threat_agent` that reviews the `pytm` report and answers security questions about the manager MAS — including cross-agent state poisoning threats the automated report can gesture at but can't fully reason about.
+
+**Project Structure**
+
+```bash
+mkdir threat_agent
+touch threat_agent/__init__.py
+touch threat_agent/agent.py
+```
+
+**`threat_agent/__init__.py`:**
+```python
+from . import agent
+```
+
+**`threat_agent/agent.py`:**
+
+```python
+import os
+from google.adk.agents import Agent
+
+_REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "threats.md")
+
+
+def _load_report(path):
+    resolved = os.path.abspath(path)
+    if not os.path.exists(resolved):
+        return "Threat report not found."
+    with open(resolved, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+_report = _load_report(_REPORT_PATH)
+
+root_agent = Agent(
+    name="threat_modeling_agent",
+    model="gemini-3.5-flash",
+    description="Security analyst for the HOS08A manager multi-agent system.",
+    instruction=f"""
+You are an expert application security engineer and AI safety specialist.
+
+You have been given the following pytm-generated threat report:
+
+---
+{_report}
+---
+
+Your responsibilities:
+1. Answer questions about the threats clearly and accurately.
+2. Identify threats pytm may have missed, especially multi-agent threats:
+   - Prompt Injection (LLM01): user input targeting delegation decisions or sub-agent
+     instructions via the manager's orchestration logic
+   - Sensitive Information Disclosure (LLM02): financial data, news content, or PII
+     exposed through cross-agent communication or logs
+   - Model Denial of Service (LLM04): adversarial prompts causing excessive delegation
+     loops or sub-agent resource exhaustion
+   - Insecure Output Handling (LLM05): sub-agent outputs rendered without sanitization
+   - Tool Misuse (ASI02): manager invoking sub-agents with attacker-controlled arguments
+     due to prompt injection targeting delegation logic
+   - Cross-Agent Output Injection: unsanitized sub-agent results injected into the
+     manager's context, enabling second-order prompt injection attacks
+   - Cross-Agent State Poisoning: a sub-agent writing adversarial content to shared
+     session state that subsequently influences other agents' behavior or decisions
+3. Recommend specific, actionable mitigations using STRIDE categories.
+4. When asked to prioritize, use Risk = Likelihood x Impact.
+""",
+)
+```
+
+<CodeLab title="Two Categories Beyond the Standard OWASP List">
+
+Compare this instruction with Module 7's threat agent: the first five items — LLM01, LLM02, LLM04, LLM05, and ASI02 — carry over directly. What's new are the last two: **Cross-Agent Output Injection** and **Cross-Agent State Poisoning**.
+
+Neither is a numbered entry in the standard OWASP Top 10 for LLM Applications. `pytm` can flag that a dataflow is unsanitized or that `session_store` is unencrypted — the mechanical facts. But reasoning about *what a sub-agent could do* with unsanitized write access to state another agent trusts, several turns removed from the original request, is exactly the kind of judgment `pytm`'s static analysis can't perform. That's the gap this agent is built to fill, and it's the same gap Lesson 2 walked through by hand before you had a threat report to lean on.
+
+Note this agent uses `model="gemini-3.5-flash"` — the same threat-analyst model convention used in every module's Lesson 3 so far, independent of whatever model version the system under analysis runs on.
+
+</CodeLab>
+
+---
+
+## Step 5: Running the Agent and Exploring Security Questions
+
+Navigate to the project root (not inside `threat_agent/`) and launch the dev UI:
+
+```bash
+adk web
+```
+
+Select **threat_modeling_agent** from the dropdown. Start with these:
+
+- `"What are the top three threats in the stateful MAS by severity?"`
+- `"Does the threat report cover cross-agent state poisoning? What would that attack look like in this system?"`
+- `"What new threats does shared session state introduce compared to the stateless manager in Module 7?"`
+- `"Which agent — manager, stock_analyst, or funny_nerd — poses the greatest state poisoning risk, and why?"`
+- `"What threats exist at the Shared Session State boundary?"`
+
+Then push into scenarios the pytm report can't answer on its own:
+
+- `"Walk me through a complete attack scenario where prompt injection causes stock_analyst to write adversarial content into shared session state, which then influences the manager's subsequent decisions."`
+- `"How does cross-agent state poisoning differ from single-agent prompt injection (LLM01)? Is it covered by the standard OWASP Top 10 for LLMs?"`
+- `"If two sub-agents can write to shared session state simultaneously, what race condition or concurrency threats emerge? Does pytm detect these?"`
+- `"How does the risk profile of shared session state change if DatabaseSessionService is used instead of InMemorySessionService?"`
+- `"OWASP ASI02 covers Tool Misuse. How does this apply to sub-agents in a stateful MAS where tools can write to shared session state?"`
+
+Notice where the agent accurately summarizes the `pytm` report, where it adds real insight — especially on cross-agent state poisoning, which `pytm` can't reason about on its own — and where it's uncertain or wrong.
+
+<Pitfall title="The Agent Is a Starting Point, Not a Final Authority">
+
+`threat_modeling_agent` can make mistakes. It may miss threats, misclassify severity, or suggest mitigations that don't fit your specific environment. This has been true of every threat agent you've built across this course, and it's still true of the most sophisticated one.
+
+The value is speed and coverage, not certainty. Verify every recommendation against authoritative sources — OWASP documentation, CVE databases, your organization's security policies — before you ship it as a mitigation.
+
+</Pitfall>
+
+---
+
+<Quiz question="threat_modeling_agent reads threats.md once at startup and embeds it in its instruction, the same context injection pattern from Module 1. Is that pattern still appropriate for a system this size, or has something changed?">
+
+<div>
+
+The mechanism hasn't changed, but what it's protecting has grown. In Module 1, `threats.md` described one agent and roughly seven dataflows — a tampered report was a contained problem. Here, `threats.md` describes eight processes, two external data sources, and a shared state store with cross-agent dataflows. If this file were tampered with before the agent starts — say, the cross-agent state poisoning threats were quietly stripped out — `threat_modeling_agent` would confidently reassure a user that no such risk exists, across a much larger system than Module 1's.
+
+Context injection remains the right pattern for a report this size — it's still well within context window limits, and it's still simpler than a retrieval-based approach. But the integrity of `threats.md` itself matters more as the system it describes grows. The mitigation from Module 1 — restrictive file permissions, checksums, or generating the report from a trusted CI pipeline rather than a local file — matters more here, not less, precisely because the file now has more to hide.
+
+</div>
+</Quiz>
+
+---
+
+## What You've Built Across the Course
+
+Eight modules ago, the "greeting agent" was ten lines of Python that said hello. Here's what those ten lines grew into:
+
+1. **Module 1 — Basic AI Agent:** A single `LlmAgent`, hand-drawn STRIDE analysis, and your first `pytm` threat model with a `threat_modeling_agent` that reads its own report.
+2. **Module 2 — Agents with Tools:** Function calling introduced a Tool Execution Layer boundary — the LLM choosing arguments for code that actually runs.
+3. **Module 3 — LiteLLM and OpenRouter:** Swapping model providers introduced a routing layer boundary and the question of what happens when your prompt passes through infrastructure you don't control.
+4. **Module 4 — Structured Outputs:** `output_schema` traded tool access for a Pydantic Validation Layer — schema-valid isn't the same as safe.
+5. **Module 5 — Sessions and State Management:** `tool_context.state` gave a single agent memory across turns, and a first taste of what happens when an agent trusts its own past writes.
+6. **Module 6 — Persistent Storage:** `DatabaseSessionService` made that memory survive a restart — durability as both a feature and a new place for sensitive data to sit at rest.
+7. **Module 7 — Multi-Agent System:** Sub-agent delegation and agent-as-a-tool split one agent's job across a team — and split its trust surface across a team, too.
+8. **Module 8 — Stateful Multi-Agent System:** Combining Modules 5–7 into `manager`, `stock_analyst`, `funny_nerd`, and `news_analyst` sharing one session's state produced this course's most structurally new threat: cross-agent state poisoning, a risk that exists only because state and multi-agent orchestration now occupy the same system.
+
+The pattern hasn't changed since Module 1: **build, model, analyze.** Every capability you added — tools, structured output, memory, persistence, delegation — expanded what the system could do, and expanded the threat model right alongside it. That's not a coincidence and it's not a flaw in the course's pacing; it's the actual shape of building agentic AI systems. Capability and attack surface grow together, and the discipline of re-running the threat model every time the architecture changes is the one habit that scales from a ten-line greeting agent to a multi-agent system with shared, persistent state.
+
+There is no Module 9. The `manager` system, its `pytm` model, and its `threat_modeling_agent` are the artifacts you leave this course with — and the STRIDE-then-OWASP-then-agent workflow you've now run eight times is the part that transfers to whatever you build next.

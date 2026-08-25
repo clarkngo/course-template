@@ -1,10 +1,197 @@
 ---
 title: "Threat Modeling Persistent Storage"
-description: "Placeholder — content coming soon."
+description: "Apply STRIDE to memory_agent — map the new DatabaseSessionService/SQLite trust boundary and the direct line from LLM-generated tool arguments to persistent state."
 module: 6
 moduleTitle: "Experiencing Persistent Storage"
 lesson: 2
-duration: "TBD"
+duration: "45 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What Changed from the In-Memory Agent?
+
+`DatabaseSessionService` replaces `InMemorySessionService` — session data (`user_name`, `reminders`) now persists to a SQLite file on disk instead of vanishing when the process exits. `ToolContext` enables tool functions to directly read and write that session state. Put those two facts together and you get something genuinely new: the SQLite database file is now accessible to anyone with local filesystem access, and LLM-generated tool arguments directly mutate that persistent state. That's a new trust boundary that didn't exist in any earlier module — between Gemini's tool call output and `ToolContext.state`.
+
+---
+
+## The System: Data Flow Overview
+
+`memory_agent` has eight key data flows:
+
+1. **User → `main.py` (CLI):** User input enters the system via the interactive CLI.
+2. **`.env` → `main.py` (file system read):** At startup, the script reads `GOOGLE_API_KEY` from the `.env` file.
+3. **`main.py` ↔ `my_agent_data.db` (SQLite):** `DatabaseSessionService` connects to the database and either retrieves an existing session or creates a new one with `initial_state` (`user_name`, `reminders=[]`).
+4. **`main.py` → `memory_agent` → Gemini API (HTTPS):** The `Runner` passes the user's query to `memory_agent`, which sends the prompt and five tool definitions to Gemini.
+5. **Gemini → tool call request:** Gemini decides which tool to invoke (`add_reminder`, `view_reminders`, `update_reminder`, `delete_reminder`, or `update_user_name`) and returns a tool call request.
+6. **Tool execution ↔ `ToolContext.state`:** The tool function executes, reading and writing the `reminders` list and `user_name` in session state.
+7. **`ToolContext.state` → `my_agent_data.db`:** `DatabaseSessionService` persists the updated state to disk after each interaction.
+8. **`main.py` → User (CLI):** The `Runner` delivers the agent's final response back to the CLI.
+
+Each arrow here is a potential attack surface. Two of these flows (3 and 6/7) simply didn't exist in Module 5's data flow diagram — they are the direct product of swapping in persistent storage.
+
+---
+
+## Trust Boundaries
+
+Review the eight data flows above. For each pair of communicating components, ask: *do I trust both sides equally?* If not, there's a trust boundary between them. At least five exist in this system — the first three carry over from earlier modules, the last two are new:
+
+| Boundary | Components | Why it matters |
+|---|---|---|
+| **1** | User CLI ↔ `main.py` | User queries are untrusted and may contain prompt injection designed to manipulate reminders |
+| **2** | `main.py` ↔ Google Cloud (Gemini API) | Prompt and five tool definitions are sent to an external service; the API key must not be exposed |
+| **3** | File system ↔ `main.py` | `.env` holds `GOOGLE_API_KEY`; file permissions determine who can read it |
+| **4 (NEW)** | `DatabaseSessionService` ↔ SQLite (`my_agent_data.db`) | PII (`user_name`) and user data (`reminders`) are stored **unencrypted** as a local file. Anyone with filesystem access can read, modify, or delete the database |
+| **5 (NEW)** | Gemini tool call arguments ↔ `ToolContext.state` | The LLM generates tool call arguments (e.g., `add_reminder("buy milk")`) that **directly mutate persistent session state**. A prompt injection attack could cause the LLM to delete all reminders, inject malicious content, or change the user's name |
+
+Two boundaries worth adding on your own: is there a boundary between the SQLite file itself and the broader filesystem (backup tools, other local processes, cloud sync folders)? And between the `Runner` and `DatabaseSessionService` — does anything validate what the `Runner` hands off before it's written to disk?
+
+<CodeLab title="Why Boundary 5 Is the One to Watch">
+
+Boundary 4 (SQLite exposure) is a familiar shape — it's the same category of risk as an unencrypted `.env` file, just with more data in it. Boundary 5 is different in kind, not just degree.
+
+In every prior module, the worst an LLM-controlled tool call could do was call a *function* with attacker-influenced arguments — bounded by whatever that function was written to do. Here, the function's entire job is to write directly into state that survives forever. `add_reminder`, `update_reminder`, and `delete_reminder` never validate their arguments against anything — no length limit, no content filter, no confirmation step. If Gemini decides (because a crafted prompt convinced it) to call `delete_reminder` five times in a row, nothing in the current code stops it, and the deletions are permanent the moment `DatabaseSessionService` flushes to disk.
+
+</CodeLab>
+
+---
+
+## Data Flow Diagrams
+
+**Level 0 — Context Diagram**
+
+Three elements: `User (CLI Terminal)` as an external entity, the `memory_agent` system as one rounded rectangle, and `Google Cloud / Gemini API` as an external entity. Labeled arrows: User → System ("User CLI input"); System → Google Cloud ("Prompt + tool defs + API key, HTTPS"); Google Cloud → System ("LLM response / tool call request, HTTPS"); System → User ("Agent response, CLI output"). Dashed lines mark the trust boundaries at the system's edges.
+
+**Level 1 — Decomposed View**
+
+Expand the system box into its internal components:
+
+- **Process: `main.py`** — entry point, creates `DatabaseSessionService` and `Runner`
+- **Process: `Runner` (ADK)** — orchestrates agent execution
+- **Process: `memory_agent`** — core logic, sends prompt and tools to Gemini
+- **Process: Tool Executor (`ToolContext.state`)** *(NEW)* — executes add/view/update/delete/update_user_name, directly reading and writing session state
+- **Data Store: `my_agent_data.db` (SQLite)** *(NEW)* — persists `user_name` and `reminders` across restarts
+- **Data Store: `.env` File** — stores `GOOGLE_API_KEY`
+
+Reconnect the external actors:
+
+- User → `main.py` → `Runner` → `memory_agent` → Google Cloud / Gemini API → `memory_agent`
+- `memory_agent` → Tool Executor (tool call + `ToolContext`) → `memory_agent` (tool result)
+- Tool Executor ↔ `my_agent_data.db` (read/write state via `DatabaseSessionService`)
+- `main.py` ↔ `my_agent_data.db` (create/retrieve session via `DatabaseSessionService`)
+
+Add a green dashed **SQLite Persistent Storage** boundary around `my_agent_data.db`, and a **Tool Execution Layer** boundary around the Tool Executor. Every arrow crossing either boundary is a threat intersection worth the same scrutiny you gave the `.env` boundary in Module 1.
+
+---
+
+## STRIDE Analysis
+
+| DFD Element | S | T | R | I | D | E | Threat Description |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|---|
+| **User CLI Input** | ✓ | | | | | ✓ | S: Attacker enters the session as a different user. E: Prompt injection causes the LLM to delete all reminders or inject malicious content |
+| **`.env` File** | | ✓ | | ✓ | | | T: API key tampered if permissions are too permissive. I: `GOOGLE_API_KEY` exposed via accidental commit |
+| **Tool Call: `add_reminder`** | | ✓ | ✓ | | | ✓ | T: LLM adds malicious reminder text via injected prompt. R: Tool invocation not logged. E: Attacker uses prompt injection to add arbitrary content to reminders |
+| **Tool Call: `delete_reminder`** | | ✓ | ✓ | | ✓ | | T: LLM deletes legitimate reminders via injection. R: Deletion not logged for audit. D: Adversarial prompt causes deletion of all reminders |
+| **Tool Call: `update_reminder`** | | ✓ | ✓ | | | ✓ | T: Existing reminder content replaced with malicious text. R: Updates not logged. E: Attacker replaces reminders with injected content |
+| **`ToolContext.state` (reminders, user_name)** | | ✓ | | ✓ | | | T: State directly mutated by LLM-generated tool arguments without validation. I: Reminders may contain PII or sensitive task data |
+| **`my_agent_data.db` (SQLite)** | | ✓ | ✓ | ✓ | ✓ | | T: Database file modified directly. R: No audit log of database changes. I: `user_name` and reminders stored unencrypted. D: Database file deleted, destroying all persistent state |
+| **`DatabaseSessionService`** | | ✓ | | ✓ | | | T: Session data tampered in transit to SQLite. I: Unencrypted SQLite connection |
+| **Gemini API Request** | | | ✓ | ✓ | ✓ | | R: API calls not logged. I: Reminders and `user_name` sent to an external service. D: Adversarial prompt triggers excessive tool calls |
+| **`memory_agent` (Process)** | | ✓ | | | | | T: No input validation before the prompt reaches Gemini — the same gap every prior module's agent process has had |
+
+The pattern across nearly every new or persistence-related row: **Tampering** and **Repudiation** dominate. That's the signature of a system where writes are unvalidated and unlogged — exactly what `add_reminder`, `update_reminder`, and `delete_reminder` are, as written in Lesson 1.
+
+---
+
+## Mitigations
+
+### Reminder Content Injection via Prompt (Tampering / Elevation of Privilege)
+
+**Threat:** An attacker crafts a prompt that causes the LLM to invoke `add_reminder` or `update_reminder` with malicious content (e.g., phishing text, commands) stored in the persistent reminders list.
+
+**Mitigation:** Validate reminder content against an allowlist of safe patterns before storing. Log all tool invocations with their arguments and timestamps for audit purposes.
+
+**Type:** Prevention + Detection
+
+---
+
+### SQLite Database Exposure (Information Disclosure)
+
+**Threat:** The `my_agent_data.db` SQLite file stores `user_name` and reminders (potentially PII) in plaintext, accessible to anyone with local filesystem access.
+
+**Mitigation:** Encrypt the SQLite database at rest using SQLCipher or filesystem-level encryption. Restrict file permissions to the application user only (`chmod 600`).
+
+**Type:** Prevention
+
+---
+
+### Tool Call Repudiation (Repudiation)
+
+**Threat:** Tool invocations (add, delete, update reminder) are not logged, making it impossible to audit what changes were made to a user's reminder list.
+
+**Mitigation:** Add structured logging to each tool function recording the function name, arguments, result, `user_id`, `session_id`, and timestamp in a tamper-evident log.
+
+**Type:** Detection
+
+---
+
+### Reminder Data Destruction (Denial of Service)
+
+**Threat:** An adversarial prompt causes the LLM to invoke `delete_reminder` repeatedly, deleting all reminders from the user's persistent storage.
+
+**Mitigation:** Implement a soft-delete pattern (mark reminders as deleted, retain in the database). Require a confirmation step before executing delete operations.
+
+**Type:** Prevention
+
+---
+
+### API Key Disclosure (Information Disclosure)
+
+**Threat:** The `GOOGLE_API_KEY` in `.env` is accidentally committed to a public repository.
+
+**Mitigation:** Add `.env` to `.gitignore`. Enable GitHub secret scanning. Rotate the key immediately if exposure is detected.
+
+**Type:** Prevention + Detection
+
+---
+
+### Unauthenticated Session Continuation (Spoofing)
+
+**Threat:** `main.py` selects the "most recent session" for a given `USER_ID` with no authentication step — anyone who can run the script with a known `USER_ID` inherits that user's full reminder history and name.
+
+**Mitigation:** Tie `USER_ID` to an authenticated identity (OS user, login token) rather than a hardcoded string. Never let `USER_ID` be supplied as unauthenticated user input in a multi-user deployment.
+
+**Type:** Prevention
+
+<Pitfall title="Persistent State Makes Every Injection Permanent">
+
+In Module 1's greeting agent, a successful prompt injection produced one bad response that vanished the moment the conversation ended. Here, a successful prompt injection against `add_reminder` or `update_reminder` writes its payload into `my_agent_data.db` — and it stays there, read back into the agent's context on every future turn, until someone notices and manually removes it.
+
+Persistence doesn't just add a new attack surface (the database file). It changes the blast radius of every attack surface that already existed. This is the central lesson of Module 6: state that outlives the process also outlives the attack that corrupted it.
+
+</Pitfall>
+
+---
+
+<Quiz question="Why does this module introduce a trust boundary between Gemini's tool call output and ToolContext.state, when earlier modules with tool-calling agents (like the weather_time_agent) didn't call this out as a distinct boundary?">
+
+<div>
+
+Earlier tool-calling agents had a Tool Execution Layer boundary too — but the state those tools touched was either ephemeral (in-memory, gone at process exit) or read-only (like looking up the current time). The consequence of a bad tool call argument was bounded by the conversation's lifetime.
+
+`memory_agent`'s tools are different: `add_reminder`, `update_reminder`, and `delete_reminder` write directly into `ToolContext.state`, and `DatabaseSessionService` flushes that state to a SQLite file that outlives the process. The moment tool arguments can produce a **permanent, disk-backed** side effect instead of a transient one, the boundary between "what the LLM decided to pass as an argument" and "what got written to persistent storage" becomes a boundary worth naming and defending on its own — because nothing currently sanitizes what crosses it.
+
+This is exactly why Boundary 5 in this lesson's table is marked NEW even though tool execution itself isn't a new concept in this course.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You've mapped two new trust boundaries this module introduces — SQLite Persistent Storage and the Tool Execution Layer's direct line into disk-backed state — and proposed mitigations for the Tampering and Repudiation threats that dominate this system.
+
+In **Lesson 3**, we encode this model in pytm, generate the DFD and threat report automatically, and build a `threat_modeling_agent` that can answer questions about persistent storage and `ToolContext` security specifically.
