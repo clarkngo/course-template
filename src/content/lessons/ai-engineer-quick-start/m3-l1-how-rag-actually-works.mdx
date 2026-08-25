@@ -1,0 +1,88 @@
+---
+title: "How RAG Actually Works"
+description: "Understand why retrieval-augmented generation exists, how its five-step pipeline works, and when it beats fine-tuning as the way to give a model knowledge it wasn't trained on."
+module: 3
+moduleTitle: "Retrieval-Augmented Generation"
+lesson: 1
+duration: "15 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## An Overconfident New Employee
+
+A foundation model like GPT or Gemma is pre-trained on a massive scrape of internet text, frozen at some cutoff date. Ask it about your company's refund policy, a document you uploaded five minutes ago, or anything more recent than its training cutoff, and it doesn't say "I don't know" nearly as often as it should. It's generative — so it's perfectly capable of producing a fluent, confident-sounding answer that has nothing behind it. In plain terms: **think of an LLM without retrieval like a new employee who's overconfident but doesn't actually know the answer** — no sources, no way to check itself, just fluency.
+
+This is what the industry calls **hallucination**, and it has real consequences. A well-known case: an airline's support chatbot told a customer about a bereavement discount policy that didn't actually exist — and the airline was later held responsible for honoring what its own chatbot had said, precisely because the bot wasn't grounded in the airline's real policy documents. It just generated something plausible-sounding on demand.
+
+**Retrieval-augmented generation (RAG)** exists to fix this structurally, not by making the model "try harder" to be accurate, but by changing what it's answering from in the first place.
+
+---
+
+## The RAG Pipeline, Five Steps
+
+1. **Prompt + query** — the user asks a question.
+2. **Search relevant information** — that query gets used to search a knowledge source (documents, a database, a set of web pages).
+3. **Find relevant information** — the system retrieves the most relevant chunks for enhanced context.
+4. **Augment the prompt** — those retrieved chunks get added to the original prompt, ahead of the question.
+5. **Generate** — the LLM produces a response grounded in the retrieved material, not its own memory.
+
+The same flow described the other way, in terms of *why* each step happens: the user's query gets converted into an embedding (Module 2's vectors), the system searches a vector database for the most similar stored document chunks, those chunks augment the prompt, and only then does the LLM generate an answer — one that's now reading comprehension over material actually in front of it, not recall from frozen training weights.
+
+---
+
+## RAG vs. Fine-Tuning
+
+RAG isn't the only way to give a model knowledge outside its training data. **Fine-tuning** is the other major option — taking a pre-trained foundation model and further training it on a smaller, specific, labeled dataset so its own weights change. RAG never touches the model's weights at all; it changes what gets *fed in* at the moment of answering.
+
+| | Fine-tuning | RAG |
+|---|---|---|
+| **Best for** | Specialized, stable tasks needing high consistency | Up-to-date information, flexible responses across domains |
+| **Data freshness** | Static — locked to whatever it was trained on | Dynamic — feed it new documents any time |
+| **Resource needs** | High — significant compute and a curated labeled dataset | Moderate — mainly the cost of retrieval infrastructure |
+| **Response speed** | Faster — no retrieval step | Slower — retrieval adds a lookup before generation |
+| **Generalization** | Risk of overfitting to the fine-tuning set | Broad and diverse, bounded by the knowledge source |
+
+Neither one is strictly better — they solve different problems, and production systems sometimes use both.
+
+---
+
+## Why RAG, When You Could Just Use ChatGPT
+
+A reasonable question: if a general-purpose chatbot already exists, why build a retrieval pipeline at all? Because **every business and industry has specific context a general-purpose, pre-trained model was never trained on.** A general model is trained on a broad internet scrape — it has no idea what's in your company's internal wiki, your product's actual documentation, or a PDF a customer just sent you.
+
+RAG's concrete benefits:
+
+- **Cost** — cheaper than fine-tuning or training a new model when all you need is better context, not a fundamentally different model.
+- **Current information** — connect it to live data sources (news, social feeds, an internal database) instead of relying on a frozen snapshot.
+- **Enhanced user trust** — you can be transparent about exactly which source backed a given answer.
+- **Developer control** — you decide precisely which data sources the model is allowed to pull from.
+
+And critically: a properly built RAG system can say **"I don't know"** when the retrieved context doesn't cover the question — which is the single most important behavior for avoiding the kind of hallucination that got that airline in trouble.
+
+---
+
+<Pitfall title="Assuming Retrieval Alone Prevents Hallucination">
+
+**Common mistake:** wiring up a retrieval pipeline and assuming that because *some* documents get retrieved and stuffed into the prompt, the model's answer is now automatically grounded and safe.
+
+If the retriever returns weakly related or irrelevant chunks and the prompt doesn't explicitly instruct the model to say when nothing relevant was found, the model will often still try to construct a plausible-sounding answer from whatever it was handed — producing something that *looks* grounded but isn't. The next lesson's hands-on build includes a deliberate test for exactly this failure mode: asking about something that isn't in the knowledge source, and checking that the system says "I don't know" instead of guessing.
+
+</Pitfall>
+
+<Quiz question="A company's support chatbot answers a customer's question using RAG over internal policy documents, but the retriever pulls back three chunks that are only loosely related to the actual question. What's the safest design choice?">
+<div>
+
+**Explicitly instruct the model, in the prompt, to say when the retrieved context doesn't actually answer the question — rather than assuming any retrieved content guarantees a grounded answer.**
+
+Retrieval reduces hallucination risk, but it doesn't eliminate it by itself. A model handed loosely-related chunks and no permission to say "I don't know" will often still generate a confident, plausible answer stitched together from the mismatched material — which is arguably worse than an answer that was obviously guessed, because it *looks* sourced. The fix is a prompt-level instruction, paired with retrieval quality itself, not retrieval alone.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Concepts are done — this is a build course, so it's time to build. The next lesson is fully hands-on: you'll stand up a local LLM server, load a PDF into a vector database, and run the exact "does it know / does it correctly say it doesn't know" test that separates a real RAG system from a chatbot that just sounds confident.

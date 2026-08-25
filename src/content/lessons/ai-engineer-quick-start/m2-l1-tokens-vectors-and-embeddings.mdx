@@ -1,0 +1,93 @@
+---
+title: "Tokens, Vectors, and Embeddings"
+description: "Learn how a language model turns text into numbers — tokens, embedding vectors, and why cosine similarity and Euclidean distance are the two ways to measure how 'close' two meanings are."
+module: 2
+moduleTitle: "How LLMs Actually Work"
+lesson: 1
+duration: "16 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## "You've Hit Your Token Limit" — What's Actually Being Counted
+
+Every time a chat app tells you you've hit a token limit, it's measuring something specific, not just "amount of text." A **token** is the basic unit a model processes — usually a word, but often a fragment of one, a punctuation mark, or a piece of a longer word. Tokens exist because they standardize input: instead of the model having to handle arbitrary raw text, everything gets chopped into a fixed vocabulary of chunks it already knows how to work with.
+
+Take the sentence *"A puppy is to dog as a kitten is to cat."* A tokenizer might split that into: `A`, `puppy`, `is`, `to`, `dog`, `as`, `a`, `kitten`, `is`, `to`, `cat`, `.` — eleven separate units the model reasons over one at a time. A token can represent text, but the same idea extends to image and audio models too: an image gets sliced into patches, audio gets sliced into short clips, and each one becomes a token in exactly the same structural sense.
+
+Once text is tokenized, the model's whole job becomes: **given the tokens so far, predict the most likely next one.**
+
+---
+
+## From Token to Vector
+
+A token by itself is just a symbol — the model can't do math on the word "cat." So every token gets converted into an **embedding**: a **vector**, meaning a list of numbers, that represents its meaning and its relationships to other tokens. These vectors are learned during training, not hand-assigned.
+
+The property that makes embeddings useful: **words with similar meanings land on vectors that are close to each other.** "Jump," "hop," "leap," and "skip" all cluster in roughly the same region of that numerical space — not because anyone programmed that relationship in, but because the model learned it from seeing those words used in similar contexts across enormous amounts of text.
+
+<CodeLab title="What 'Close' Actually Means: Two Different Rulers">
+
+There are two standard ways to measure how close two vectors are, and they measure genuinely different things:
+
+**Cosine similarity** looks at the *angle* between two vectors, ignoring their length:
+- `1` → the vectors point in the same direction (highly similar)
+- `0` → the vectors are perpendicular (no relationship)
+- `-1` → the vectors point in opposite directions (essentially opposite meaning)
+
+**Euclidean distance** looks at the straight-line distance between two points in that vector space:
+- `0` → the two points are in the exact same spot (identical)
+- Larger numbers → farther apart, less related
+
+```text
+Cosine similarity:  "cares about direction, not magnitude"
+                      good for: comparing meaning/topic regardless of length
+
+Euclidean distance:  "cares about actual position in space"
+                      good for: comparing raw closeness, e.g. image embeddings
+```
+
+Later in this course, you'll see cosine similarity used to compare a movie's genre and cast against a user's picks — direction, not raw distance, is what matters when you're asking "how similar in *kind* are these two things?"
+
+</CodeLab>
+
+---
+
+## The Same Word, Different Vectors
+
+Here's where it gets interesting: a word's embedding **isn't fixed**. Take the word "mole." On its own, before any context, it has one starting vector — the same one whether you mean a small burrowing animal, a unit of measurement in chemistry, or a spot on skin. Put it in three different sentences —
+
+- *"American shrew mole"* (an animal)
+- *"one mole of carbon dioxide"* (a unit)
+- *"take a biopsy of a mole"* (a body part)
+
+— and each version of "mole" ends up with a **different**, updated vector, because the surrounding words shift its meaning. Chemistry-context "mole" moves toward the numerical neighborhood of units and measurements; skin-context "mole" moves toward the neighborhood of body parts and dermatology. Same starting token, three different final positions in vector space, once context has been applied.
+
+The mechanism that does this updating — reading the surrounding words and adjusting each token's vector accordingly — is called **attention**, and it's the subject of the next lesson.
+
+---
+
+<Pitfall title="Treating Embeddings Like a Fixed Dictionary Lookup">
+
+**Common mistake:** assuming a word always maps to the same embedding, the way a word always maps to the same dictionary definition.
+
+If embeddings were fixed, "mole" the animal and "mole" the unit of measurement would be indistinguishable to the model — same vector, same neighbors, no way to tell them apart. In reality, a token's vector gets updated based on its context *before* the model uses it for anything else, which is exactly what lets "Queen" the monarch and "queen" a chess piece land in completely different regions of the embedding space despite sharing a token.
+
+</Pitfall>
+
+<Quiz question="A vector database is asked to find documents 'similar' to a search query using cosine similarity. What is it actually comparing?">
+<div>
+
+**The angle between the query's embedding vector and each document's embedding vector — not their raw distance or length.**
+
+Cosine similarity deliberately ignores magnitude and focuses on direction, which is why it's the standard choice for comparing meaning: two documents can be different lengths (different vector magnitude) and still point in nearly the same semantic direction, meaning they're topically similar even though they're not literally close in raw distance. That's the property retrieval systems — including the RAG pipeline you'll build later in this course — depend on.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You now know how a single token gets its meaning. The next lesson covers the mechanism that makes context possible at all — **attention** — the part of a transformer that lets every token's vector be updated by the tokens around it, which is what separates a modern LLM from a model that could only ever predict the next word blind.

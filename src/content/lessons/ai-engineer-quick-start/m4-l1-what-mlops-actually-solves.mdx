@@ -1,0 +1,76 @@
+---
+title: "What MLOps Actually Solves"
+description: "See why training a good model isn't the hard part — and how MLOps closes the gap between data scientists and engineers with a shared model lifecycle: data, train, validate, deploy, monitor."
+module: 4
+moduleTitle: "MLOps: Tracking and Deploying Models"
+lesson: 1
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Training a Model Is the Easy Part
+
+It's genuinely easy to write a script that trains a machine learning model and prints an accuracy score. It's much harder to answer the questions that come right after: Which of the four models you tried was actually best? Can you reproduce that exact result six months from now? Who's responsible for retraining it when new data comes in? How does a trained model actually get in front of real users?
+
+**MLOps** — machine learning operations — is the discipline that answers those questions. As one framing puts it, MLOps is really three things layered together: **operations for models, operations for data, and DevOps** (continuous integration and deployment) applied to the whole thing.
+
+---
+
+## The Model Lifecycle
+
+Every model, regardless of what it predicts, moves through the same stages:
+
+**Data preparation → Feature extraction → Train → Validate → Deploy → Monitor**
+
+What makes this hard in practice isn't any single stage — it's that **different people** typically own different stages. A data scientist prepares data and trains models. An ML engineer deploys and monitors them. Historically, there's a disconnect right at the handoff between those two roles: a model that works beautifully in a notebook can fail in ways nobody predicted once it's actually serving live traffic, because the person who built it and the person who shipped it were looking at different parts of the problem.
+
+MLOps tooling exists to close that gap — an overarching view of the whole lifecycle that both roles can see, instead of two separate systems that only talk to each other through a handoff document.
+
+---
+
+## MLflow: A Model Tracking Server
+
+**MLflow** is one of the standard tools for this — an open-source model tracking server. Its job, in the simplest terms, is to be the record of every experiment you've run: which model, which parameters, which dataset, and what score it got.
+
+Concretely, when you train several candidate models, MLflow lets you:
+
+- Log every **run** — one execution of a training script, with its configuration and its results.
+- Compare runs side by side — which model actually performed best, by which metric.
+- Register a specific model version as the one currently used in production.
+- Fetch that registered model later, from a different script, without needing to know exactly how it was trained.
+
+Instead of a comment in a spreadsheet saying "gradient boosting seemed to work best last Tuesday," you get an actual dashboard: every run logged, every score comparable, every model version retrievable by name.
+
+---
+
+## Why Not Just Use One Big Model Server for Everything?
+
+A natural question: if you're already running an LLM server (Ollama, from the last module) and now an MLflow tracking server too, why not combine them? In practice, they're solving different problems and are usually kept separate: an LLM server like Ollama is optimized for serving a chat/completion endpoint quickly, while a model tracking server like MLflow is optimized for experiment history, comparison, and versioning of prediction models — genre classifiers, recommendation scorers, and similar. Keeping them as separate services is often simpler than building one system that tries to do both well.
+
+---
+
+<Pitfall title="Skipping Tracking Because 'I'll Remember Which Model Was Best'">
+
+**Common mistake:** training a handful of candidate models in a quick script, eyeballing the printed accuracy numbers, and picking one from memory — without logging anything.
+
+This works fine for a five-minute experiment. It falls apart the moment you retrain a week later with slightly different data, can't remember which exact configuration produced last week's best score, and have no record to compare against. The entire point of a tracking server is to make "which model is actually best, and why" a query you can run instead of a memory you're trusting.
+
+</Pitfall>
+
+<Quiz question="A data scientist trains four different models for the same prediction task and wants to know which one to actually deploy. What does MLflow add that simply printing each model's accuracy score to the terminal doesn't?">
+<div>
+
+**A persistent, comparable, and reproducible record of every run — so 'which model is best' is a query against real logged data, not something someone has to remember or re-derive.**
+
+Printing a score to the terminal answers the question once, in the moment, for whoever is watching that terminal. MLflow logs every run's configuration, dataset, and resulting metrics to a tracking server, so the comparison survives past that terminal session, can be revisited by someone who wasn't there when it ran, and lets you register the winning version so other services (like a model server) can fetch it by name later — without needing to know how it was originally trained.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Time to actually use it. The next lesson trains several candidate models on the same prediction task, logs every run to a real MLflow tracking server, compares their scores in the dashboard, and registers the winner — the exact workflow a movie-recommendation feature depends on.

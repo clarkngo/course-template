@@ -1,0 +1,127 @@
+---
+title: "System Architecture: Wiring the Stack Together"
+description: "See how a proxy server, an LLM server, a vector database, a document database, and an MLOps tracking server fit together into one movie-recommendation app — and how count vectorization plus cosine similarity power the 'similar movies' feature."
+module: 5
+moduleTitle: "Building the Full RAG Application"
+lesson: 1
+duration: "16 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## One Client, One Server It Talks To
+
+Every piece from the last two modules — Ollama, ChromaDB, MLflow — is a separate running service. A mobile or web frontend shouldn't have to know about all of them individually, negotiate with each one directly, and handle each one's own failure modes. Instead, the frontend talks to exactly **one** server, and that server fans requests out to whichever backend service actually needs to handle them.
+
+That single point of contact is a **proxy & API server**, and it's the piece that makes the rest of this architecture tractable.
+
+<svg viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="System architecture diagram: a user's frontend sends chat, search, and recommend requests to a proxy and API server (ExpressJS), which routes to MongoDB Atlas for movie data, to an Ollama LLM server running Gemma for chat, and to a FastAPI machine learning server for recommendations, which in turn queries a Chroma vector database populated from PDF documents, and logs models to an MLflow tracking server fed by a model training script.">
+  <g font-family="system-ui, -apple-system, sans-serif" font-size="10.5">
+    <rect x="10" y="165" width="110" height="50" rx="8" fill="#1d4ed8" opacity="0.15" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="65" y="195" text-anchor="middle" fill="currentColor" font-weight="600">Frontend</text>
+
+    <line x1="120" y1="190" x2="185" y2="190" stroke="currentColor" stroke-width="2" opacity="0.5" marker-end="url(#a3)"/>
+    <text x="152" y="182" text-anchor="middle" fill="currentColor" font-size="8.5" opacity="0.7">chat / search / recommend</text>
+
+    <rect x="190" y="160" width="140" height="60" rx="8" fill="#6d28d9" opacity="0.2" stroke="#6d28d9" stroke-width="1.5"/>
+    <text x="260" y="188" text-anchor="middle" fill="currentColor" font-weight="600">Proxy &amp; API Server</text>
+    <text x="260" y="202" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.7">ExpressJS</text>
+
+    <line x1="260" y1="160" x2="260" y2="90" stroke="currentColor" stroke-width="1.5" opacity="0.4" marker-end="url(#a3)"/>
+    <rect x="195" y="55" width="130" height="35" rx="6" fill="#16a34a" opacity="0.18" stroke="#16a34a" stroke-width="1"/>
+    <text x="260" y="76" text-anchor="middle" fill="currentColor" font-size="9.5">MongoDB Atlas</text>
+
+    <line x1="330" y1="175" x2="440" y2="115" stroke="currentColor" stroke-width="1.5" opacity="0.4" marker-end="url(#a3)"/>
+    <rect x="440" y="80" width="130" height="45" rx="8" fill="#be185d" opacity="0.15" stroke="#be185d" stroke-width="1.5"/>
+    <text x="505" y="100" text-anchor="middle" fill="currentColor" font-weight="600">LLM Server</text>
+    <text x="505" y="114" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.7">Ollama / Gemma</text>
+
+    <line x1="330" y1="205" x2="440" y2="245" stroke="currentColor" stroke-width="1.5" opacity="0.4" marker-end="url(#a3)"/>
+    <rect x="440" y="225" width="150" height="55" rx="8" fill="#ea580c" opacity="0.15" stroke="#ea580c" stroke-width="1.5"/>
+    <text x="515" y="248" text-anchor="middle" fill="currentColor" font-weight="600">ML Server</text>
+    <text x="515" y="262" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.7">FastAPI (recommend)</text>
+
+    <line x1="440" y1="252" x2="330" y2="290" stroke="currentColor" stroke-width="1.2" opacity="0.35" marker-end="url(#a3)"/>
+    <text x="385" y="285" text-anchor="middle" fill="currentColor" font-size="8" opacity="0.6">log model</text>
+    <rect x="190" y="295" width="150" height="50" rx="8" fill="#0891b2" opacity="0.15" stroke="#0891b2" stroke-width="1.5"/>
+    <text x="265" y="317" text-anchor="middle" fill="currentColor" font-weight="600">MLflow Tracking</text>
+    <text x="265" y="331" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.7">Server</text>
+
+    <line x1="190" y1="320" x2="90" y2="300" stroke="currentColor" stroke-width="1.2" opacity="0.35" marker-end="url(#a3)"/>
+    <rect x="10" y="280" width="120" height="45" rx="8" fill="#94a3b8" opacity="0.2" stroke="#94a3b8" stroke-width="1"/>
+    <text x="70" y="300" text-anchor="middle" fill="currentColor" font-size="9.5">Model Training</text>
+    <text x="70" y="313" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.7">Script</text>
+
+    <line x1="515" y1="280" x2="515" y2="330" stroke="currentColor" stroke-width="1.5" opacity="0.4" marker-end="url(#a3)"/>
+    <rect x="450" y="330" width="130" height="45" rx="8" fill="#7c3aed" opacity="0.18" stroke="#7c3aed" stroke-width="1"/>
+    <text x="515" y="350" text-anchor="middle" fill="currentColor" font-size="9.5">Vector DB</text>
+    <text x="515" y="363" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.7">ChromaDB</text>
+
+    <line x1="580" y1="352" x2="640" y2="330" stroke="currentColor" stroke-width="1.2" opacity="0.35" marker-end="url(#a3)"/>
+    <rect x="610" y="290" width="90" height="45" rx="8" fill="#dc2626" opacity="0.15" stroke="#dc2626" stroke-width="1"/>
+    <text x="655" y="310" text-anchor="middle" fill="currentColor" font-size="9">PDF</text>
+    <text x="655" y="323" text-anchor="middle" fill="currentColor" font-size="9">Documents</text>
+
+    <defs>
+      <marker id="a3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="currentColor" opacity="0.6"/>
+      </marker>
+    </defs>
+  </g>
+</svg>
+
+Trace each request type through this diagram:
+
+- **Chat** — frontend → ExpressJS → Ollama (Gemma) → streamed back to the frontend. This is the RAG pipeline from Module 3, fronted by the proxy.
+- **Search / list movies** — frontend → ExpressJS → MongoDB Atlas, a straightforward document lookup.
+- **Recommend** — frontend → ExpressJS → the FastAPI ML server, which loads the current best model from MLflow (Module 4) and returns a prediction. That same FastAPI server also owns the Chroma vector database, populated ahead of time from PDF documents by the population script from Module 3.
+
+One proxy, three very different backends, and the frontend never needs to know any of that — it only ever talks to ExpressJS.
+
+---
+
+## Why a Proxy Server at All
+
+It would be technically possible to have the frontend call Ollama, MongoDB, and FastAPI directly. Almost nobody builds it that way, for a few concrete reasons:
+
+- **One thing to configure.** The client only ever needs to know one server's address, not four.
+- **A place for cross-cutting logic.** Auth checks, rate limiting, logging — all live in one layer instead of being duplicated across every backend service.
+- **Backend services can change independently.** Swap Ollama for a different LLM server, or move the vector database to a different host, and the frontend's contract with ExpressJS never has to change.
+
+---
+
+## "Similar Cast and Genre" — Count Vectorization + Cosine Similarity
+
+Not every feature in this app needs an LLM. "Show me movies with a similar cast or genre" is a much simpler retrieval problem, solved with the classic ML techniques from Module 2 rather than a language model:
+
+1. **Count vectorization** — for a selected movie, build a vector out of how often each genre or cast member appears across the movie catalog, the same basic idea as counting word frequency in a sentence.
+2. **Cosine similarity** — compare that movie's vector against every other movie's vector, and rank by similarity score.
+
+This is deliberately *not* a job for an LLM call. It's fast, fully deterministic, needs no retrieval or generation step, and the earlier lessons already gave you both pieces it's built from: vectors and cosine similarity from Module 2, applied here to genres and cast lists instead of language tokens.
+
+---
+
+<Pitfall title="Routing Every Feature Through the LLM Because It's Already Wired Up">
+
+**Common mistake:** once a chat pipeline exists, reaching for it to power *every* feature — including ones with no need for natural language generation at all, like "find similar movies."
+
+An LLM call is slower, more expensive, and less deterministic than a direct similarity computation. "Similar cast and genre" has a clean, well-defined answer computable with count vectorization and cosine similarity in milliseconds — running that through an LLM instead adds latency and cost for no real benefit, and introduces the possibility of a hallucinated or inconsistent result where a deterministic algorithm would have given the same answer every time.
+
+</Pitfall>
+
+<Quiz question="A teammate suggests routing the 'similar cast and genre' feature through the chat LLM instead of the existing count-vectorizer + cosine-similarity function, arguing it would be 'more flexible.' What's the strongest counterargument from this lesson?">
+<div>
+
+**The current approach is fast, deterministic, and already solves the problem cleanly — an LLM call would add latency, cost, and the risk of an inconsistent or hallucinated result for a feature that has one clean, well-defined answer.**
+
+"Similar cast and genre" isn't a language-understanding problem — it's a numerical similarity computation over count vectors, exactly the kind of task classic ML techniques handle better than a generative model. Flexibility is a real advantage of LLMs elsewhere in this app (the chat feature genuinely benefits from generation), but it's not a benefit here, because there's no ambiguity in the task for an LLM's flexibility to help with — only cost the deterministic version doesn't pay.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Diagram understood — now make it real. The final lesson wires up the ExpressJS proxy's streaming response, the FastAPI `/chat` endpoint, and a frontend chat interface that decodes that stream chunk by chunk, and walks through running the whole system end to end.

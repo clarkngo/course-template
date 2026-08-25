@@ -1,0 +1,116 @@
+---
+title: "How Neural Networks Actually Learn"
+description: "See what a neuron, a layer, and an activation actually are by walking through the classic example of a neural network learning to recognize a handwritten digit."
+module: 1
+moduleTitle: "Foundations: AI, ML, and Deep Learning"
+lesson: 2
+duration: "15 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Easy for You, Hard for a Computer
+
+Look at a handwritten "3" and you recognize it instantly — you've done it since childhood, without thinking about *how*. A computer has no such shortcut. It sees a grid of pixel brightness values and has to somehow turn that grid into a single correct label. That gap — trivial for a human, genuinely hard for a machine — is exactly the problem neural networks were built to close.
+
+---
+
+## Neurons, Layers, and Activation
+
+A neural network is loosely inspired by the brain: it's made of **neurons** organized into **layers**. In this context, a "neuron" isn't a biological cell — it's just a number, one that represents how strongly a particular pattern is present.
+
+- The **input layer** holds the raw data — for a digit image, one neuron per pixel, holding that pixel's brightness.
+- One or more **hidden layers** sit in between. Each one looks for a slightly more abstract pattern than the layer before it — first edges, then curves, then shapes like loops or a vertical stroke.
+- The **output layer** produces the final answer — for digit recognition, one neuron per possible digit (0 through 9), each one's value representing how confident the network is in that answer.
+
+A neuron **activates** — its value rises — when the pattern it's tuned to detect shows up in its input. Picture this as a 2D grid where the darker a cell, the lower the activation, and the lighter the cell, the higher the activation — a visual read on exactly which patterns the network noticed at that layer.
+
+<svg viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of a neural network with an input layer of pixel neurons, two hidden layers of neurons detecting increasingly abstract patterns, and an output layer of ten neurons representing digits zero through nine, with lines connecting every neuron in one layer to every neuron in the next.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <text x="80" y="24" text-anchor="middle" fill="currentColor" font-size="11" font-weight="600">Input</text>
+    <text x="80" y="38" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.65">raw pixels</text>
+    <text x="270" y="24" text-anchor="middle" fill="currentColor" font-size="11" font-weight="600">Hidden layer 1</text>
+    <text x="270" y="38" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.65">edges</text>
+    <text x="440" y="24" text-anchor="middle" fill="currentColor" font-size="11" font-weight="600">Hidden layer 2</text>
+    <text x="440" y="38" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.65">shapes, loops, strokes</text>
+    <text x="590" y="24" text-anchor="middle" fill="currentColor" font-size="11" font-weight="600">Output</text>
+    <text x="590" y="38" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.65">0-9</text>
+
+    <g id="input-neurons">
+      <circle cx="80" cy="70" r="9" fill="#1d4ed8" opacity="0.75"/>
+      <circle cx="80" cy="110" r="9" fill="#1d4ed8" opacity="0.35"/>
+      <circle cx="80" cy="150" r="9" fill="#1d4ed8" opacity="0.9"/>
+      <circle cx="80" cy="190" r="9" fill="#1d4ed8" opacity="0.2"/>
+    </g>
+    <g id="hidden1">
+      <circle cx="270" cy="80" r="9" fill="#6d28d9" opacity="0.6"/>
+      <circle cx="270" cy="130" r="9" fill="#6d28d9" opacity="0.85"/>
+      <circle cx="270" cy="180" r="9" fill="#6d28d9" opacity="0.3"/>
+    </g>
+    <g id="hidden2">
+      <circle cx="440" cy="90" r="9" fill="#be185d" opacity="0.9"/>
+      <circle cx="440" cy="140" r="9" fill="#be185d" opacity="0.4"/>
+      <circle cx="440" cy="190" r="9" fill="#be185d" opacity="0.65"/>
+    </g>
+    <g id="output">
+      <circle cx="590" cy="70" r="8" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="590" cy="98" r="8" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="590" cy="126" r="8" fill="#ea580c" opacity="0.95"/>
+      <text x="614" y="130" fill="currentColor" font-size="9" opacity="0.75">"3"</text>
+      <circle cx="590" cy="154" r="8" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="590" cy="182" r="8" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="590" cy="210" r="8" fill="#94a3b8" opacity="0.3"/>
+    </g>
+
+    <g stroke="currentColor" stroke-width="0.5" opacity="0.15">
+      <line x1="89" y1="70" x2="261" y2="80"/><line x1="89" y1="70" x2="261" y2="130"/><line x1="89" y1="70" x2="261" y2="180"/>
+      <line x1="89" y1="110" x2="261" y2="80"/><line x1="89" y1="110" x2="261" y2="130"/><line x1="89" y1="110" x2="261" y2="180"/>
+      <line x1="89" y1="150" x2="261" y2="80"/><line x1="89" y1="150" x2="261" y2="130"/><line x1="89" y1="150" x2="261" y2="180"/>
+      <line x1="89" y1="190" x2="261" y2="80"/><line x1="89" y1="190" x2="261" y2="130"/><line x1="89" y1="190" x2="261" y2="180"/>
+      <line x1="279" y1="80" x2="431" y2="90"/><line x1="279" y1="80" x2="431" y2="140"/><line x1="279" y1="80" x2="431" y2="190"/>
+      <line x1="279" y1="130" x2="431" y2="90"/><line x1="279" y1="130" x2="431" y2="140"/><line x1="279" y1="130" x2="431" y2="190"/>
+      <line x1="279" y1="180" x2="431" y2="90"/><line x1="279" y1="180" x2="431" y2="140"/><line x1="279" y1="180" x2="431" y2="190"/>
+      <line x1="449" y1="90" x2="582" y2="126"/><line x1="449" y1="140" x2="582" y2="126"/><line x1="449" y1="190" x2="582" y2="126"/>
+    </g>
+  </g>
+</svg>
+
+Every neuron in one layer connects to every neuron in the next. The early hidden layer tends to pick up on the simplest patterns — edges, a curved segment. Deeper layers combine those into more complex shapes: a loop, a vertical stroke, a diagonal. By the time the signal reaches the output layer, the network has effectively broken "is this a 3?" down into "does it have this combination of simpler parts?" — and the output neuron for "3" lights up because enough of its component patterns lit up in the layers before it.
+
+---
+
+## Machine Learning vs. Deep Learning, Same Task
+
+You could solve "recognize this digit" with either classic machine learning or deep learning, and both can reach a correct answer from the same input. The difference is *how* they get there:
+
+- **Machine learning** relies on **feature extraction and classification** using statistical learning algorithms — a person (or a simpler algorithm) decides in advance which measurable properties of the image matter, then a statistical model classifies based on those.
+- **Deep learning** uses the **neural network** approach above — no one hand-picks the features. The layers discover which patterns matter on their own, directly from raw pixels.
+
+That's the general trade-off across ML vs. DL: deep learning needs far more data and compute, but it can find patterns too complex or too numerous for a person to specify by hand.
+
+---
+
+<Pitfall title="Assuming More Hidden Layers Always Means a Better Model">
+
+**Common mistake:** treating "deep" as simply "more layers is more accurate," and stacking on additional hidden layers expecting proportional improvement.
+
+More layers give a network more capacity to represent complex patterns, but capacity isn't the same as accuracy. A network with more layers than the problem actually needs is more prone to **overfitting** — memorizing quirks of the training data instead of learning the general pattern — and it takes more data and compute to train well. The right depth depends on how complex the actual pattern is, not on making the architecture as large as possible.
+
+</Pitfall>
+
+<Quiz question="In the digit-recognition example, what does it mean for a neuron in a hidden layer to 'activate'?">
+<div>
+
+**Its value rises because the specific pattern it's tuned to detect — an edge, a curve, a loop — is present in its input from the previous layer.**
+
+Activation isn't a yes/no switch in most networks; it's a matter of degree, visualized as how dark or light a cell is in the layer's activation grid. A neuron early in the network might activate on something as simple as a diagonal edge in one region of the image. A neuron deeper in the network activates on a combination of earlier activations — meaning "a loop *and* a vertical stroke are both present" — which is how the network builds up from raw pixels to a confident guess at the digit.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+Neural networks like this one are the engine under every large language model too — but LLMs don't operate on pixels, they operate on text. The next module covers how text gets converted into the numbers a neural network can actually process: tokens, vectors, and the attention mechanism that lets a model use context instead of guessing blind.

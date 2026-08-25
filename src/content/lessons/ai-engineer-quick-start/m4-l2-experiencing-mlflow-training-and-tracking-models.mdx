@@ -1,0 +1,139 @@
+---
+title: "Experiencing MLflow: Training, Comparing, and Deploying a Model"
+description: "Run four candidate models against the same prediction task, compare their scores in a real MLflow tracking server, and register the winner so another service can load it by name."
+module: 4
+moduleTitle: "MLOps: Tracking and Deploying Models"
+lesson: 2
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What You'll Build
+
+Four candidate models trained on the same task — predicting a movie's genre from its features — logged to a live MLflow tracking server, compared side by side on real metrics, and the winner registered under a name your model server can fetch later without knowing anything about how it was trained.
+
+---
+
+## Step 1: Start the Tracking Server
+
+```bash
+pip install -r requirements.txt
+mlflow server
+```
+
+MLflow starts a local tracking server, by default at `http://127.0.0.1:5000`. Open that URL in a browser — right now it's empty. Nothing's been logged yet.
+
+---
+
+## Step 2: Four Candidate Models, One Task
+
+Rather than committing to a single algorithm up front, train several and let the data decide. Each of these has a different strength:
+
+| Model | Best for |
+|---|---|
+| **Linear regression** | Features and target have an approximately linear relationship |
+| **Random forest** | Robust performance with less tuning, using multiple decision trees |
+| **Gradient boosting** | Highest accuracy, builds models sequentially and corrects errors from the previous one |
+| **Neural network** | Complex, non-linear relationships in the data |
+
+Each model's training script follows the same shape:
+
+```python
+import mlflow
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.ensemble import GradientBoostingRegressor
+
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+mlflow.set_experiment("Movie Genre Prediction")
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+with mlflow.start_run():
+    model = GradientBoostingRegressor()
+    model.fit(X_train, y_train)
+
+    predictions = model.predict(X_test)
+    mse = mean_squared_error(y_test, predictions)
+    r2 = r2_score(y_test, predictions)
+
+    mlflow.log_metric("mse", mse)
+    mlflow.log_metric("r2", r2)
+    mlflow.sklearn.log_model(model, "model", registered_model_name="movie_genre_gb")
+```
+
+<CodeLab title="What mlflow.start_run() Actually Does">
+
+Everything inside the `with mlflow.start_run():` block gets bundled into a single logged **run** — a permanent record in the tracking server of this exact training attempt: which model class, which metrics it scored, and the trained model artifact itself.
+
+- `mlflow.log_metric(...)` records a number (like `r2` or `mse`) tied to this specific run, so it shows up in the comparison dashboard.
+- `mlflow.sklearn.log_model(..., registered_model_name=...)` does two things at once: it saves the trained model as an artifact *and* registers it under a name — `"movie_genre_gb"` here — that other code can use to fetch this exact model later, without needing the training script at all.
+
+Run the same pattern for the other three model types, each logging to the same `"Movie Genre Prediction"` experiment, and you'll have four comparable runs.
+
+</CodeLab>
+
+Kick off all four:
+
+```bash
+python run_all_models.py
+```
+
+This generates `mlruns` and `mlartifacts` folders — MLflow's local storage for every run's metadata and saved model files, which the tracking server reads from.
+
+- **ML Runs** — individual executions of an experiment, including configuration, parameters, and results.
+- **ML Artifacts** — the actual saved files (the trained model, logged data) produced during those runs, kept for reproducibility and reuse.
+
+---
+
+## Step 3: Compare Runs in the Dashboard
+
+Head back to `http://127.0.0.1:5000`, and select the **"Movie Genre Prediction"** experiment. All four runs should now be listed. Select all four, click **Compare**, and scroll to the metrics table.
+
+You're looking for the run with the best **R² score** (closer to 1 is better — it means the model explains more of the variance in the actual data) and the lowest **mean squared error**. In a typical run on this dataset, gradient boosting comes out ahead — but don't take that as a rule; with a different dataset, or more data, a different model can win. That's the entire point of comparing runs instead of assuming one algorithm is always correct.
+
+---
+
+## Step 4: Load the Registered Model by Name
+
+Because Step 2 registered the model under `"movie_genre_gb"`, any other service — including your FastAPI model server — can load the current best version without ever running the training script:
+
+```python
+import mlflow.sklearn
+
+MODEL_NAME = "movie_genre_gb"
+model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}/latest")
+
+prediction = model.predict(new_movie_features)
+```
+
+This is the payoff of registering by name instead of just saving a `.pkl` file somewhere: retrain the model tomorrow with better data, register a new version under the same name, and every downstream service that fetches `"movie_genre_gb"` automatically gets the newer version — no code changes needed anywhere except the training script itself.
+
+---
+
+<Pitfall title="Comparing Models Trained on Different Random Splits">
+
+**Common mistake:** calling `train_test_split` separately inside each model's training script, so each of the four models ends up evaluated on a slightly different test set.
+
+If the training script randomizes the split fresh each time, a model that "wins" might just have gotten an easier test set by chance, not a genuinely better fit. Fix this by fixing a `random_state` on `train_test_split` (or splitting the data once and reusing the exact same train/test split across all four scripts) — otherwise the comparison in Step 3 isn't actually comparing the same thing.
+
+</Pitfall>
+
+<Quiz question="After comparing four runs in MLflow, gradient boosting has the best R² score. A teammate asks: 'Will gradient boosting always be the best choice for this kind of prediction?' What's the accurate answer?">
+<div>
+
+**No — it won best on this specific dataset and split, not as a general rule; a different dataset, more data, or a different feature set could favor a different model.**
+
+The comparison table in Step 3 tells you which model performed best on *this* run, with *this* data. Gradient boosting tends to do well because it corrects errors sequentially, but linear regression, random forests, and neural networks each have scenarios where they'd win instead — a strongly linear relationship favors linear regression, a highly non-linear one favors a neural network. The right takeaway from an MLflow comparison isn't "always use the winning algorithm" — it's "re-run this comparison whenever the data changes meaningfully, instead of assuming last time's winner still applies."
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You now have two working pieces: a RAG chat pipeline (Module 3) and a tracked, deployable prediction model (this module). The final module wires everything — Ollama, ChromaDB, MongoDB, MLflow, FastAPI, and a frontend — into one running application, and walks through the streaming chat interface that ties it all together.

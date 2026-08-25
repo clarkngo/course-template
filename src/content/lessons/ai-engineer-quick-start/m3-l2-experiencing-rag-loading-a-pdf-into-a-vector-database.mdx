@@ -1,0 +1,276 @@
+---
+title: "Experiencing RAG: Loading a PDF into a Vector Database"
+description: "Stand up a local LLM with Ollama, load a PDF into a Chroma vector database, and run the classic hallucination test — ask about something in the document, then ask about something that isn't."
+module: 3
+moduleTitle: "Retrieval-Augmented Generation"
+lesson: 2
+duration: "45 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What You'll Build
+
+A small RAG pipeline running entirely on your own machine: a local LLM server (**Ollama**), a handful of PDF documents processed into embeddings and stored in a vector database (**ChromaDB**), and a query script that retrieves relevant chunks before asking the model to answer. By the end, you'll ask it about something the PDF actually covers, and then deliberately ask it about something the PDF *doesn't* cover — and confirm it says "I don't know" instead of making something up.
+
+You can run all of this locally, or in a cloud dev environment like GitHub Codespaces if your machine is resource-constrained.
+
+---
+
+## Step 1: Install and Run Ollama
+
+**Ollama** is a way to run an open large language model on your own hardware — no API key, no per-token billing. On Linux or in a Codespace:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+On macOS or Windows, grab the installer from [ollama.com](https://ollama.com) instead. Once installed, start the server:
+
+```bash
+ollama serve
+```
+
+This opens a local server, by default on port `11434`. It's running, but empty — no model loaded yet.
+
+---
+
+## Step 2: Pull a Model
+
+In a **new terminal** (leave `ollama serve` running in the first one):
+
+```bash
+ollama pull gemma2:2b
+```
+
+**Gemma** is a family of lightweight, open models from Google, built from the same research as the Gemini models. The `2b` here means 2 billion parameters — small enough to run on a laptop or a free-tier Codespace, at the cost of being noticeably less capable than a full-sized frontier model. That trade-off is fine for this exercise; you're learning the *pipeline*, not chasing state-of-the-art answer quality.
+
+<Pitfall title="Not Enough Memory for Gemma">
+
+If `ollama pull gemma2:2b` or running it afterward fails due to memory constraints, fall back to an even smaller model:
+
+```bash
+ollama rm gemma2:2b
+ollama pull tinyllama
+ollama pull nomic-embed-text
+```
+
+Then update every place your code references `"gemma2:2b"` to `"tinyllama"` instead. You may separately need `nomic-embed-text` specifically for generating embeddings if `tinyllama` doesn't support that role well — some models are better tuned for embedding generation than for chat generation, and it's fine to use two different models for those two jobs.
+
+</Pitfall>
+
+Confirm the model works before wiring up any code:
+
+```bash
+ollama run gemma2:2b
+```
+
+Type a question, get an answer, then press `Ctrl+D` to exit. If that works, your local LLM server is ready.
+
+---
+
+## Step 3: Get Your Embedding Function
+
+Every piece of text — a document chunk, a user's query — has to be converted into a vector before it can be compared to anything else. Define one function that wraps whichever model handles that conversion:
+
+```python
+from langchain_community.embeddings.ollama import OllamaEmbeddings
+
+def get_embedding_function():
+    embeddings = OllamaEmbeddings(model="gemma2:2b")
+    return embeddings
+```
+
+`OllamaEmbeddings` is a LangChain wrapper around your local Ollama server's embedding endpoint. Every script in this lesson that needs to turn text into a vector — populating the database and querying it — calls this same function, so the PDF chunks and the user's query end up embedded with the exact same model and land in a comparable vector space.
+
+---
+
+## Step 4: Load and Chunk the PDF
+
+A full PDF is too big to hand a model in one piece, and most of it is irrelevant to any single question. So it gets split into smaller, overlapping chunks:
+
+```python
+from langchain_community.document_loaders import PyPDFDirectoryLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+DATA_PATH = "data"
+
+def load_documents():
+    loader = PyPDFDirectoryLoader(DATA_PATH)
+    return loader.load()
+
+def split_documents(documents):
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=80,
+        length_function=len,
+        is_separator_regex=False,
+    )
+    return text_splitter.split_documents(documents)
+```
+
+<CodeLab title="Why chunk_overlap Exists">
+
+`chunk_size=800` means each chunk is roughly 800 characters. `chunk_overlap=80` means each chunk shares its last 80 characters with the start of the next one.
+
+Without overlap, a sentence that happens to fall right at a chunk boundary gets split in half, and neither resulting chunk contains the full idea — which means a query that should retrieve it might not match either half well. The overlap is a deliberate hedge against that: a small amount of duplicated context at each seam, so meaning doesn't get silently severed at an arbitrary character count.
+
+</CodeLab>
+
+Each chunk needs a unique, stable ID so the database can tell new chunks apart from ones it's already indexed:
+
+```python
+def calculate_chunk_ids(chunks):
+    last_page_id = None
+    current_chunk_index = 0
+
+    for chunk in chunks:
+        source = chunk.metadata.get("source")
+        page = chunk.metadata.get("page")
+        current_page_id = f"{source}:{page}"
+
+        if current_page_id == last_page_id:
+            current_chunk_index += 1
+        else:
+            current_chunk_index = 0
+
+        chunk.metadata["id"] = f"{current_page_id}:{current_chunk_index}"
+        last_page_id = current_page_id
+
+    return chunks
+```
+
+The ID format — `source:page:chunk_index` — resets the chunk counter every time the page changes, so re-running this script on the same PDFs produces the same IDs instead of duplicating everything on every run.
+
+---
+
+## Step 5: Add the Chunks to ChromaDB
+
+```python
+from langchain_community.vectorstores import Chroma
+
+CHROMA_PATH = "chroma"
+
+def add_to_chroma(chunks):
+    db = Chroma(persist_directory=CHROMA_PATH, embedding_function=get_embedding_function())
+    chunks_with_ids = calculate_chunk_ids(chunks)
+
+    existing_items = db.get(include=[])
+    existing_ids = set(existing_items["ids"])
+
+    new_chunks = [c for c in chunks_with_ids if c.metadata["id"] not in existing_ids]
+
+    if new_chunks:
+        new_chunk_ids = [c.metadata["id"] for c in new_chunks]
+        db.add_documents(new_chunks, ids=new_chunk_ids)
+        db.persist()
+```
+
+This is the whole reason chunk IDs matter: before adding anything, it checks which IDs are *already* in the database and only embeds and inserts the ones that are actually new. Run this script five times on the same PDFs and you get the same database each time — not five times the data.
+
+Wire it all together and run it:
+
+```bash
+python populate_database.py
+```
+
+Loading PDFs into ChromaDB can take a while, especially in a resource-constrained Codespace — embedding generation runs locally, chunk by chunk.
+
+---
+
+## Step 6: Query with Retrieval
+
+Now the other half of the pipeline — given a question, find the most relevant chunks, hand them to the model as context, and generate a grounded answer:
+
+```python
+from langchain_community.vectorstores import Chroma
+from langchain.prompts import ChatPromptTemplate
+from langchain_community.llms.ollama import Ollama
+
+PROMPT_TEMPLATE = """
+Answer the question based only on the following context:
+
+{context}
+
+---
+
+Answer the question based on the above context: {question}
+"""
+
+def query_rag(query_text):
+    db = Chroma(persist_directory=CHROMA_PATH, embedding_function=get_embedding_function())
+
+    results = db.similarity_search_with_score(query_text, k=5)
+    context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
+
+    prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE).format(
+        context=context_text, question=query_text
+    )
+
+    model = Ollama(model="gemma2:2b")
+    response_text = model.invoke(prompt)
+
+    sources = [doc.metadata.get("id") for doc, _score in results]
+    print(f"Response: {response_text}\nSources: {sources}")
+    return response_text
+```
+
+`similarity_search_with_score(query_text, k=5)` is doing exactly the embedding + comparison work from Module 2: it converts `query_text` into a vector using the same embedding function the PDFs were indexed with, then finds the 5 stored chunks whose vectors are closest to it. Those 5 chunks become `context_text`, get slotted into `PROMPT_TEMPLATE`, and only *then* does the model generate a response — reading comprehension over real retrieved text, not recall.
+
+Notice `PROMPT_TEMPLATE` explicitly says "based only on the following context" — that's the instruction from the last lesson's pitfall, the one that gives the model permission to say it doesn't know instead of guessing.
+
+Run it from the terminal:
+
+```bash
+python query_data.py "What is <a movie title in your PDF> movie?"
+```
+
+---
+
+## Step 7: Test for Hallucination — Both Directions
+
+This is the actual point of the exercise. Run two tests:
+
+**Test 1 — a real question.** Ask about something genuinely in your PDF data:
+
+```bash
+python query_data.py "What is Panic movie?"
+```
+
+It should come back with a grounded, specific answer, and the `Sources:` line should list the chunk IDs it actually pulled from.
+
+**Test 2 — a question that isn't covered.** Ask about something that is *not* in your PDF data:
+
+```bash
+python query_data.py "What is Harry Potter movie?"
+```
+
+A correctly working RAG system says it doesn't know — because the prompt template told it to answer *only* from the provided context, and nothing about Harry Potter was retrieved. If it confidently answers anyway, something's wrong: either the prompt template's grounding instruction, or the retrieval step itself.
+
+---
+
+<Pitfall title="Loading PDFs Every Time You Query">
+
+**Common mistake:** running `populate_database.py` as part of every single query, instead of once up front.
+
+Populating the database — loading PDFs, splitting them, generating embeddings for every chunk — is expensive and only needs to happen when your source documents change. `populate_database.py` and `query_data.py` are deliberately separate scripts for this reason: populate once (or whenever you add new documents), then query as many times as you want against the persisted `chroma` directory without re-embedding anything.
+
+</Pitfall>
+
+<Quiz question="You ask your RAG system about a movie that genuinely isn't in your PDF data, and it responds with a full, confident, detailed plot summary anyway. Given the code in this lesson, what's the most likely cause?">
+<div>
+
+**The prompt template's grounding instruction isn't strong enough, or the retriever returned loosely-related chunks that the model treated as sufficient context.**
+
+The `PROMPT_TEMPLATE` in this lesson says "based only on the following context," which is supposed to stop the model from filling gaps with its own training knowledge. If it still answers confidently, either that instruction needs to be more explicit (e.g. adding "if the context doesn't contain the answer, say you don't know"), or `similarity_search_with_score` returned chunks that were only weakly related but still got treated as if they answered the question — the exact failure mode the previous lesson's pitfall warned about. Retrieval quality and prompt-level grounding instructions both matter; neither one alone guarantees the model says "I don't know" when it should.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You've now built the retrieval half of a real application by hand. But a movie recommender needs more than chat — it needs to train and compare *prediction* models too (which movie genre fits, which recommendation is best). The next module covers **MLOps**: how to train, track, compare, and deploy those models with MLflow, instead of just running a script and hoping the output is good.

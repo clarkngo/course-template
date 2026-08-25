@@ -1,0 +1,102 @@
+---
+title: "The Hierarchy of AI, ML, and Deep Learning"
+description: "Untangle four terms people use interchangeably — artificial intelligence, machine learning, deep learning, and generative AI — and see how each one nests inside the last."
+module: 1
+moduleTitle: "Foundations: AI, ML, and Deep Learning"
+lesson: 1
+duration: "15 min"
+youtubeId: "7A5X-vKg66M"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Four Words, One Diagram
+
+"AI," "machine learning," "deep learning," and "generative AI" get used as if they're synonyms — in headlines, in job titles, in casual conversation. They're not. Each one is a specific, nested subset of the one before it, and knowing where the lines actually sit is what lets you read a tool's marketing claims (or a paper's abstract) without getting fooled by the buzzword.
+
+Here's the whole hierarchy in one picture:
+
+<svg viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Four nested circles labeled Artificial Intelligence, Machine Learning, Deep Learning, and Generative AI, each one contained inside the last, showing that generative AI is a subset of deep learning, which is a subset of machine learning, which is a subset of AI.">
+  <g font-family="system-ui, -apple-system, sans-serif">
+    <circle cx="320" cy="190" r="160" fill="#1d4ed8" opacity="0.10" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="320" y="48" text-anchor="middle" fill="currentColor" font-size="13" font-weight="700">Artificial Intelligence</text>
+    <text x="320" y="64" text-anchor="middle" fill="currentColor" font-size="10" opacity="0.7">systems that mimic human decision-making</text>
+
+    <circle cx="320" cy="205" r="120" fill="#6d28d9" opacity="0.14" stroke="#6d28d9" stroke-width="1.5"/>
+    <text x="320" y="98" text-anchor="middle" fill="currentColor" font-size="12.5" font-weight="700">Machine Learning</text>
+    <text x="320" y="113" text-anchor="middle" fill="currentColor" font-size="9.5" opacity="0.7">learns patterns from data</text>
+
+    <circle cx="320" cy="222" r="82" fill="#be185d" opacity="0.16" stroke="#be185d" stroke-width="1.5"/>
+    <text x="320" y="153" text-anchor="middle" fill="currentColor" font-size="12" font-weight="700">Deep Learning</text>
+    <text x="320" y="167" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.7">learns via neural networks</text>
+
+    <circle cx="320" cy="242" r="46" fill="#ea580c" opacity="0.85"/>
+    <text x="320" y="238" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="700">Generative</text>
+    <text x="320" y="252" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="700">AI</text>
+  </g>
+</svg>
+
+**Artificial intelligence (AI)** is the broadest term: any computer system designed to do things that normally require human intelligence — decide, classify, recommend, plan. A hand-written `if/else` decision tree that routes a support ticket counts as AI. So does a chess engine written in the 1990s. Neither one "learns" from data.
+
+**Machine learning (ML)** is the subset of AI that *does* learn from data instead of following rules a programmer wrote by hand. You give it examples, it finds the pattern, and it applies that pattern to new inputs it hasn't seen.
+
+**Deep learning (DL)** is the subset of ML that learns using **neural networks** — layered structures loosely modeled on neurons in the brain. It's "deep" because of the stack of hidden layers between input and output, which is what lets it find much more complex patterns than earlier ML techniques could.
+
+**Generative AI (GenAI)** is the subset of deep learning that doesn't just classify or predict a number — it produces new content: text, images, audio, code. ChatGPT, Claude, and Gemini all live in this innermost circle.
+
+---
+
+## The Three Ways Machine Learning Learns
+
+Before a model can learn anything, it needs a learning *style* — a way of being trained. There are three:
+
+| Type | How it's trained | Example |
+|---|---|---|
+| **Supervised** | Given labeled data (input *and* the correct output) and trained to match it | Predicting a movie's genre from labeled examples of genre-tagged movies |
+| **Unsupervised** | Given unlabeled, raw data with no "correct answer" attached | Grouping customers into segments nobody has manually tagged |
+| **Reinforcement** | Learns from feedback signals — rewarded or penalized for its actions, the way psychology describes conditioning | A game-playing agent that gets a score after every move and adjusts to maximize it |
+
+Most of the AI you interact with day to day — spam filters, recommendation engines, the models later in this course — start life as supervised learning problems, because labeled data gives the clearest training signal. Unsupervised and reinforcement learning matter more once you're clustering unlabeled data or training an agent that acts over time.
+
+---
+
+## The Machine Learning Lifecycle
+
+Whichever learning style you use, the pipeline that gets you from raw data to a working prediction looks the same:
+
+**Data → Features → Train → Deploy → Predict**
+
+1. **Data prep** — data is king. Nothing downstream matters if the input data is messy, biased, or incomplete.
+2. **Feature extraction** — pull out the specific attributes the model should learn from (a movie's cast, genre, and runtime; a customer's purchase history).
+3. **Train** — feed the features through the algorithm so it learns the pattern.
+4. **Deploy** — put the trained model somewhere it can actually receive new inputs.
+5. **Predict** — the model produces an output on data it's never seen before.
+
+Machine learning and deep learning can produce the *same kind* of output from the *same kind* of input — but they get there differently. Classic ML relies on manual feature extraction and statistical learning algorithms. Deep learning skips most of that manual feature engineering and lets a neural network discover the relevant patterns on its own, which is part of why it needs so much more data and compute to work well.
+
+---
+
+<Pitfall title="Using 'AI' and 'Generative AI' Interchangeably">
+
+**Common mistake:** describing any AI feature — a recommendation engine, a fraud-detection classifier, a routing rule — as "generative AI" because it's powered by AI in some form.
+
+Generative AI is the *innermost* circle. A model that outputs a single number (a fraud score) or a single label (spam / not spam) is doing classification or regression, not generation — even if it's a sophisticated deep learning model. Confusing the two matters in practice: generative models hallucinate in ways a classifier simply can't, so the reliability concerns from later in this course don't transfer to every "AI" feature you'll build.
+
+</Pitfall>
+
+<Quiz question="A team builds a deep learning model that takes in a customer's data and outputs a single churn-risk score from 0-100. Is this generative AI?">
+<div>
+
+**No — it's deep learning, but not generative AI.**
+
+Generative AI specifically means the model *produces new content* — text, images, audio, code — rather than a classification or a number. A churn-risk score is a prediction, the same category of output a much simpler statistical model could produce. The model can absolutely use neural networks internally (making it deep learning) without ever crossing into the generative subset, because it never generates novel content as its output.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You now have the vocabulary straight: AI contains ML, ML contains DL, DL contains GenAI. The next lesson goes one level deeper into deep learning itself — how a neural network, layer by layer, actually turns pixels into a recognized digit, which is the same basic mechanism that turns text into the predictions a language model makes.

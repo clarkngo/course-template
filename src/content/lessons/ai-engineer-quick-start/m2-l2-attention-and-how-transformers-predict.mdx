@@ -1,0 +1,78 @@
+---
+title: "Attention: How Transformers Predict the Next Word"
+description: "Walk through the mechanism from 'Attention Is All You Need' that lets a transformer update a token's meaning using its context, then predict the next word one step at a time."
+module: 2
+moduleTitle: "How LLMs Actually Work"
+lesson: 2
+duration: "18 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Paper Behind the "T" in GPT
+
+The "T" in GPT stands for **Transformer** — the architecture introduced in a 2017 Google paper with a title that undersells how big a deal it was: *["Attention Is All You Need."](https://arxiv.org/abs/1706.03762)* Before that paper, models that processed language struggled to connect words that were far apart in a sentence. The transformer's answer was a mechanism called **attention**, and it's the single biggest reason today's LLMs work as well as they do.
+
+---
+
+## Why "Was" Alone Isn't Enough
+
+Picture a model trying to predict the next word after the sentence ends in *"...was"*. Without any way to look back at the rest of the sentence, it can only guess based on what usually follows the word "was" in general — a bad prediction, because "was" carries almost no information on its own.
+
+**Attention** fixes this by letting every token's vector get updated using the *other* tokens around it, before the model tries to predict anything. Concretely: the attention block lets vectors "talk to each other" and adjust their values based on context. Go back to the "mole" example from the last lesson — before attention, "mole" the animal and "mole" the unit of measurement start out as the *same* vector. It's the attention block that pulls in surrounding words like "carbon dioxide" or "shrew" and moves the vector toward the correct regional neighborhood for that specific sentence.
+
+Without attention, a model predicting the next word after a long paragraph that ends in *"...therefore"* has no way to connect that word back to the argument several sentences earlier — it's stuck guessing from "therefore" in isolation, the same structural problem as guessing from "was" alone.
+
+---
+
+## What Happens After Attention
+
+Attention isn't the whole story — after each attention block, the updated vectors pass through a **multi-layer perceptron (MLP)**, which processes each vector's new information further. Unlike attention, the MLP step doesn't let vectors talk to each other — it works on each one in parallel, refining it further before possibly passing through another attention block. A full transformer stacks many of these attention + MLP blocks on top of each other, each pass making the model's understanding of context a little sharper.
+
+By the time a vector reaches the final layer, the model has enough information to produce a **probability distribution** over every possible next token — essentially "given everything I now understand about this context, here's how likely each possible next word is." The model doesn't pick the single most likely word every time; it samples from that distribution, which is part of why the same prompt can produce slightly different phrasing on different runs.
+
+---
+
+## The Prediction Loop
+
+Once the model has a probability distribution, generating a full response is just this loop repeated one token at a time:
+
+1. Predict the most likely next token given everything so far.
+2. Append that token to the sequence.
+3. Feed the *whole* updated sequence — original prompt plus every token generated so far — back through the transformer.
+4. Repeat.
+
+That's genuinely the entire generation mechanism. There's no separate planning step, no lookahead to "decide" the whole sentence in advance — each word is chosen based on everything that came before it, one token at a time, as fast as the loop can run.
+
+---
+
+## Same Word, Different Job: "Model" the Noun
+
+Attention also solves the classic ambiguous-word problem. Take the word "model" in *"a machine learning model"* versus *"a fashion model."* Both are the same starting token, but the surrounding words — "machine learning" in one case, "fashion" in the other — pull each instance's vector toward a completely different neighborhood, the same mechanism you saw with "mole" in the last lesson. This is also how the model tells the difference between "Queen" the monarch and "queen" a chess piece purely from surrounding context, without either word ever needing a special tag.
+
+---
+
+<Pitfall title="Assuming a Longer Prompt Always Gives the Model More to Work With">
+
+**Common mistake:** padding a prompt with excess, loosely-related context on the theory that "more context can only help."
+
+Attention has to weigh *every* token against every other token to decide what's relevant — irrelevant or noisy tokens don't just sit there harmlessly, they compete for the model's attention against the tokens that actually matter, which can dilute the signal on the parts of your prompt that count. A tightly scoped prompt where every included token is genuinely load-bearing tends to outperform a longer one padded with tangential detail.
+
+</Pitfall>
+
+<Quiz question="Before attention runs, do the words 'shrew mole' and 'mole of carbon dioxide' start with the same or different embedding vectors for the word 'mole'?">
+<div>
+
+**The same vector — attention is exactly the mechanism that makes them different afterward.**
+
+Without any surrounding context applied yet, "mole" starts as one generic, context-free vector no matter which sentence it appears in. It's the attention block, reading the neighboring words ("shrew" in one case, "carbon dioxide" in the other), that updates each instance's vector to reflect its actual meaning in that specific sentence — pulling the animal sense and the unit-of-measurement sense apart into different regions of the vector space. Before attention runs, the model has no way to tell them apart at all.
+
+</div>
+</Quiz>
+
+---
+
+## Up Next
+
+You now understand the two mechanisms — tokenization/embeddings and attention — that let a transformer predict text one token at a time from its own training data. But training data is frozen at some point in the past. The next module covers **retrieval-augmented generation**, the technique that lets a model answer using information it was never trained on at all.
