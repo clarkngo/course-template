@@ -1,10 +1,185 @@
 ---
 title: "Threat Modeling a Stateful Multi-Agent System"
-description: "Placeholder — content coming soon."
+description: "Map the trust boundaries of the manager multi-agent system now that state is shared across agents — including the new cross-agent state mutation boundary a compromised sub-agent could exploit."
 module: 8
 moduleTitle: "Experiencing a Stateful Multi-Agent System"
 lesson: 2
-duration: "TBD"
+duration: "45 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What Changed from Module 7?
+
+Module 7's threat model covered sub-agent delegation and agent-as-a-tool as two distinct patterns for handing work to another agent. Those boundaries are still here, unchanged. What's new is underneath them: `manager`, `stock_analyst`, `funny_nerd`, and `news_analyst` now all read and write the same session state, managed by a `SessionService`.
+
+That single change adds a boundary type Module 7 never had to model: a **cross-agent state mutation boundary**. Before this module, if a sub-agent misbehaved, the blast radius was its own output on its own turn. Now, a sub-agent's tool can leave something in shared state that a *different* agent reads and acts on later — possibly several turns later, possibly without the manager's delegation logic ever re-examining it. This lesson maps that boundary alongside the ones you already know.
+
+---
+
+## The System: Data Flow Overview
+
+The stateful `manager` system has eleven key data flows. Flows 3, 6–9, and 11 don't exist in Module 7's stateless version:
+
+1. **User → `adk web` (HTTP):** The user's prompt travels from the browser to port 8000.
+2. **`.env` file → `manager` (file read):** At startup, `manager/agent.py` reads `GOOGLE_API_KEY`.
+3. **Session Store → `manager` (NEW):** The `Runner` reads the current session state and passes it to `manager` for context-aware processing, before `manager` does anything else.
+4. **`manager` → Gemini API (HTTPS):** The prompt (plus any relevant state) is sent to Gemini, which returns a delegation decision.
+5. **Gemini API → `manager` (HTTPS):** The delegation decision comes back — which sub-agent or tool to invoke.
+6. **`manager` ↔ `stock_analyst` (NEW — sub-agent delegation):** `stock_analyst` runs, calls Yahoo Finance via `yfinance` over HTTPS, and returns a financial analysis result.
+7. **`manager` ↔ `funny_nerd` (NEW — sub-agent delegation):** `funny_nerd` runs and returns a joke result.
+8. **`manager` ↔ `news_analyst` (NEW — agent-as-a-tool):** `manager` calls `AgentTool(news_analyst)` synchronously; `news_analyst` uses Google Search and returns a result directly.
+9. **`manager` ↔ `get_current_time` (tool call):** A plain function call, no state involved.
+10. **`manager` → Session Store (NEW):** The `Runner` persists any agent-generated state changes back to the `SessionService` after each interaction.
+11. **Session Store ↔ sub-agents (NEW, cross-agent):** `stock_analyst` and `funny_nerd` don't just report results back to `manager` — their tools write directly into the same session state `manager` reads from, and in principle could read state that other agents wrote.
+
+Flow 11 is the one worth sitting with. It's not a new external dependency or a new API call — it's a new *shape* of trust. Every other flow in this list has a clear sender and receiver. Flow 11 has an entire set of agents reading and writing the same store, with no built-in way to know which agent last touched a given key.
+
+---
+
+## Trust Boundaries
+
+Seven trust boundaries matter here. Boundaries 4 and 5 are new territory for this course — Module 7 had sub-agent and agent-as-a-tool boundaries, but never a shared *state* boundary sitting underneath them.
+
+| Boundary | Components | What crosses it | Why it matters |
+|---|---|---|---|
+| **1** | Browser ↔ `adk web` | User prompt (text) | Untrusted input; could contain prompt injection targeting delegation decisions |
+| **2** | `manager` ↔ Gemini API | Prompt + API key | External network; credential must not leak in transit or in logs |
+| **3** | `.env` file ↔ `manager` | `GOOGLE_API_KEY` | File permissions determine who can read the credential |
+| **4 (NEW)** | `manager` ↔ Session Store | Session state (user context, `last_stock_ticker`, `last_joke_topic`) | Every agent in the system reads and writes here — an in-memory store by default, unencrypted, holding whatever any agent's tools have chosen to persist |
+| **5 (NEW)** | Session Store ↔ sub-agents (cross-agent) | Same session state, written by one agent, read by another | No agent verifies who wrote a given state value before trusting it. A compromised or manipulated sub-agent can poison shared state and influence a sibling agent's behavior without ever going through `manager`'s delegation logic again |
+| **6** | `manager` ↔ `stock_analyst` / `funny_nerd` | Delegated query in, result out (sub-agent delegation) | Sub-agent output flows back into `manager`'s context unsanitized |
+| **7** | `manager` ↔ `news_analyst` (`AgentTool`) | Synchronous call + result | The AgentTool result is injected directly into `manager`'s context — a second-order injection surface if `news_analyst`'s search results are attacker-influenced |
+
+<CodeLab title="Why Boundary 5 Is Different From Boundaries 6 and 7">
+
+Boundaries 6 and 7 are about **one agent's output reaching another agent's context** — the same risk Module 7 already covered. Boundary 5 is about **one agent's write reaching another agent's *decision-making state***, potentially agents apart in time.
+
+A malicious result from `news_analyst` (boundary 7) affects `manager`'s next response, in the same turn. A poisoned write to `tool_context.state["last_stock_ticker"]` (boundary 5) could sit dormant in the session until some later turn — possibly a turn where `funny_nerd` or `manager` reads it for an entirely different reason — before it has any visible effect. That delay is exactly what makes state poisoning harder to trace back to its source than a same-turn injection.
+
+</CodeLab>
+
+---
+
+## Data Flow Diagrams
+
+**Level 0 — Context Diagram**
+
+The external entities grow by one compared to Module 7: **Web Browser User**, **Google Cloud / Gemini API**, and now **Yahoo Finance** (external market data, reached only through `stock_analyst`). The `manager` system is still a single box at this level, with a labeled arrow to each external entity and red dashed trust boundaries at every edge.
+
+**Level 1 — Decomposed View**
+
+Explode the system box into: `adk web` (Dev UI), `manager` (root process), `stock_analyst`, `funny_nerd`, `news_analyst` — each in its **own** internal boundary this time, not lumped together — plus `get_current_time`, the `.env` file, and the **Session State Store**, which sits in a boundary of its own, touched by every process box in the diagram.
+
+That last detail is what makes the Level 1 diagram genuinely different from Module 7's: instead of arrows only connecting `manager` to each sub-agent, you now draw arrows from **every** process to the Session State Store and back. Where those arrows cross the Session State boundary is where you mark your threat intersections for cross-agent state mutation — there should be more red X marks around that one data store than around any other single element in the diagram.
+
+---
+
+## STRIDE Analysis
+
+| DFD Element | S | T | R | I | D | E | Threat Description |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|---|
+| **User Prompt** (Browser → `adk web`) | ✓ | | | | | ✓ | S: Attacker spoofs an authorized user identity. E: Prompt injection targets `manager`'s delegation logic, forcing a specific sub-agent to run with attacker-chosen arguments |
+| **`.env` File** (Data Store) | | ✓ | | ✓ | | | T: API key tampered if file permissions are too permissive. I: `GOOGLE_API_KEY` disclosed via accidental git commit |
+| **Session State Store** (Data Store, NEW) | | ✓ | | ✓ | | ✓ | T: Any agent's tool can overwrite a key another agent depends on, with no ownership check. I: `last_stock_ticker`, `last_joke_topic`, or user context exposed to any agent in the system, including ones with no legitimate need to see it. E: A sub-agent write escalates into influence over `manager`'s subsequent decisions — **cross-agent state poisoning** |
+| **`manager` → Gemini Delegation Request** (Flow) | | | ✓ | ✓ | ✓ | | R: Delegation decisions aren't logged with a reason, making it hard to audit why a sub-agent ran. I: Prompt and session state context sent to an external service. D: Adversarial prompt causes repeated re-delegation, exhausting API quota |
+| **`stock_analyst`** (Process, NEW) | | ✓ | | | | ✓ | T: Manipulated input causes `stock_analyst` to write an attacker-influenced value to shared state. E: A prompt injection reaching `stock_analyst` uses its state-write access to affect agents it was never meant to influence |
+| **`funny_nerd`** (Process, NEW) | | ✓ | | | | | T: Same state-write pattern as `stock_analyst` — `last_joke_topic` is a lower-stakes value, but the mechanism is identical, which is exactly the point: state poisoning risk doesn't scale with how "serious" an agent sounds |
+| **`news_analyst` AgentTool Call** (Flow, NEW) | | ✓ | | ✓ | | | T: Search results returned by `news_analyst` are injected into `manager`'s context unsanitized — a second-order prompt injection vector if a search result itself contains adversarial instructions. I: Query terms sent to Google Search reveal user intent to a third party |
+| **`stock_analyst` → Yahoo Finance** (Flow, NEW) | | ✓ | | | | | T: `yfinance` data is unauthenticated market data from an external source; `stock_analyst` trusts and relays it without validating that the returned ticker matches the requested one |
+| **Cross-Agent State Read/Write** (Flow, NEW) | | ✓ | | ✓ | | ✓ | T: Race condition if two sub-agents write the same key in close succession — last write wins, silently. I: State intended for one agent's bookkeeping is readable by every agent. E: Poisoned state changes a sibling agent's behavior without a new delegation decision ever being made |
+| **`adk web` Dev UI** (Process) | ✓ | | | ✓ | ✓ | ✓ | S: If exposed beyond localhost, any network user can send requests and pick any session. I: Event traces expose full state contents, including cross-agent writes. D: No rate limiting. E: Debug interface allows inspecting and potentially replaying another session's state |
+| **`manager`** (Process) | | ✓ | ✓ | | | | T: A malicious delegation decision routes a request to the wrong sub-agent with attacker-shaped arguments. R: No logging of which agent's tool last wrote a given state key, making poisoning attacks hard to trace after the fact |
+
+---
+
+## Mitigations
+
+### Cross-Agent State Poisoning (Tampering / Elevation of Privilege)
+
+**Threat:** A sub-agent's tool — reachable via prompt injection or a manipulated upstream input — writes an adversarial value to shared session state. A different agent reads that value on a later turn and acts on it, with no indication the value came from an untrusted path.
+
+**Mitigation:** Namespace state keys by the agent that owns them (e.g., `stock_analyst.last_ticker` instead of `last_stock_ticker`), and have each agent's instruction explicitly state which keys it trusts to read versus which it merely stores. Log every state write with the writing agent's name and the tool that made it, so poisoning is traceable after the fact even if it isn't prevented outright.
+
+**Type:** Prevention + Detection
+
+---
+
+### Prompt Injection Targeting Delegation Logic (Spoofing / Elevation of Privilege)
+
+**Threat:** A crafted prompt manipulates `manager`'s delegation decision, forcing a request to `stock_analyst` or `funny_nerd` with attacker-controlled arguments the user never actually asked for.
+
+**Mitigation:** Keep sub-agent instructions narrow and skeptical — each sub-agent should validate that the task it received plausibly matches its own domain before acting, not simply trust that `manager` routed correctly. Log delegation decisions with the triggering prompt for after-the-fact audit.
+
+**Type:** Prevention + Detection
+
+---
+
+### Unsanitized Sub-Agent Output Injection (Tampering)
+
+**Threat:** A result from `stock_analyst`, `funny_nerd`, or `news_analyst` — including live data pulled from Yahoo Finance or Google Search — is injected into `manager`'s context without sanitization, enabling second-order prompt injection if the underlying data source is attacker-influenced.
+
+**Mitigation:** Treat every sub-agent and AgentTool result as untrusted input to `manager`, not as a trusted internal message. Apply the same output-encoding discipline you'd apply to raw user input before it influences `manager`'s next action.
+
+**Type:** Prevention
+
+---
+
+### API Key Disclosure (Information Disclosure)
+
+**Threat:** `GOOGLE_API_KEY` in `manager/.env` is accidentally committed to a public repository.
+
+**Mitigation:** Confirm `.env` is in `.gitignore`. Enable GitHub secret scanning. Rotate the key immediately if exposure is detected.
+
+**Type:** Prevention + Detection
+
+---
+
+### Session State Information Disclosure (Information Disclosure)
+
+**Threat:** Because every agent shares the same session state, a value one agent intended as private bookkeeping (a ticker symbol, a joke topic, user context) is visible to every other agent — and to anyone who can view the session through the `adk web` Events tab.
+
+**Mitigation:** Only write to shared state what genuinely needs to be shared. Keep agent-internal scratch data out of `tool_context.state` where possible, or namespace it clearly as internal.
+
+**Type:** Prevention
+
+---
+
+### Delegation Loop Denial of Service (Denial of Service)
+
+**Threat:** An adversarial prompt causes `manager` to repeatedly re-delegate between sub-agents, or causes a sub-agent to call an external API (Yahoo Finance, Google Search) in a loop, exhausting quota or rate limits.
+
+**Mitigation:** Set a maximum delegation depth or turn count per user request. Set budget alerts in the Google AI Studio console and monitor `yfinance`/Search call volume for anomalies.
+
+**Type:** Prevention + Detection
+
+<Pitfall title="A Sub-Agent Doesn't Need to Be 'Important' to Poison State">
+
+It's tempting to focus security review on `stock_analyst` because it touches financial data and an external API. But `funny_nerd`'s `last_joke_topic` write uses the exact same mechanism as `stock_analyst`'s `last_stock_ticker` write. If any agent's instruction can be manipulated into writing attacker-chosen content to shared state, the "seriousness" of that agent's normal job tells you nothing about how much damage the poisoned value can do once another agent reads it.
+
+</Pitfall>
+
+---
+
+<Quiz question="A teammate says: 'Cross-agent state poisoning is just prompt injection with extra steps — if we've already mitigated LLM01 prompt injection at the manager, we've covered this too.' Is that right?">
+
+<div>
+
+Not quite. Mitigating prompt injection at `manager` reduces the chance that an attacker can manipulate *what* `manager` asks a sub-agent to do — but it doesn't touch the state-sharing mechanism itself, which operates independently of any single delegation decision.
+
+Even with `manager` fully hardened against prompt injection, a sub-agent could still write a poisoned value to shared state as a side effect of processing a *legitimate* request — for example, if `stock_analyst` trusts unvalidated data from Yahoo Finance and stores it verbatim. The poisoning source in that case isn't the user's prompt at all; it's an external data feed the sub-agent trusted too much on its way into shared state.
+
+State poisoning needs its own mitigations — namespacing, provenance logging, and treating cross-agent reads as untrusted — because the vulnerable path is the state store itself, not just the prompt that reaches `manager`.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You've mapped the cross-agent state mutation boundary as a genuinely new trust boundary type — one where the risk isn't a single bad response, but a delayed, hard-to-trace influence one agent can have on another through shared state.
+
+In **Lesson 3**, we encode this in `pytm` — adding a shared session state boundary and cross-agent dataflows to the threat model — and build a `threat_modeling_agent` that reasons specifically about cross-agent state poisoning alongside the standard OWASP categories.

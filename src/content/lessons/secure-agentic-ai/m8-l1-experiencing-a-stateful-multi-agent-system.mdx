@@ -1,10 +1,360 @@
 ---
 title: "Experiencing a Stateful Multi-Agent System"
-description: "Placeholder — content coming soon."
+description: "Combine Module 7's manager multi-agent system with session state from Modules 5 and 6 — sub-agents that read and write shared state, creating a new cross-agent trust boundary."
 module: 8
 moduleTitle: "Experiencing a Stateful Multi-Agent System"
 lesson: 1
-duration: "TBD"
+duration: "50 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What Changed from Module 7?
+
+Module 7 built a `manager` multi-agent system: a root agent that delegates to `stock_analyst` and `funny_nerd` as sub-agents, and calls `news_analyst` synchronously as an `AgentTool`. Every one of those agents was stateless — each turn started fresh, with no memory of what happened before.
+
+Modules 5 and 6 solved the memory problem for a *single* agent: `tool_context.state` gives a tool a place to read and write data that survives across turns in the same session, and `DatabaseSessionService` (Module 6) makes that state survive an application restart.
+
+This module puts both pieces together. The `manager` system from Module 7 gets state — and because state now lives at the **session** level rather than inside any one agent, `manager`, `stock_analyst`, `funny_nerd`, and `news_analyst` all share the same `tool_context.state` dictionary for the duration of a conversation. A tool call inside `stock_analyst` can write something that `funny_nerd` reads three turns later. That's new, and it's not automatically a good thing — Lesson 2 threat models exactly what that sharing makes possible.
+
+---
+
+## System Architecture
+
+The shape of the system is unchanged from Module 7: a browser talks to `adk web` on port 8000, which runs `manager` inside a Python virtual environment. `manager` reads `GOOGLE_API_KEY` from `manager/.env` at startup, then routes each request one of four ways:
+
+- **Stock questions** → delegated to `stock_analyst` (sub-agent delegation), which calls Yahoo Finance via `yfinance`
+- **Joke requests** → delegated to `funny_nerd` (sub-agent delegation)
+- **News questions** → `news_analyst` called synchronously as `AgentTool(news_analyst)` (agent-as-a-tool), which calls Google Search
+- **Time questions** → `get_current_time()` called directly as a plain function tool
+
+What's new is underneath all four paths: every agent in this diagram — `manager` and every sub-agent it invokes — reads from and writes to the **same session state**, managed by ADK's `Runner` and backed by a `SessionService`. Before Module 8, state was a private notebook one agent kept for itself. Now it's a shared whiteboard that every agent in the system can read and write.
+
+---
+
+## Project Structure
+
+This is the same layout as Module 7, unchanged:
+
+```bash
+mkdir manager
+touch manager/.env
+touch manager/__init__.py
+touch manager/agent.py
+
+mkdir sub_agents
+mkdir sub_agents/funny_nerd
+mkdir sub_agents/news_analyst
+mkdir sub_agents/stock_analyst
+
+touch sub_agents/funny_nerd/agent.py
+touch sub_agents/news_analyst/agent.py
+touch sub_agents/stock_analyst/agent.py
+
+mkdir tools
+touch tools/tools.py
+```
+
+Add to `requirements.txt`:
+
+```
+google-adk[database]==1.6.1
+yfinance
+```
+
+```bash
+pip install -r requirements.txt
+```
+
+`yfinance` is an open-source library that pulls market data from Yahoo Finance — `stock_analyst` uses it below. The `[database]` extra on `google-adk` is what makes `DatabaseSessionService` available if you choose to wire it in, as discussed at the end of this lesson.
+
+**`manager/__init__.py`:**
+```python
+from . import agent
+```
+
+**`manager/.env`:**
+```
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=your_actual_api_key_here
+```
+
+---
+
+## The Manager: `manager/agent.py`
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools.agent_tool import AgentTool
+
+from .sub_agents.funny_nerd.agent import funny_nerd
+from .sub_agents.news_analyst.agent import news_analyst
+from .sub_agents.stock_analyst.agent import stock_analyst
+from .tools.tools import get_current_time
+
+root_agent = Agent(
+    name="manager",
+    model="gemini-2.0-flash",
+    description="Manager agent",
+    instruction="""
+    You are a manager agent that is responsible for overseeing the work of the other agents.
+
+    Always delegate the task to the appropriate agent. Use your best judgement
+    to determine which agent to delegate to.
+
+    You are responsible for delegating tasks to the following agent:
+    - stock_analyst
+    - funny_nerd
+
+    You also have access to the following tools:
+    - news_analyst
+    - get_current_time
+    """,
+    sub_agents=[stock_analyst, funny_nerd],
+    tools=[
+        AgentTool(news_analyst),
+        get_current_time,
+    ],
+)
+```
+
+<CodeLab title="Two Multi-Agent Patterns, One State">
+
+This is the exact `root_agent` from Module 7 — the architecture hasn't changed. What's different is what happens underneath it once you add `tool_context.state` to the sub-agents below.
+
+**Sub-agent delegation** (`sub_agents=[stock_analyst, funny_nerd]`): `manager` hands off the whole turn. The sub-agent runs autonomously and its result becomes the response.
+
+**Agent-as-a-tool** (`AgentTool(news_analyst)`): `manager` calls `news_analyst` synchronously, like a function, and keeps control of the turn.
+
+Both patterns run inside the same `Runner` and share the same session — which means both patterns can read and write the same `tool_context.state`, regardless of which delegation mechanism is in play. The state boundary doesn't care whether an agent got there by delegation or by being called as a tool.
+
+</CodeLab>
+
+---
+
+## The `funny_nerd` Sub-Agent
+
+**`sub_agents/funny_nerd/agent.py`:**
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools.tool_context import ToolContext
+
+
+def get_nerd_joke(topic: str, tool_context: ToolContext) -> dict:
+    """Get a nerdy joke about a specific topic."""
+    print(f"--- Tool: get_nerd_joke called for topic: {topic} ---")
+
+    jokes = {
+        "python": "Why don't Python programmers like to use inheritance? Because they don't like to inherit anything!",
+        "javascript": "Why did the JavaScript developer go broke? Because he used up all his cache!",
+        "java": "Why do Java developers wear glasses? Because they can't C#!",
+        "programming": "Why do programmers prefer dark mode? Because light attracts bugs!",
+        "math": "Why was the equal sign so humble? Because he knew he wasn't less than or greater than anyone else!",
+        "physics": "Why did the photon check a hotel? Because it was travelling light!",
+        "chemistry": "Why did the acid go to the gym? To become a buffer solution!",
+        "biology": "Why did the cell go to therapy? Because it had too many issues!",
+        "default": "Why did the computer go to the doctor? Because it had a virus!",
+    }
+
+    joke = jokes.get(topic.lower(), jokes["default"])
+
+    # Update shared session state with the last joke topic
+    tool_context.state["last_joke_topic"] = topic
+
+    return {"status": "success", "joke": joke, "topic": topic}
+
+
+funny_nerd = Agent(
+    name="funny_nerd",
+    model="gemini-2.0-flash",
+    description="An agent that tells nerdy jokes about various topics.",
+    instruction="""
+    You are a funny nerd agent that tells nerdy jokes about various topics.
+
+    When asked to tell a joke:
+    1. Use the get_nerd_joke tool to fetch a joke about the requested topic
+    2. If no specific topic is mentioned, ask the user what kind of nerdy joke they'd like to hear
+    3. Format the response to include both the joke and a brief explanation if needed
+
+    Available topics include: python, javascript, java, programming, math, physics, chemistry, biology.
+
+    If the user asks about anything else, you should delegate the task to the manager agent.
+    """,
+    tools=[get_nerd_joke],
+)
+```
+
+`get_nerd_joke` writes `tool_context.state["last_joke_topic"]` — this line already existed conceptually in Module 7's source material, but it never mattered there, because each turn's state was thrown away. Here, it's the first concrete example of a sub-agent leaving something behind in shared state for another agent to potentially read.
+
+---
+
+## The `stock_analyst` Sub-Agent
+
+**`sub_agents/stock_analyst/agent.py`:**
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools.tool_context import ToolContext
+import yfinance as yf
+
+
+def get_stock_price(ticker: str, tool_context: ToolContext) -> dict:
+    """Retrieve the current price and basic info for a stock ticker."""
+    print(f"--- Tool: get_stock_price called for ticker: {ticker} ---")
+    try:
+        stock = yf.Ticker(ticker.upper())
+        info = stock.info
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+
+        if current_price is None:
+            return {
+                "status": "error",
+                "message": f"Could not find price data for ticker '{ticker}'.",
+            }
+
+        # Update shared session state with the last ticker looked up
+        tool_context.state["last_stock_ticker"] = ticker.upper()
+
+        return {
+            "status": "success",
+            "ticker": ticker.upper(),
+            "price": current_price,
+            "currency": info.get("currency", "USD"),
+            "company_name": info.get("longName", ticker.upper()),
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Error fetching data for '{ticker}': {e}"}
+
+
+stock_analyst = Agent(
+    name="stock_analyst",
+    model="gemini-2.0-flash",
+    description="An agent that provides current stock price information.",
+    instruction="""
+    You are a stock analyst agent that provides current stock price information.
+
+    When asked about a stock:
+    1. Extract the ticker symbol from the user's request (e.g., "Apple" -> AAPL)
+    2. Use the get_stock_price tool to fetch the current price
+    3. Present the information clearly, including the company name, price, and currency
+
+    If the user's request doesn't include a clear ticker symbol, ask them to clarify.
+
+    If the user asks about anything other than stock prices, delegate back to the manager agent.
+    """,
+    tools=[get_stock_price],
+)
+```
+
+`get_stock_price` calls out to Yahoo Finance over HTTPS via `yfinance`, then writes `last_stock_ticker` to the same shared state `funny_nerd` writes `last_joke_topic` to. Two independent sub-agents, two independent tools, one shared dictionary.
+
+<Pitfall title="The Source Worksheet's Code Was Corrupted Here — Reconstructed from the Real Pattern">
+
+The original lab worksheet this lesson is based on had a copy-paste error: the code blocks for `news_analyst` and `stock_analyst` were both accidentally duplicated from `funny_nerd`'s joke-telling code, rather than containing their own logic. The surrounding prose was clear about what each agent is *supposed* to do — `stock_analyst` "would likely use a tool like the yfinance library," `news_analyst` is "specialized in analyzing news, likely by using a tool like Google Search" — so the `get_stock_price` and `get_search` implementations here are reconstructed from that description and from the standard ADK reference patterns the worksheet itself cites, not copied from broken source code. This is worth knowing because it's a good habit in general: when a lab's prose and its code disagree, or its code is obviously broken, trust neither blindly — verify against what the system is actually supposed to do.
+
+</Pitfall>
+
+---
+
+## The `news_analyst` Sub-Agent
+
+**`sub_agents/news_analyst/agent.py`:**
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools import google_search
+
+news_analyst = Agent(
+    name="news_analyst",
+    model="gemini-2.0-flash",
+    description="An agent that finds and summarizes current news about a company or topic using Google Search.",
+    instruction="""
+    You are a news analyst agent. When asked about current news:
+    1. Use the google_search tool to find recent, relevant articles
+    2. Summarize the key points in two to four concise sentences
+    3. Mention the source when possible
+
+    Stay focused on the specific company or topic the user asked about.
+    """,
+    tools=[google_search],
+)
+```
+
+<CodeLab title="Why news_analyst Is Called as a Tool, Not a Sub-Agent">
+
+`google_search` is one of ADK's **built-in tools** — it runs Google Search directly rather than through a custom Python function. ADK's restriction on built-in tools is part of why `news_analyst` is wired into `manager` via `AgentTool(news_analyst)` instead of `sub_agents=[...]`: wrapping an agent as a tool keeps its built-in tool self-contained, while `manager` still gets its result synchronously in the same turn. This is the same agent-as-a-tool pattern from Module 7 — Module 8 doesn't change it, it just adds the shared state underneath it.
+
+</CodeLab>
+
+---
+
+## The `get_current_time` Tool
+
+**`tools/tools.py`:**
+
+```python
+from datetime import datetime
+
+
+def get_current_time() -> dict:
+    """
+    Get the current time in the format YYYY-MM-DD HH:MM:SS
+    """
+    return {
+        "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+```
+
+This one has no `tool_context` parameter at all — it doesn't touch state, and it doesn't need to. Not every tool has to participate in the shared state to be useful.
+
+---
+
+## Run It
+
+Navigate to the **parent directory** of `manager/` and launch the dev UI:
+
+```bash
+adk web
+```
+
+Select **manager** from the dropdown, then try this sequence in a single session:
+
+1. `"Tell me something funny about python."`
+2. `"What's Apple's stock price?"`
+3. `"Tell me another joke."`
+
+Open the **Events** tab and inspect the tool call events for each step. You'll see `get_nerd_joke` and `get_stock_price` execute in different sub-agents — but both are operating against the same session's state. Click **Trace** on any event to see per-call latency, same as in earlier modules.
+
+<Pitfall title="Shared State Is Not the Same as Persistent State">
+
+`adk web` uses `InMemorySessionService` by default. Within one running session, `manager`, `stock_analyst`, and `funny_nerd` genuinely share `tool_context.state` — that's real, and it's new in this module. But close the dev server and that state is gone, exactly like every agent before Module 6.
+
+To make this system's state survive a restart, you'd wire in `DatabaseSessionService` the same way Module 6's `memory_agent` did — pass it into a `Runner` configured with `agent=manager`, instead of relying on `adk web`'s default. Module 8 combines the *sharing* (Module 7's multi-agent architecture) with the *state mechanism* (Modules 5 and 6); making that state outlive the process is the same upgrade Module 6 already showed you, applied to a bigger system.
+
+</Pitfall>
+
+---
+
+<Quiz question="funny_nerd writes tool_context.state['last_joke_topic'] and stock_analyst writes tool_context.state['last_stock_ticker'] into the same session state. What's the security-relevant difference between this and a single agent writing to its own private state, as in Module 5?">
+
+<div>
+
+In Module 5, one agent wrote to and read from state it fully controlled — there was no question of *whose* write you were trusting when you read a value back.
+
+Here, a value in state might have been written by any agent in the system. If `manager` (or another sub-agent) later reads `last_stock_ticker` or `last_joke_topic` and acts on it, it's implicitly trusting whatever `stock_analyst` or `funny_nerd` last put there. If either sub-agent's behavior can be influenced by attacker-controlled input — a manipulated prompt, a poisoned tool response — that influence can now propagate into a *different* agent's decisions through state, without ever going through the manager's own reasoning.
+
+This is the seed of **cross-agent state poisoning**, and it's exactly what Lesson 2 threat models in detail: shared state creates a new kind of trust boundary that simply didn't exist when every agent kept its own notebook.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You've combined session state with multi-agent delegation: `manager`, `stock_analyst`, `funny_nerd`, and `news_analyst` now share a single session's state, and any tool that accepts a `ToolContext` can read what another agent's tool wrote.
+
+In **Lesson 2**, we threat model this system properly — mapping the new cross-agent state boundary alongside the trust boundaries already established for multi-agent delegation and agent-as-a-tool, and walking through what a compromised sub-agent could actually do with write access to shared state.

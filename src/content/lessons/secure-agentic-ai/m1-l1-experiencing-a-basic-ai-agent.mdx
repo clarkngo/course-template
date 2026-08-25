@@ -132,7 +132,7 @@ from google.adk.agents import Agent
 
 root_agent = Agent(
     name="greeting_agent",
-    model="gemini-2.0-flash",
+    model="gemini-3.5-flash",
     description="Greeting agent",
     instruction="""
         You are a helpful assistant that greets the user.
@@ -146,7 +146,7 @@ root_agent = Agent(
 | Parameter | Required | Purpose |
 |---|---|---|
 | `name` | Yes | Unique identifier. In multi-agent systems, other agents use this name to delegate tasks. |
-| `model` | Yes | Which LLM powers the agent. `gemini-2.0-flash` is fast and cost-efficient. |
+| `model` | Yes | Which LLM powers the agent. `gemini-3.5-flash` is fast and cost-efficient. |
 | `description` | No | A short summary of what this agent does. **Critical in multi-agent systems** — other agents read this to decide whether to route a task here. |
 | `instruction` | Yes | The system prompt. This is the most powerful parameter — it defines the agent's role, personality, constraints, and tool-use guidelines. |
 

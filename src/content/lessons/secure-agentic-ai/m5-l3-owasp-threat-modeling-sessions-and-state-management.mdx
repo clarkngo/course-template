@@ -1,10 +1,361 @@
 ---
 title: "OWASP Threat Modeling Sessions and State Management"
-description: "Placeholder — content coming soon."
+description: "Encode the session state store and placeholder injector in pytm, generate the updated DFD and threat report, and build a threat analyst agent that reasons about session-specific risks like state injection and session hijacking."
 module: 5
 moduleTitle: "Experiencing Sessions and State Management"
 lesson: 3
-duration: "TBD"
+duration: "55 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What's New in the Threat Model
+
+Every pytm model through Module 4 wrapped its interesting new component in its own boundary — a Tool Execution Layer, a Pydantic Validation Layer. This module's model does the same thing for state: it adds a `Boundary` around the session store and the substitution step, and gives pytm the information it needs to reason about a component whose entire job is holding data across turns.
+
+The additions:
+
+- One new `Boundary`: `InMemorySessionService (Session State)`
+- One new `Process`: `Placeholder Injector ({user_name}, {user_preferences})`, with `sanitizesInput = False`
+- One new `Datastore`: `InMemorySessionService (user_name, user_preferences)`, classified `SENSITIVE`
+- Four new `Dataflow` objects modeling the seed-read-substitute-writeback pipeline
+
+With these in place, pytm surfaces threats around unsanitized state reaching the prompt and unencrypted PII sitting in the session store — threats with no equivalent in a stateless model.
+
+---
+
+## Step 1: Install pytm and Graphviz
+
+If already installed from an earlier module, skip this step.
+
+```bash
+# GitHub Codespaces / Ubuntu Linux
+sudo apt-get update && sudo apt-get install -y graphviz
+
+# macOS
+brew install graphviz
+
+# Windows — download from https://graphviz.org/download/
+# and add Graphviz's bin/ directory to your system PATH
+```
+
+Add to `requirements.txt` if not already present:
+
+```
+pytm==1.3.1
+```
+
+```bash
+pip install -r requirements.txt
+python -c "from pytm import TM; print('pytm installed successfully')"
+dot -V
+```
+
+---
+
+## Step 2: Write the Threat Model
+
+Create `threat_model.py` in the project root (not inside `question_answering_agent/`):
+
+```bash
+touch threat_model.py
+```
+
+Comments marked `# NEW` highlight the additions over a stateless model like Module 1's or Module 4's:
+
+```python
+from pytm import TM, Actor, Boundary, Dataflow, Datastore, Process, Classification
+
+tm = TM("HOS05A Stateful Session Threat Model")
+tm.description = "Threat model for the HOS05A question_answering_agent with InMemorySessionService."
+tm.isOrdered = True
+tm.mergeResponses = True
+
+# --- Trust Boundaries ---
+internet          = Boundary("Internet")
+gcp_boundary       = Boundary("Google Cloud Platform")
+server_boundary    = Boundary("HOS05A Server")
+venv_boundary      = Boundary("Python Virtual Environment (.venv)")
+session_boundary   = Boundary("InMemorySessionService (Session State)")  # NEW
+
+# --- External Actors ---
+user = Actor("User (Terminal)")
+user.inBoundary = internet
+
+google_llm = Actor("Google Gemini API")
+google_llm.inBoundary = gcp_boundary
+
+# --- Internal Processes ---
+main_script = Process("basic_stateful_session.py")
+main_script.inBoundary = server_boundary
+main_script.sanitizesInput = False
+
+runner_process = Process("Runner (ADK)")
+runner_process.inBoundary = venv_boundary
+
+question_agent = Process("question_answering_agent")
+question_agent.inBoundary = venv_boundary
+question_agent.sanitizesInput = False
+
+placeholder_injector = Process("Placeholder Injector ({user_name}, {user_preferences})")  # NEW
+placeholder_injector.inBoundary = session_boundary
+placeholder_injector.sanitizesInput = False
+
+# --- Data Stores ---
+env_file = Datastore(".env File")
+env_file.inBoundary = server_boundary
+env_file.isEncrypted = False
+env_file.storesSensitiveData = True
+env_file.classification = Classification.SECRET
+
+session_state_store = Datastore("InMemorySessionService (user_name, user_preferences)")  # NEW
+session_state_store.inBoundary = session_boundary
+session_state_store.isEncrypted = False
+session_state_store.storesSensitiveData = True
+session_state_store.classification = Classification.SENSITIVE
+
+# --- Data Flows ---
+user_to_script = Dataflow(user, main_script, "User Query (terminal input)")
+user_to_script.sanitizes = False
+
+env_to_script = Dataflow(env_file, main_script, "API Key + Config")
+env_to_script.isEncrypted = False
+env_to_script.classification = Classification.SECRET
+
+init_to_store = Dataflow(main_script, session_state_store, "Initial State (user_name, user_preferences)")  # NEW
+init_to_store.classification = Classification.SENSITIVE
+
+store_to_runner = Dataflow(session_state_store, runner_process, "Session State for Prompt Injection")  # NEW
+store_to_runner.sanitizes = False
+
+runner_to_injector = Dataflow(runner_process, placeholder_injector, "Template Prompt + State Values")  # NEW
+runner_to_injector.sanitizes = False
+
+injector_to_agent = Dataflow(placeholder_injector, question_agent, "Personalized Prompt (state injected into {user_name}, {user_preferences})")  # NEW
+injector_to_agent.sanitizes = False
+
+agent_to_llm = Dataflow(question_agent, google_llm, "API Request + Personalized Prompt (HTTPS)")
+agent_to_llm.protocol = "HTTPS"
+agent_to_llm.isEncrypted = True
+agent_to_llm.classification = Classification.SENSITIVE
+
+llm_to_agent = Dataflow(google_llm, question_agent, "LLM Response (HTTPS)")
+llm_to_agent.protocol = "HTTPS"
+llm_to_agent.isEncrypted = True
+
+runner_to_store = Dataflow(runner_process, session_state_store, "Updated Session State (after agent response)")  # NEW
+runner_to_store.classification = Classification.SENSITIVE
+
+agent_to_user = Dataflow(main_script, user, "Final Response (terminal output)")
+
+if __name__ == "__main__":
+    tm.process()
+```
+
+<CodeLab title="Reading the New Session Components">
+
+- `session_boundary = Boundary("InMemorySessionService (Session State)")` models the new trust boundary around the state store and the placeholder injector — the same pattern as the Tool Execution Layer in Module 2 or the Pydantic Validation Layer in Module 4, applied to state instead.
+- `placeholder_injector` is a `Process` that substitutes `{user_name}` and `{user_preferences}` from session state into the agent prompt. `sanitizesInput = False` is what drives pytm's threat detection on it — the same flag pattern used for every unsanitized process in this course, but here it's flagging the exact substitution step Lesson 2 identified as the new Elevation of Privilege risk.
+- `session_state_store` is a `Datastore` with `storesSensitiveData = True` and `isEncrypted = False`, driving Information Disclosure threat detection — the PII risk from Lesson 2's STRIDE table, expressed as code.
+- The dataflows `store_to_runner`, `runner_to_injector`, and `injector_to_agent` model the new state-injection pipeline end to end. All three have `sanitizes = False` — nothing in this path checks state content before it becomes prompt text.
+- `Classification.SENSITIVE` on the session state store (rather than `SECRET`, which is reserved for credentials like the API key) ensures pytm treats unprotected PII storage as a real risk without conflating it with a leaked credential.
+
+</CodeLab>
+
+---
+
+## Step 3: Generate the DFD and Threat Report
+
+**Threat report:**
+
+```bash
+python threat_model.py --report threats.md
+```
+
+Open `threats.md`. You should see threats covering:
+- Input validation failures on the user query entering the session-aware agent (Tampering / Elevation of Privilege)
+- Sensitive PII stored unencrypted in `InMemorySessionService` (Information Disclosure)
+- Unencrypted HTTP/terminal data flows (Information Disclosure)
+- Unsanitized state values injected into the agent prompt via placeholder substitution (Tampering)
+- Session state lost on application restart — `InMemorySessionService` has no persistence (Availability)
+
+**DFD diagram:**
+
+```bash
+python threat_model.py --dfd | dot -Tpng -o dfd.png
+```
+
+`dot` is the Graphviz command-line tool. This pipes pytm's DOT-format output into Graphviz to produce a PNG.
+
+Compare `dfd.png` with your hand-drawn Level 1 diagram from Lesson 2. Did pytm capture every element you identified manually — the session state store, the placeholder injector, the boundary around both? Any component missing from the pytm model is not being analyzed, no matter how carefully you reasoned about it on paper.
+
+---
+
+## Step 4: Build the Threat Modeling Agent
+
+Create the `threat_agent` directory alongside `question_answering_agent`:
+
+```bash
+mkdir threat_agent
+touch threat_agent/__init__.py
+touch threat_agent/agent.py
+cp question_answering_agent/.env threat_agent/.env
+```
+
+Your project structure:
+
+```
+your-project/
+├── question_answering_agent/  ← from Lesson 1, leave untouched
+│   ├── __init__.py
+│   ├── agent.py
+│   └── .env
+├── threat_agent/               ← new
+│   ├── __init__.py
+│   ├── agent.py
+│   └── .env
+├── basic_stateful_session.py
+├── threat_model.py
+├── threats.md                  ← generated by pytm
+├── dfd.png                     ← generated by pytm
+└── requirements.txt
+```
+
+**`threat_agent/__init__.py`:**
+```python
+from . import agent
+```
+
+**`threat_agent/agent.py`:**
+
+```python
+import os
+from google.adk.agents import Agent
+
+_REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "threats.md")
+
+def _load_report(path):
+    resolved = os.path.abspath(path)
+    if not os.path.exists(resolved):
+        return "Threat report not found. Run: python threat_model.py --report threats.md"
+    with open(resolved, "r", encoding="utf-8") as f:
+        return f.read()
+
+_report = _load_report(_REPORT_PATH)
+
+root_agent = Agent(
+    name="threat_modeling_agent",
+    model="gemini-3.5-flash",
+    description="A security analyst agent for session-aware AI agent systems.",
+    instruction=f"""
+You are an expert application security engineer and AI safety specialist.
+
+You have been given the following pytm-generated threat report:
+
+---
+{_report}
+---
+
+Your responsibilities:
+1. Answer questions about the threats clearly and accurately.
+2. Identify threats pytm may have missed, especially session and state threats:
+   - Prompt Injection (LLM01): user input or state values overriding agent instructions
+     via {{user_name}}/{{user_preferences}} placeholder substitution
+   - Sensitive Information Disclosure (LLM02): PII (user_name, user_preferences)
+     exposed through session state, logs, or error messages
+   - Model Denial of Service (LLM04): session state manipulation causing excessive
+     API calls or resource exhaustion
+   - State Injection: adversarial content embedded in initial_state that overrides
+     the agent's system prompt at runtime via placeholder substitution
+   - Session Data Loss: InMemorySessionService non-persistence as an availability risk
+   - Session Hijacking: UUID-based session ID entropy and collision risks
+3. Recommend specific, actionable mitigations using STRIDE categories.
+4. When asked to prioritize, use Risk = Likelihood x Impact.
+5. Keep responses concise but precise. Use bullet points for lists.
+6. If uncertain, say so rather than guessing.
+""",
+)
+```
+
+<CodeLab title="Three New Categories Beyond the Standard OWASP List">
+
+Compare this instruction with Module 4's `threat_agent`. LLM01 (Prompt Injection) and LLM02 (Sensitive Information Disclosure) carry over, reframed around session state instead of tool arguments or JSON fields. LLM04 (Model Denial of Service) carries over too. But three items here aren't numbered OWASP Top 10 entries at all:
+
+- **State Injection** — adversarial content in `initial_state` overriding the agent's prompt via placeholder substitution. This is the Elevation of Privilege risk from Lesson 2's STRIDE table, given a name pytm's standard categories don't have.
+- **Session Data Loss** — `InMemorySessionService`'s non-persistence, treated as an availability risk rather than just an inconvenience.
+- **Session Hijacking** — whether `uuid.uuid4()`-generated session IDs have enough entropy to resist prediction or enumeration by an attacker trying to access someone else's session.
+
+None of these existed in Module 4's agent, because none of them exist without a state store. This is the same pattern you've seen every module: the threat_modeling_agent's instruction grows to cover exactly the attack surface the new architecture introduced, not a generic list.
+
+Note the model is `gemini-3.5-flash` — newer than the `gemini-2.0-flash` powering `question_answering_agent` itself. As in Module 4, there's no requirement that a threat analyst agent use the same model version as the system it's analyzing.
+
+</CodeLab>
+
+---
+
+## Step 5: Run the Agent and Explore Security Questions
+
+Navigate to the project root (not inside `threat_agent/`) and launch:
+
+```bash
+adk web
+```
+
+Select **threat_modeling_agent** from the dropdown. Work through these prompts:
+
+**Understanding the report:**
+- `"What are the top three threats in this system by severity?"`
+- `"Does the threat report cover state value injection via placeholder substitution? What would that attack look like?"`
+- `"What new threats does adding InMemorySessionService introduce compared to a stateless agent?"`
+
+**Exploring specific components:**
+- `"The .env file stores the GOOGLE_API_KEY in plaintext. What are three ways to improve this?"`
+- `"What threats exist at the trust boundary between the InMemorySessionService and the placeholder injector?"`
+
+**Advanced scenarios:**
+- `"Walk me through a complete attack scenario where an attacker embeds prompt injection content in initial_state to override the agent's instruction."`
+- `"What are the security implications of using uuid.uuid4() for session IDs? Could an attacker predict or enumerate valid session IDs?"`
+- `"How does the absence of persistence in InMemorySessionService create a denial-of-service risk in multi-session or long-running deployments?"`
+- `"What privacy risks arise from storing user_preferences (hobbies, TV shows, food preferences) in session state? Does pytm detect these?"`
+- `"How does this system's threat profile change if you replace InMemorySessionService with DatabaseSessionService?"`
+
+Notice where the agent accurately summarizes the pytm report, where it adds insight beyond what pytm generated — especially for State Injection and Session Hijacking, neither of which pytm's built-in STRIDE detection can reason about on its own — and where it's uncertain or wrong.
+
+<Pitfall title="The Agent Is a Starting Point, Not a Final Authority">
+
+The `threat_modeling_agent` can make mistakes. It may miss threats, misclassify severity, or suggest mitigations that don't fit your specific environment.
+
+This is true of any AI security tool. The value is speed and coverage — it surfaces candidates faster than a manual review. The job of the human engineer is to verify, challenge, and prioritize what the agent produces.
+
+Never ship a mitigation solely because an AI agent recommended it. Verify every recommendation against authoritative sources: OWASP documentation, CVE databases, your organization's security policies.
+
+</Pitfall>
+
+---
+
+<Quiz question="pytm can flag session_state_store as an unencrypted, sensitive-data-storing Datastore, and it can flag placeholder_injector for sanitizesInput = False. Can pytm's built-in STRIDE detection, on its own, tell you whether uuid.uuid4() session IDs are predictable enough to be hijacked?">
+
+<div>
+
+No — and that gap is exactly why Step 4 added Session Hijacking as a custom category in the `threat_agent`'s instruction rather than relying on pytm alone.
+
+pytm's threat generation works from the boolean flags and classifications you set on each object: `sanitizesInput`, `isEncrypted`, `storesSensitiveData`, and so on. Session ID entropy isn't a property of any pytm object in this model — `SESSION_ID = str(uuid.uuid4())` is a line of Python that never gets represented as a `Dataflow` or `Process` attribute. pytm has no way to reason about whether a 122-bit random value is "hard enough" to guess, because that's a question about the *algorithm* generating an identifier, not about a flagged property of a modeled component.
+
+This is the same limitation you saw with Structured Output Exploitation in Module 4: pytm is excellent at surfacing threats that follow from the architecture you've explicitly modeled, and it has nothing to say about attack surfaces that live in implementation details below that level of abstraction. That's precisely the reasoning gap the `threat_modeling_agent`'s instruction is written to fill.
+
+</div>
+</Quiz>
+
+---
+
+## What You've Built Across Module 5
+
+Over three lessons you gave an agent memory, then modeled exactly what that memory costs:
+
+1. **Lesson 1** — Built `question_answering_agent` using `InMemorySessionService`, `Runner`, and placeholder substitution, and saw that session state is spliced directly into the model's instructions with no distinction between data and command
+2. **Lesson 2** — Mapped the Placeholder Substitution boundary and the session state store as the two trust boundaries a stateless agent never has, and worked through five concrete mitigations
+3. **Lesson 3** — Encoded the state store and placeholder injector in pytm, confirmed which session-specific risks — State Injection, Session Data Loss, Session Hijacking — fall outside what pytm's built-in detection can reason about, and built a threat agent to cover that gap
+
+**Module 6** introduces persistent storage, swapping `InMemorySessionService` for `DatabaseSessionService`. The first thing we'll do is see which of this module's threats disappear once state survives a restart — and which ones get worse.

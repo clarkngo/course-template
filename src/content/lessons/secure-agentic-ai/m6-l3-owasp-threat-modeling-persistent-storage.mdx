@@ -1,10 +1,340 @@
 ---
 title: "OWASP Threat Modeling Persistent Storage"
-description: "Placeholder — content coming soon."
+description: "Add the SQLite Persistent Storage and Tool Execution Layer boundaries to the pytm model, generate the updated DFD and threat report, and build a threat analyst agent that reasons about persistent-storage-specific OWASP risks."
 module: 6
 moduleTitle: "Experiencing Persistent Storage"
 lesson: 3
-duration: "TBD"
+duration: "55 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What's New in the Threat Model
+
+Lesson 2's hand-drawn DFD added two boundaries that no earlier module's threat model needed: **SQLite Persistent Storage** and a **Tool Execution Layer** wired directly into that storage. This lesson encodes both in pytm so the threat report reflects them automatically.
+
+Compared to a tool-calling model like Module 2's, the pytm model gains:
+
+- One new `Boundary`: `SQLite Persistent Storage`
+- One new `Datastore`: `my_agent_data.db (SQLite)`, unencrypted, classified `SENSITIVE`
+- One new `Process`: `Tool Executor (add/view/update/delete/update_user_name)`, living inside a `Tool Execution Layer` boundary
+- Four new `Dataflow` objects modeling session create/retrieve and the bidirectional state read/write between the Tool Executor and SQLite
+
+When you add these, pytm surfaces threats it had no way to detect in earlier modules: unsanitized LLM-generated arguments reaching a process that writes straight to a persistent, sensitive-classified data store.
+
+---
+
+## Step 1: Install pytm and Graphviz
+
+If already installed from a previous module, skip this step.
+
+```bash
+# GitHub Codespaces / Ubuntu Linux
+sudo apt-get update && sudo apt-get install -y graphviz
+
+# macOS
+brew install graphviz
+
+# Windows — download from https://graphviz.org/download/
+# and add Graphviz's bin/ directory to your system PATH
+```
+
+Add to `requirements.txt` if not already present:
+
+```
+pytm==1.3.1
+```
+
+```bash
+pip install -r requirements.txt
+python -c "from pytm import TM; print('pytm installed successfully')"
+dot -V
+```
+
+You should see pytm's confirmation message and Graphviz's version number. If either command fails, revisit the installation steps or check your PATH.
+
+---
+
+## Step 2: Write the pytm Threat Model
+
+Translate `memory_agent` into a pytm model. In your project root, create `threat_model.py`:
+
+```bash
+touch threat_model.py
+```
+
+Comments marked `# NEW` highlight what persistent storage adds on top of a tool-calling model:
+
+```python
+from pytm import TM, Actor, Boundary, Dataflow, Datastore, Process, Classification
+
+tm = TM("HOS06A Memory Agent Threat Model")
+tm.description = "Threat model for the HOS06A memory_agent with DatabaseSessionService and SQLite."
+tm.isOrdered = True
+tm.mergeResponses = True
+
+# --- Trust Boundaries ---
+internet          = Boundary("Internet")
+gcp_boundary      = Boundary("Google Cloud Platform")
+server_boundary   = Boundary("HOS06A Server")
+venv_boundary     = Boundary("Python Virtual Environment (.venv)")
+tool_boundary     = Boundary("Tool Execution Layer (ToolContext)")
+sqlite_boundary   = Boundary("SQLite Persistent Storage")  # NEW
+
+# --- External Actors ---
+user = Actor("User (CLI Terminal)")
+user.inBoundary = internet
+
+google_llm = Actor("Google Gemini API")
+google_llm.inBoundary = gcp_boundary
+
+# --- Internal Processes ---
+main_process = Process("main.py")
+main_process.inBoundary = server_boundary
+main_process.sanitizesInput = False
+
+runner_process = Process("Runner (ADK)")
+runner_process.inBoundary = venv_boundary
+
+memory_agent_proc = Process("memory_agent")
+memory_agent_proc.inBoundary = venv_boundary
+memory_agent_proc.sanitizesInput = False
+memory_agent_proc.validatesInput = False
+
+tool_executor = Process("Tool Executor (add/view/update/delete/update_user_name)")  # NEW
+tool_executor.inBoundary = tool_boundary
+tool_executor.sanitizesInput = False
+
+# --- Data Stores ---
+env_file = Datastore(".env File")
+env_file.inBoundary = server_boundary
+env_file.isEncrypted = False
+env_file.storesSensitiveData = True
+env_file.classification = Classification.SECRET
+
+sqlite_db = Datastore("my_agent_data.db (SQLite)")  # NEW
+sqlite_db.inBoundary = sqlite_boundary
+sqlite_db.isEncrypted = False
+sqlite_db.storesSensitiveData = True
+sqlite_db.classification = Classification.SENSITIVE
+
+# --- Data Flows ---
+user_to_main = Dataflow(user, main_process, "User CLI Input")
+user_to_main.sanitizes = False
+
+env_to_main = Dataflow(env_file, main_process, "API Key + Config")
+env_to_main.isEncrypted = False
+env_to_main.classification = Classification.SECRET
+
+main_to_sqlite = Dataflow(main_process, sqlite_db, "DatabaseSessionService (create/retrieve session)")  # NEW
+main_to_sqlite.isEncrypted = False
+
+sqlite_to_main = Dataflow(sqlite_db, main_process, "Existing Session Data (user_name, reminders)")  # NEW
+sqlite_to_main.classification = Classification.SENSITIVE
+
+agent_to_llm = Dataflow(memory_agent_proc, google_llm, "API Request + Tool Definitions (HTTPS)")
+agent_to_llm.protocol = "HTTPS"
+agent_to_llm.isEncrypted = True
+agent_to_llm.classification = Classification.SENSITIVE
+
+llm_to_agent = Dataflow(google_llm, memory_agent_proc, "LLM Response / Tool Call Request (HTTPS)")
+llm_to_agent.protocol = "HTTPS"
+llm_to_agent.isEncrypted = True
+
+agent_to_tools = Dataflow(memory_agent_proc, tool_executor, "Tool Call (e.g., add_reminder, delete_reminder)")  # NEW
+agent_to_tools.sanitizes = False
+
+tools_to_sqlite = Dataflow(tool_executor, sqlite_db, "State Update via ToolContext (user_name, reminders)")  # NEW
+tools_to_sqlite.isEncrypted = False
+
+sqlite_to_tools = Dataflow(sqlite_db, tool_executor, "Current State Read via ToolContext")  # NEW
+sqlite_to_tools.classification = Classification.SENSITIVE
+
+if __name__ == "__main__":
+    tm.process()
+```
+
+<CodeLab title="Reading the New Boundary and Process">
+
+- **`sqlite_boundary = Boundary("SQLite Persistent Storage")`** — models the file-based persistent storage layer as its own trust zone, separate from the general `HOS06A Server` boundary that `.env` lives in.
+- **`tool_boundary = Boundary("Tool Execution Layer (ToolContext)")`** — wraps the process that executes tool functions and reads/writes `ToolContext.state`.
+- **`sqlite_db.isEncrypted = False` and `sqlite_db.storesSensitiveData = True`** — this combination is what drives pytm's Information Disclosure and Tampering threat generation for the database. Compare this to `env_file`, which uses `Classification.SECRET` (a credential) versus `sqlite_db`'s `Classification.SENSITIVE` (personal data, but not a credential) — the same distinction Module 4's `output_key_store` used for generated email content.
+- **`agent_to_tools.sanitizes = False`** — the single most important flag in this model. It tells pytm explicitly that LLM-generated tool arguments (reminder text, index, name) are not validated before the Tool Executor acts on them.
+- **`tools_to_sqlite` and `sqlite_to_tools`** — model the bidirectional flow between the Tool Executor and the database through `ToolContext.state`. Two separate `Dataflow` objects, because pytm treats each direction as its own edge with its own threat profile.
+
+</CodeLab>
+
+---
+
+## Step 3: Generate the DFD and Threat Report
+
+**Threat report:**
+
+```bash
+python threat_model.py --report threats.md
+```
+
+Open `threats.md`. You should see threats covering:
+- Unsanitized LLM-generated tool arguments causing malicious state mutations (Tampering / Elevation of Privilege)
+- Sensitive PII (`user_name`, `reminders`) stored unencrypted in SQLite (Information Disclosure)
+- No audit trail for tool invocations (Repudiation)
+- Database file deletion destroying all persistent state (Denial of Service)
+- Unencrypted data flows into and out of the Tool Execution Layer (Information Disclosure)
+- Missing authentication on the CLI entry point (Spoofing)
+
+**DFD diagram:**
+
+```bash
+python threat_model.py --dfd | dot -Tpng -o dfd.png
+```
+
+`dot` is the Graphviz command-line tool — this pipes pytm's DOT-format output into Graphviz to produce a PNG. Your `dfd.png` should show every process, actor, and data store as a node, with the new `SQLite Persistent Storage` and `Tool Execution Layer` boundaries clearly drawn around `sqlite_db` and `tool_executor` respectively.
+
+Compare `dfd.png` with your hand-drawn DFD from Lesson 2. Did pytm capture every element you drew manually? Are there elements in your manual DFD that you forgot to include in the pytm model? Any component missing from the model isn't being analyzed — that gap is worth noting, not just fixing.
+
+---
+
+## Step 4: Creating the Threat Modeling AI Agent
+
+Build a `threat_agent` that reviews the pytm report and answers questions about persistent storage and `ToolContext` security.
+
+```bash
+mkdir threat_agent
+touch threat_agent/__init__.py
+touch threat_agent/agent.py
+```
+
+**`threat_agent/__init__.py`:**
+
+```python
+from . import agent
+```
+
+**`threat_agent/agent.py`:**
+
+```python
+import os
+from google.adk.agents import Agent
+
+_REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "threats.md")
+
+
+def _load_report(path):
+    resolved = os.path.abspath(path)
+    if not os.path.exists(resolved):
+        return "Threat report not found."
+    with open(resolved, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+_report = _load_report(_REPORT_PATH)
+
+root_agent = Agent(
+    name="threat_modeling_agent",
+    model="gemini-3.5-flash",
+    description="Security analyst for persistent storage AI agent systems.",
+    instruction=f"""
+You are an expert application security engineer and AI safety specialist.
+
+You have been given the following pytm-generated threat report:
+
+---
+{_report}
+---
+
+Your responsibilities:
+1. Answer questions about the threats clearly and accurately.
+2. Identify threats pytm may have missed, especially persistent storage and tool threats:
+   - Prompt Injection (LLM01): user input causing the LLM to invoke harmful CRUD tool calls
+     (e.g., delete all reminders, inject malicious reminder content)
+   - Sensitive Information Disclosure (LLM02): user_name and reminders (PII) exposed via
+     unencrypted SQLite, logs, or error messages
+   - Model Denial of Service (LLM04): adversarial prompt causing excessive tool calls or
+     repeated deletion loops that exhaust data
+   - Insecure Output Handling (LLM05): reminder content rendered without sanitization
+   - Tool Misuse (ASI02): LLM-generated tool arguments directly mutating persistent session
+     state without validation (add/update/delete reminders via ToolContext)
+   - SQLite Exposure: unencrypted database file accessible to any process with filesystem
+     access, enabling offline data extraction or tampering
+3. Recommend specific, actionable mitigations using STRIDE categories.
+4. When asked to prioritize, use Risk = Likelihood x Impact.
+""",
+)
+```
+
+<CodeLab title="Two New Categories Beyond the Standard OWASP List">
+
+Compare this instruction with Module 1's `threat_agent`. The first four LLM-specific items (LLM01, LLM02, LLM04, LLM05) carry over — but this module adds two that aren't in a numbered OWASP Top 10 list at all: **Tool Misuse (ASI02)** and **SQLite Exposure**. Both are specific to what changed this module: tools that mutate persistent state directly, and a database file that didn't exist before Lesson 1.
+
+Also note the model: this agent uses `model="gemini-3.5-flash"`, while `memory_agent` itself (from Lesson 1) runs on `model="gemini-2.0-flash"`. There's no requirement that a threat analyst agent match the model version of the system it's analyzing — the same pattern you saw in Module 1's and Module 4's `threat_agent`.
+
+</CodeLab>
+
+---
+
+## Step 5: Running the Agent and Exploring Security Questions
+
+Navigate to the parent directory of your agent projects (the project root, not inside `threat_agent/`). Launch the dev UI:
+
+```bash
+adk web
+```
+
+Open `http://localhost:8000`. In the top-left dropdown, select **threat_modeling_agent**.
+
+**Start exploring with these prompts:**
+- `"What are the top three threats in this system by severity?"`
+- `"Does the threat report cover tool call injection? How could an attacker use prompt injection to delete all reminders?"`
+- `"What new threats does using DatabaseSessionService with SQLite introduce compared to InMemorySessionService in Module 5?"`
+- `"The my_agent_data.db SQLite file stores user_name and reminders without encryption. What are three ways to improve this?"`
+- `"What threats exist at the Tool Execution Layer trust boundary?"`
+
+**Try these advanced prompts:**
+- `"Walk me through a complete attack scenario where prompt injection causes delete_reminder to be called in a loop, destroying all persistent data."`
+- `"How does the fact that ToolContext.state mutations are not logged create a repudiation risk? What evidence would be missing in a security investigation?"`
+- `"OWASP ASI02 covers Tool Misuse. How does this apply to memory_agent's add_reminder and update_reminder tools?"`
+- `"What are the privacy implications of storing user reminders — potentially containing personal tasks, medical appointments, financial notes — in an unencrypted SQLite file?"`
+- `"How does the risk profile change when memory_agent is deployed in a multi-user environment where multiple users share the same my_agent_data.db file?"`
+
+Observe where the agent accurately summarizes the pytm report, where it adds value beyond what pytm generated, and where it's uncertain or inaccurate.
+
+<Pitfall title="The Agent Is a Starting Point, Not a Final Authority">
+
+The `threat_modeling_agent` can make mistakes. It may miss threats, misclassify severity, or suggest mitigations that don't fit your specific environment.
+
+This is true of any AI security tool. The value is speed and coverage — it surfaces candidates faster than a manual review. The job of the human engineer is to verify, challenge, and prioritize what the agent produces.
+
+Never ship a mitigation solely because an AI agent recommended it. Verify every recommendation against authoritative sources: OWASP documentation, CVE databases, your organization's security policies.
+
+</Pitfall>
+
+---
+
+<Quiz question="pytm flags agent_to_tools.sanitizes = False and tools_to_sqlite.isEncrypted = False as separate findings. Are these really two different threats, or the same threat counted twice?">
+
+<div>
+
+Two different threats — they sit at different points in the data's journey and have different fixes.
+
+`agent_to_tools.sanitizes = False` is about **input validation**: it flags that whatever the LLM decided to pass as a tool argument (a reminder string, an index, a name) reaches the Tool Executor with no check on its content. The fix lives in the tool functions themselves — validating `reminder` text, bounding `index`, sanitizing `name` before anything is written.
+
+`tools_to_sqlite.isEncrypted = False` is about **data at rest**: once the Tool Executor has decided to write `tool_context.state["reminders"] = reminders`, that data crosses into `my_agent_data.db` without encryption. The fix here is orthogonal to input validation — it's about protecting the file on disk (SQLCipher, filesystem permissions, `chmod 600`) regardless of how clean the data going into it was.
+
+A well-validated reminder can still sit in a plaintext database file anyone can read. A perfectly encrypted database can still get poisoned with malicious content if nothing validates what goes in. Treating these as one threat would mean fixing one and believing you'd fixed both.
+
+</div>
+</Quiz>
+
+---
+
+## What You've Built Across Module 6
+
+Over three lessons you gave an agent memory that survives a restart, and confirmed that persistence changes more than convenience:
+
+1. **Lesson 1** — Built `memory_agent` with `DatabaseSessionService` and SQLite, replacing Module 5's `InMemorySessionService` so reminders and `user_name` persist across process restarts
+2. **Lesson 2** — Mapped two new trust boundaries — SQLite Persistent Storage and the Tool Execution Layer's direct line into disk-backed state — and found that Tampering and Repudiation dominate the STRIDE table because tool writes are unvalidated and unlogged
+3. **Lesson 3** — Encoded both new boundaries in pytm, confirmed `agent_to_tools.sanitizes = False` and `sqlite_db.isEncrypted = False` as the two findings driving most of the generated report, and built a threat agent that reasons about Tool Misuse (ASI02) and SQLite Exposure specifically
+
+**Module 7** builds on this foundation — the persistent memory you built here becomes a component other agents can rely on, and the threat model grows again as soon as more than one agent has a reason to touch it.

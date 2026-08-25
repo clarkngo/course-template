@@ -1,10 +1,433 @@
 ---
 title: "Experiencing a Multi-Agent System"
-description: "Placeholder — content coming soon."
+description: "Build a manager multi-agent system in ADK — a root agent that delegates to specialized sub-agents and calls another agent as a tool, and understand the difference between the two patterns."
 module: 7
 moduleTitle: "Experiencing a Multi-Agent System"
 lesson: 1
-duration: "TBD"
+duration: "60 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What Changed from Module 4?
+
+Every agent so far — the greeting agent, the weather/time agent, the `email_agent` — has been a single `LlmAgent` doing all of its own reasoning. Even when it called tools, one model was making every decision.
+
+A **multi-agent system (MAS)** divides the problem across a team of specialized agents instead. Rather than one model trying to be good at everything — finance, jokes, news, orchestration — each agent focuses on a narrow area of expertise, and a top-level agent coordinates them. This is the same reason large engineering orgs split into teams instead of hiring one person to do everything: modularity, scalability, and maintainability.
+
+This lesson builds `manager` — a root agent that fields a user's request and routes it to whichever specialist can handle it: a `stock_analyst` for financial questions, a `funny_nerd` for jokes, a `news_analyst` for current events, and a plain function tool for the time.
+
+---
+
+## Two Patterns for Multi-Agent Systems
+
+ADK supports two distinct ways for one agent to make use of another, and the difference between them is the conceptual core of this module.
+
+### Sub-Agent Delegation
+
+**Sub-agent delegation** is a hierarchical, cooperative model. A parent agent acts as a manager, delegating a task to a specialized child agent — a "sub-agent" — which then works more autonomously to complete its part of the goal.
+
+- **Analogy:** A project manager assigns a task to a research team. The manager doesn't dictate exactly how the team does its job — it hands off the task and receives the finished work back.
+- **Communication:** Often asynchronous. The parent starts or manages the sub-agent's execution and is more concerned with state management and task distribution than micromanaging each step.
+- **Use case:** Complex workflows where different agents own distinct stages — a research agent passing findings to a summarization agent, for instance.
+- **Restriction:** Built-in ADK tools (like `google_search`) cannot be used inside a sub-agent. If a specialist needs a built-in tool, it has to be wired in as agent-as-a-tool instead. Keep this in mind — it directly shapes the architecture you're about to build.
+
+### Agent-as-a-Tool
+
+**Agent-as-a-tool** is a direct, synchronous, integrated model. A calling agent treats another agent as a callable function: it explicitly invokes the tool agent with specific inputs and waits for a direct response, via ADK's `AgentTool` wrapper.
+
+- **Analogy:** A chef using a food processor. The chef directly tells the appliance what to do and gets an immediate result back — there's no independent judgment on the appliance's part.
+- **Communication:** Synchronous and explicit. The LLM powering the calling agent "calls" the tool agent the same way it would call any other function tool.
+- **Use case:** A well-defined, specific task — a "Customer Service Agent" using a "Database Lookup Agent" as a tool to fetch order history.
+
+| | Sub-agent delegation | Agent-as-a-tool |
+|---|---|---|
+| **Relationship** | Hierarchical — parent manages child | Direct — caller invokes tool |
+| **Execution** | Asynchronous, autonomous | Synchronous, explicit |
+| **Declared via** | `sub_agents=[...]` | `tools=[AgentTool(agent)]` |
+| **Can use built-in tools?** | No | Yes |
+
+You'll see both patterns side by side in the `manager` agent you're about to build — `stock_analyst` and `funny_nerd` as sub-agents, `news_analyst` wrapped in `AgentTool`.
+
+---
+
+## System Architecture
+
+Here's the full path a request takes through the `manager` MAS:
+
+1. The browser sends a user prompt to `adk web` on port 8000.
+2. At startup, `manager/agent.py` reads `GOOGLE_API_KEY` from `manager/.env`.
+3. `manager` sends the prompt to Gemini, which returns a delegation decision — which specialist (if any) should handle this.
+4. **If the request is about stocks:** `manager` delegates to `stock_analyst` via sub-agent delegation. `stock_analyst` calls the `yfinance` library, which fetches live data from Yahoo Finance over HTTPS, and returns a financial summary.
+5. **If the request wants a joke:** `manager` delegates to `funny_nerd` via sub-agent delegation. `funny_nerd` calls its own `get_nerd_joke` tool and returns a joke.
+6. **If the request is about news:** `manager` calls `AgentTool(news_analyst)` synchronously. `news_analyst` runs a Google Search internally and returns a summarized result directly to `manager`.
+7. **If the request asks for the time:** `manager` calls the plain `get_current_time()` function tool and gets a timestamp back.
+8. `manager` returns the final response to the browser.
+
+Notice the shape of this: `stock_analyst` and `funny_nerd` are full sub-agents that ADK's orchestration owns and runs semi-independently. `news_analyst` is architecturally a *tool* from `manager`'s point of view — even though under the hood it's also an LLM agent with its own instruction and its own tool (`google_search`). `get_current_time` is not an agent at all, just a plain Python function. Three different capability shapes, one root agent choosing between them.
+
+---
+
+## yfinance
+
+[`yfinance`](https://pypi.org/project/yfinance/) is a popular open-source Python library that retrieves financial data from Yahoo! Finance, acting as an unofficial API. It's widely used for trading algorithms, financial analysis, and price-prediction models — and it's simple enough to be a good fit for a demo agent's tool.
+
+---
+
+## Project Structure
+
+Multi-agent systems in ADK need a specific layout: the root agent's package, plus a `sub_agents/` package holding one sub-package per specialist, plus a `tools/` package for plain function tools.
+
+```bash
+mkdir -p manager/sub_agents/funny_nerd
+mkdir -p manager/sub_agents/news_analyst
+mkdir -p manager/sub_agents/stock_analyst
+mkdir -p manager/tools
+
+touch manager/__init__.py
+touch manager/agent.py
+touch manager/.env
+
+touch manager/sub_agents/funny_nerd/__init__.py
+touch manager/sub_agents/funny_nerd/agent.py
+
+touch manager/sub_agents/news_analyst/__init__.py
+touch manager/sub_agents/news_analyst/agent.py
+
+touch manager/sub_agents/stock_analyst/__init__.py
+touch manager/sub_agents/stock_analyst/agent.py
+
+touch manager/tools/__init__.py
+touch manager/tools/tools.py
+```
+
+Add to `requirements.txt`:
+
+```
+google-adk[database]==1.6.1
+yfinance
+```
+
+```bash
+pip install -r requirements.txt
+```
+
+`manager/.env` — same pattern as every earlier module:
+
+```
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=your_actual_api_key_here
+```
+
+Every `__init__.py` inside `sub_agents/*/` just needs:
+
+```python
+from . import agent
+```
+
+`manager/__init__.py` is the same:
+
+```python
+from . import agent
+```
+
+`manager/tools/__init__.py` can be empty — it only needs to exist so `tools/` is importable as a package.
+
+---
+
+## Step 1: The `get_current_time` Tool
+
+`manager/tools/tools.py` — a plain function tool, no agent involved at all:
+
+```python
+from datetime import datetime
+
+
+def get_current_time() -> dict:
+    """Get the current time in the format YYYY-MM-DD HH:MM:SS."""
+    return {
+        "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+```
+
+---
+
+## Step 2: The `funny_nerd` Sub-Agent
+
+`manager/sub_agents/funny_nerd/agent.py`:
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools.tool_context import ToolContext
+
+
+def get_nerd_joke(topic: str, tool_context: ToolContext) -> dict:
+    """Get a nerdy joke about a specific topic."""
+    print(f"--- Tool: get_nerd_joke called for topic: {topic} ---")
+
+    jokes = {
+        "python": "Why don't Python programmers like to use inheritance? Because they don't like to inherit anything!",
+        "javascript": "Why did the JavaScript developer go broke? Because he used up all his cache!",
+        "java": "Why do Java developers wear glasses? Because they can't C#!",
+        "programming": "Why do programmers prefer dark mode? Because light attracts bugs!",
+        "math": "Why was the equal sign so humble? Because he knew he wasn't less than or greater than anyone else!",
+        "physics": "Why did the photon check a hotel? Because it was travelling light!",
+        "chemistry": "Why did the acid go to the gym? To become a buffer solution!",
+        "biology": "Why did the cell go to therapy? Because it had too many issues!",
+        "default": "Why did the computer go to the doctor? Because it had a virus!",
+    }
+    joke = jokes.get(topic.lower(), jokes["default"])
+
+    # Update state with the last joke topic
+    tool_context.state["last_joke_topic"] = topic
+
+    return {"status": "success", "joke": joke, "topic": topic}
+
+
+funny_nerd = Agent(
+    name="funny_nerd",
+    model="gemini-2.0-flash",
+    description="An agent that tells nerdy jokes about various topics.",
+    instruction="""
+    You are a funny nerd agent that tells nerdy jokes about various topics.
+
+    When asked to tell a joke:
+    1. Use the get_nerd_joke tool to fetch a joke about the requested topic
+    2. If no specific topic is mentioned, ask the user what kind of nerdy joke they'd like to hear
+    3. Format the response to include both the joke and a brief explanation if needed
+
+    Available topics include:
+    - python
+    - javascript
+    - java
+    - programming
+    - math
+    - physics
+    - chemistry
+    - biology
+
+    Example response format:
+    "Here's a nerdy joke about <TOPIC>:
+    <JOKE>
+    Explanation: {brief explanation if needed}"
+
+    If the user asks about anything else, you should delegate the task to the manager agent.
+    """,
+    tools=[get_nerd_joke],
+)
+```
+
+This is a self-contained specialist: one custom function tool, a narrow instruction, and an explicit escape hatch ("delegate to the manager agent") for anything outside its lane.
+
+---
+
+## Step 3: The `stock_analyst` Sub-Agent
+
+`manager/sub_agents/stock_analyst/agent.py` calls `yfinance` to answer financial questions:
+
+```python
+from google.adk.agents import Agent
+
+
+def get_stock_price(ticker: str) -> dict:
+    """Get the latest price and key info for a stock ticker symbol.
+
+    Args:
+        ticker: Stock ticker symbol, e.g. "GOOG", "AAPL", "MSFT".
+
+    Returns:
+        A dict with 'status' and either the price data or an 'error_message'.
+    """
+    import yfinance as yf
+
+    print(f"--- Tool: get_stock_price called for ticker: {ticker} ---")
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        if price is None:
+            return {
+                "status": "error",
+                "error_message": f"No price data found for ticker '{ticker}'.",
+            }
+        return {
+            "status": "success",
+            "ticker": ticker.upper(),
+            "company_name": info.get("longName", ticker.upper()),
+            "price": price,
+            "currency": info.get("currency", "USD"),
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Could not retrieve data for '{ticker}': {e}",
+        }
+
+
+stock_analyst = Agent(
+    name="stock_analyst",
+    model="gemini-2.0-flash",
+    description="An agent that provides current stock prices and financial data using Yahoo Finance.",
+    instruction="""
+    You are a stock analyst agent that provides financial information using the get_stock_price tool.
+
+    When asked about a company or stock:
+    1. Identify the ticker symbol from the request (ask the user if it's ambiguous)
+    2. Use the get_stock_price tool to fetch the latest price
+    3. Present the price, currency, and company name clearly
+    4. Always include a disclaimer that this data may be delayed and is not financial advice
+
+    If the user asks about anything other than stock prices or financial data,
+    you should delegate the task to the manager agent.
+    """,
+    tools=[get_stock_price],
+)
+```
+
+<Pitfall title="Reading the Source Material Critically">
+
+The original lab handout's code samples for `news_analyst` and `stock_analyst` were, in the actual document, verbatim copies of the `funny_nerd` code — an artifact of the handout being exported from a shared template. Neither agent's real tool logic survived the export.
+
+The `get_stock_price` implementation above is a reconstruction consistent with what the handout's own prose describes ("an expert in financial data... would likely use a tool like the yfinance library to get stock prices and other metrics") and with the yfinance library referenced earlier. When you're working from lab handouts, lecture notes, or any secondhand source, always sanity-check that the code matches the surrounding explanation — copy-paste artifacts like this one are common, and a mismatch between prose and code is a signal to verify before you build on top of it.
+
+</Pitfall>
+
+---
+
+## Step 4: The `news_analyst` Sub-Agent (Used as a Tool)
+
+`manager/sub_agents/news_analyst/agent.py` uses ADK's built-in `google_search` tool — which is exactly why it has to be wired into `manager` as `AgentTool` rather than as a plain sub-agent. Recall the restriction from earlier: built-in tools cannot be used inside a sub-agent.
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools import google_search
+
+news_analyst = Agent(
+    name="news_analyst",
+    model="gemini-2.0-flash",
+    description="An agent that finds and summarizes current news about a company or topic using Google Search.",
+    instruction="""
+    You are a news analyst agent that finds and summarizes current news.
+
+    When asked about news on a company or topic:
+    1. Use the google_search tool to find recent, relevant articles
+    2. Summarize the key points in a few concise sentences
+    3. Cite that the information comes from a web search
+    4. If no relevant news is found, say so rather than guessing
+
+    You are called directly by the manager agent as a tool — respond with
+    a self-contained answer, since you will not see the rest of the conversation.
+    """,
+    tools=[google_search],
+)
+```
+
+Notice the instruction's last line: because `news_analyst` is invoked via `AgentTool`, not sub-agent delegation, it gets a single input and returns a single output — it doesn't participate in the broader conversation the way a sub-agent's autonomous run might. That's a direct behavioral consequence of which pattern you choose.
+
+---
+
+## Step 5: The `manager` Root Agent
+
+`manager/agent.py` ties everything together:
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools.agent_tool import AgentTool
+
+from .sub_agents.funny_nerd.agent import funny_nerd
+from .sub_agents.news_analyst.agent import news_analyst
+from .sub_agents.stock_analyst.agent import stock_analyst
+from .tools.tools import get_current_time
+
+root_agent = Agent(
+    name="manager",
+    model="gemini-2.0-flash",
+    description="Manager agent",
+    instruction="""
+    You are a manager agent that is responsible for overseeing the work of the other agents.
+
+    Always delegate the task to the appropriate agent. Use your best judgement
+    to determine which agent to delegate to.
+
+    You are responsible for delegating tasks to the following agent:
+    - stock_analyst
+    - funny_nerd
+
+    You also have access to the following tools:
+    - news_analyst
+    - get_current_time
+    """,
+    sub_agents=[stock_analyst, funny_nerd],
+    tools=[
+        AgentTool(news_analyst),
+        get_current_time,
+    ],
+)
+```
+
+<CodeLab title="Reading the Manager Agent">
+
+Walk through the imports and the two key parameters:
+
+| Line | What it does |
+|---|---|
+| `from google.adk.agents import Agent` | The same `Agent` class every agent in this course uses. |
+| `from google.adk.tools.agent_tool import AgentTool` | `AgentTool` wraps an agent so another agent can call it like a function — the agent-as-a-tool pattern. |
+| `from .sub_agents.funny_nerd.agent import funny_nerd` | Imports the joke specialist for sub-agent delegation. |
+| `from .sub_agents.news_analyst.agent import news_analyst` | Imports the news specialist — imported the same way, but used differently below. |
+| `from .sub_agents.stock_analyst.agent import stock_analyst` | Imports the finance specialist for sub-agent delegation. |
+| `from .tools.tools import get_current_time` | A plain function tool, no agent involved. |
+
+**`sub_agents=[stock_analyst, funny_nerd]`** implements sub-agent delegation. `manager` has hierarchical control over these two — it delegates a task and they work autonomously to complete it.
+
+**`tools=[AgentTool(news_analyst), get_current_time]`** implements agent-as-a-tool. `AgentTool(news_analyst)` wraps the news specialist so `manager` can call it synchronously, exactly like it calls the plain `get_current_time` function next to it in the same list. From `manager`'s LLM's perspective, a wrapped agent and a Python function look like the same kind of thing: something it can call and get a direct answer from.
+
+The `instruction` field tells the LLM about both relationships in the same breath — "delegate to" for the sub-agents, "access to the following tools" for `news_analyst` and `get_current_time` — mirroring the architectural distinction in plain language.
+
+</CodeLab>
+
+---
+
+## Run It
+
+Navigate to the parent directory of `manager/` (not inside it), then launch the dev UI:
+
+```bash
+adk web
+```
+
+Select **manager** from the dropdown, then try:
+
+- `"Can you tell me about the stock market today?"`
+- `"Tell me something funny about programming."`
+- `"What's the latest tech news?"`
+- `"What time is it right now?"`
+
+In the **Events** tab, click through each response. For the stock and joke prompts, you'll see a delegation event handing control to `stock_analyst` or `funny_nerd`. For the news prompt, you'll instead see a tool-call event — `manager` invoking `news_analyst` the same way it would invoke `get_current_time`, just with a bigger payload. That distinction in the event log is the sub-agent-delegation-vs-agent-as-a-tool split, made visible.
+
+Click **Trace** on any event to see the latency of each call — useful for spotting how much slower a full sub-agent turn is compared to a direct tool call.
+
+---
+
+<Quiz question="Why does news_analyst have to be wired into manager as tools=[AgentTool(news_analyst)] instead of sub_agents=[..., news_analyst]?">
+
+<div>
+
+Because `news_analyst` uses `google_search`, one of ADK's **built-in tools** — and built-in tools cannot be used inside a sub-agent. That restriction forces `news_analyst` into the agent-as-a-tool pattern instead.
+
+This isn't an arbitrary rule to memorize — it's the reason the `manager` agent's code has the shape it does. `stock_analyst` and `funny_nerd` use only plain custom function tools (`get_stock_price`, `get_nerd_joke`), so they're free to be declared as ordinary sub-agents with autonomous, asynchronous delegation. `news_analyst` needs `google_search`, so it has to be wrapped in `AgentTool` and called synchronously, just like a function.
+
+The practical lesson: which multi-agent pattern you use for a given specialist isn't just a stylistic choice — it can be dictated by what tools that specialist needs.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You now have a working multi-agent system: a manager that delegates to two autonomous sub-agents and calls a third agent synchronously as a tool, alongside a plain function tool.
+
+In **Lesson 2**, we threat model this architecture. Each sub-agent is its own trust domain, `AgentTool` introduces a cross-agent injection surface that single-agent systems never had, and Yahoo Finance becomes a brand-new external dependency to reason about.

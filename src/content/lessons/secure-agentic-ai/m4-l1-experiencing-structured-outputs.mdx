@@ -1,10 +1,215 @@
 ---
 title: "Experiencing Structured Outputs"
-description: "Placeholder — content coming soon."
+description: "Build an email_agent that uses Pydantic and ADK's output_schema to turn a free-form request into strictly typed, validated JSON instead of prose."
 module: 4
 moduleTitle: "Experiencing Structured Outputs"
 lesson: 1
-duration: "TBD"
+duration: "45 min"
 ---
 
-Content coming soon.
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why Structured Outputs?
+
+Every agent so far — the greeting agent, the weather/time agent, the dad joke agent — has returned free-form text. That's fine for a chat window, but it's a problem the moment another piece of software needs to consume the result. Free-form text has to be re-parsed, guessed at, and defended against before your code can trust it.
+
+**Structured outputs** solve this at the agent level. Instead of asking the LLM to "write an email" and hoping the response is usable, you define the exact shape the response must take — field names, types, and descriptions — and ADK enforces it. The agent's final response isn't prose; it's validated JSON matching a schema you wrote in Python.
+
+This lesson builds an `email_agent` that turns a request like *"Draft an email to my team about the deadline extension"* into a strictly typed object with a `subject` and a `body` field — ready to be handed to another agent, an email API, or a database, with no parsing required.
+
+---
+
+## Pydantic: `BaseModel` and `Field`
+
+**Pydantic** (*Py* + pedantic) is a Python library that enforces data validation using Python's type hints. A class like:
+
+```python
+class User(BaseModel):
+    name: str
+    age: int
+```
+
+isn't just documentation — Pydantic uses those type hints to give the data **semantic meaning** and enforces it at runtime. Try to construct a `User` with `age="twelve"` and Pydantic raises a validation error immediately, instead of letting a bad value silently propagate through your program.
+
+`BaseModel` is what you inherit from to define a schema. `Field` is a function you call *inside* a `BaseModel` to attach metadata to a field beyond its type — most commonly a `description`, which doubles as documentation and as part of the prompt ADK sends to the LLM.
+
+---
+
+## `output_schema` and `output_key`
+
+ADK's `LlmAgent` accepts two parameters that turn a Pydantic schema into an enforced contract on the agent's output:
+
+**`output_schema`** — a Pydantic `BaseModel` class. When set, the agent's final response *must* be a JSON string conforming to that schema. ADK uses it two ways:
+1. **Prompt instruction** — the schema definition is automatically injected into the prompt sent to the LLM, telling the model exactly what shape to produce.
+2. **Output validation** — after the LLM responds, ADK parses and validates the JSON against the schema. If a field is missing or has the wrong type, ADK can automatically re-prompt the LLM to correct it.
+
+**`output_key`** — a string naming the key under which the validated output is stored, useful for passing results between agents or workflow steps.
+
+<Pitfall title="output_schema Disables Tools">
+
+Setting `output_schema` enables controlled generation, but it **disables the agent's ability to call tools or transfer control to other agents**. An agent with `output_schema` set must produce its structured JSON directly from the instruction and the prompt — it can't look anything up first.
+
+This is a real design trade-off: if your agent needs both tool use *and* a validated final shape, you typically split the work across two agents — one that reasons and calls tools, and a second, schema-constrained agent that formats the final result.
+
+</Pitfall>
+
+---
+
+## System Architecture
+
+The `email_agent` you're about to build has one job: take a natural-language email request and return validated `EmailContent` JSON. Here's the full path a request takes:
+
+1. The browser sends the user's email request to `adk web` on port 8000 over HTTP.
+2. At startup, `agent.py` reads `GOOGLE_API_KEY` from the `.env` file.
+3. `agent.py` sends the prompt **and the `EmailContent` schema definition** to the Gemini API over HTTPS — the schema is auto-injected into the system prompt by `LlmAgent`.
+4. Gemini generates a JSON response intended to match the `EmailContent` schema and returns it over HTTPS.
+5. `agent.py` hands the raw JSON to Pydantic for validation against `EmailContent`. If validation fails, ADK automatically re-prompts Gemini to correct the output.
+6. The validated `EmailContent` object is stored under `output_key="email"`.
+7. `agent.py` returns the structured response to the browser.
+
+Compare this to Module 2's `weather_time_agent`: there, step 4 was "Gemini decides to call a tool," and a Tool Execution Layer sat between the LLM and the final response. Here, there's no tool call at all — step 5's Pydantic validation step takes its place. You'll see in Lesson 2 why that's a genuinely different trust boundary, not just a renamed one.
+
+---
+
+## Project Structure
+
+```bash
+mkdir email_agent
+touch email_agent/__init__.py
+touch email_agent/agent.py
+touch email_agent/.env
+```
+
+Add to `requirements.txt`:
+
+```
+google-adk[database]==1.6.1
+```
+
+```bash
+pip install -r requirements.txt
+```
+
+**`email_agent/__init__.py`:**
+```python
+from . import agent
+```
+
+**`email_agent/.env`:**
+```
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=your_actual_api_key_here
+```
+
+---
+
+## `email_agent/agent.py`
+
+```python
+from google.adk.agents import LlmAgent
+from pydantic import BaseModel, Field
+
+
+# --- Define Output Schema ---
+class EmailContent(BaseModel):
+    subject: str = Field(
+        description="The subject line of the email. Should be concise and descriptive."
+    )
+    body: str = Field(
+        description="The main content of the email. Should be well-formatted with proper greeting, paragraphs, and signature."
+    )
+
+
+# --- Create Email Generator Agent ---
+root_agent = LlmAgent(
+    name="email_agent",
+    model="gemini-2.0-flash",
+    instruction="""
+    You are an Email Generation Assistant.
+    Your task is to generate a professional email based on the user's request.
+
+    GUIDELINES:
+    - Create an appropriate subject line (concise and relevant)
+    - Write a well-structured email body with:
+      * Professional greeting
+      * Clear and concise main content
+      * Appropriate closing
+      * Your name as signature
+    - Suggest relevant attachments if applicable (empty list if none needed)
+    - Email tone should match the purpose (formal for business, friendly for colleagues)
+    - Keep emails concise but complete
+
+    IMPORTANT: Your response MUST be valid JSON matching this structure:
+    {
+        "subject": "Subject line here",
+        "body": "Email body here with proper paragraphs and formatting"
+    }
+
+    DO NOT include any explanations or additional text outside the JSON response.
+    """,
+    description="Generates professional emails with structured subject and body",
+    output_schema=EmailContent,
+    output_key="email",
+)
+```
+
+<CodeLab title="Reading the Schema-Constrained Agent">
+
+Three things distinguish this agent from every previous one:
+
+**The schema class:**
+```python
+class EmailContent(BaseModel):
+    subject: str = Field(description="...")
+    body: str = Field(description="...")
+```
+This is a blueprint, not a validator you call manually. Just by inheriting from `BaseModel`, `EmailContent` gains automatic type checking, and the `description` on each `Field` becomes part of the prompt ADK builds for the LLM.
+
+**`model="gemini-2.0-flash"`:** Same fast, cost-efficient model used for tool-calling agents in earlier modules — schema constraint doesn't require a different model.
+
+**`output_schema=EmailContent` and `output_key="email"`:** Together, these guarantee that whatever this agent returns is either a valid `EmailContent` object stored under the key `"email"`, or the result of ADK's automatic retry loop trying to get there. There is no path where the agent successfully returns a `subject`-less blob of text — the schema is the contract.
+
+Notice what's *not* in this agent: a `tools=[]` parameter. As covered above, `output_schema` and tool use are mutually exclusive.
+
+</CodeLab>
+
+---
+
+## Run It
+
+```bash
+adk web
+```
+
+Select **email_agent** and try:
+- `"Write a professional email to my team about the upcoming project deadline that has been extended by two weeks."`
+- `"Draft an email to a client explaining that we need additional information before we can proceed with their order."`
+- `"Create an email to schedule a meeting with the marketing department to discuss the new product launch strategy."`
+
+In the **Events** tab, inspect the response event. Instead of a text blob, you'll see structured JSON with `subject` and `body` keys — the direct result of `output_schema`. If you enter a vague or malformed request, watch for ADK's re-prompt behavior: a second LLM call correcting the first response to fit the schema.
+
+---
+
+<Quiz question="output_schema disables tool use. If you needed an agent that both looks up live data (via a tool) and returns a strictly typed final result, how would you structure that with what you've learned so far?">
+
+<div>
+
+You can't do both in a single `LlmAgent` — `output_schema` and `tools` are mutually exclusive on the same agent. The pattern is to **split the work across two agents**:
+
+1. A tool-enabled agent (like the `weather_time_agent` from Module 2) that reasons, calls tools, and gathers the information it needs.
+2. A schema-constrained agent (like `email_agent`) that receives the gathered information and formats it into the final validated structure — no tools, just generation-and-validation.
+
+You'd wire these together in a workflow (a `SequentialAgent`, or one agent invoking another), passing the first agent's output as input to the second. This is the same "reasoner vs. formatter" separation of concerns you'll see formalized when multi-agent systems are introduced later in this course: each agent does one job well, rather than one agent trying to do everything under conflicting constraints.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You now have an agent that turns free-form requests into schema-validated JSON — and you've seen that this guarantee comes at the cost of tool use.
+
+In **Lesson 2**, we threat model this trade-off. Removing tool calls removes the Tool Execution Layer boundary from the system — but it introduces a new one: the Pydantic Validation Layer, with its own risks around re-prompting and schema disclosure.
