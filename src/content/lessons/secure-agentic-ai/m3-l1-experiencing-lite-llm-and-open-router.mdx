@@ -25,7 +25,7 @@ The two work together: LiteLLM handles the in-process translation layer, and Ope
 
 ## System Architecture
 
-![System architecture diagram showing the dad_joke_agent with adk web Dev UI, agent.py routing through LiteLLM to the OpenRouter API, and get_dad_joke executing locally as a tool](/courses/images/secure-agentic-ai/m3/architecture.png)
+![System architecture diagram showing the dad_joke_agent with adk web Dev UI, agent.py routing through LiteLLM to the OpenRouter API, and get_dad_joke executing locally as a tool](/courses/images/secure-agentic-ai/m3/architecture.webp)
 
 The key change: instead of `agent.py` calling Google's API directly, it calls **LiteLLM** locally, which translates the request and forwards it to **OpenRouter** over HTTPS. OpenRouter routes to GPT-4.1 (or whichever model you configure). The tool execution step — `get_dad_joke()` running locally — is the same pattern as Module 2.
 

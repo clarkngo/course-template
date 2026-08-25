@@ -25,7 +25,7 @@ This is the core of what makes agents useful beyond conversation.
 
 Before writing any code, here's how the tool-enabled agent connects to the outside world:
 
-![System architecture diagram showing the multi_tool_agent system with adk web Dev UI on port 8000, agent.py dispatching tool calls to get_weather and get_current_time locally, and the Gemini API handling LLM reasoning over HTTPS](/courses/images/secure-agentic-ai/m2/architecture.png)
+![System architecture diagram showing the multi_tool_agent system with adk web Dev UI on port 8000, agent.py dispatching tool calls to get_weather and get_current_time locally, and the Gemini API handling LLM reasoning over HTTPS](/courses/images/secure-agentic-ai/m2/architecture.webp)
 
 The browser talks to `adk web` on port 8000. `agent.py` sends the user prompt plus **tool definitions** to Gemini — the LLM responds with a tool call request rather than plain text. `agent.py` executes the tool locally and sends the result back to Gemini, which then produces the final response.
 

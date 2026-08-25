@@ -203,7 +203,7 @@ python threat_model.py --dfd | dot -Tpng -o dfd.png
 
 Your `dfd.png` should show the new LiteLLM Routing Layer boundary alongside the Tool Execution Layer, with the two-hop path from `agent.py` through LiteLLM to OpenRouter clearly visible:
 
-![pytm-generated DFD for the dad_joke_agent showing six boundary boxes including the new LiteLLM Routing Layer and OpenRouter boundaries, with the split request path flowing through LiteLLM to OpenRouter and the tool execution path to get_dad_joke](/courses/images/secure-agentic-ai/m3/pytm-dfd.png)
+![pytm-generated DFD for the dad_joke_agent showing six boundary boxes including the new LiteLLM Routing Layer and OpenRouter boundaries, with the split request path flowing through LiteLLM to OpenRouter and the tool execution path to get_dad_joke](/courses/images/secure-agentic-ai/m3/pytm-dfd.webp)
 
 Compare with your hand-drawn Level 1 DFD from Lesson 2. Did pytm capture every element? Any component missing from the model is not being analyzed.
 

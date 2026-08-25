@@ -71,5 +71,7 @@ const { question, questions } = Astro.props;
     });
   }
 
-  document.querySelectorAll('.quiz-mc-item').forEach(initQuizItem);
+  document.addEventListener('astro:page-load', () => {
+    document.querySelectorAll('.quiz-mc-item').forEach(initQuizItem);
+  });
 </script>

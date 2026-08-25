@@ -68,7 +68,7 @@ The mitigation pattern mirrors SQL injection's defense: **validate tool argument
 
 The highest-level view shows the same three actors as Module 1, but the data flowing to and from Google Cloud now includes tool definitions and tool results in addition to the prompt.
 
-![Level 0 context diagram for the weather_time_agent system showing Web Browser User and Google Cloud / Gemini API as external rectangles, the weather_time_agent system as a center process, with labeled data flows including tool definitions and tool results, and red dashed trust boundaries](/courses/images/secure-agentic-ai/m2/level0-dfd.png)
+![Level 0 context diagram for the weather_time_agent system showing Web Browser User and Google Cloud / Gemini API as external rectangles, the weather_time_agent system as a center process, with labeled data flows including tool definitions and tool results, and red dashed trust boundaries](/courses/images/secure-agentic-ai/m2/level0-dfd.webp)
 
 **Level 1 — Decomposed View**
 
@@ -82,7 +82,7 @@ Expanding the system box reveals five internal components. The two tool function
 
 The **Tool Execution Layer boundary** wraps `get_weather` and `get_current_time`. Every arrow that crosses it — `agent.py` carrying LLM-generated arguments outbound, and the tools carrying results back — is a threat intersection.
 
-![Level 1 decomposed DFD showing adk web and .env File inside the HOS02A Server boundary, agent.py inside the .venv boundary, get_weather and get_current_time inside a Tool Execution Layer boundary, with red dashed external boundaries and red X marks at trust boundary crossings](/courses/images/secure-agentic-ai/m2/level1-dfd.png)
+![Level 1 decomposed DFD showing adk web and .env File inside the HOS02A Server boundary, agent.py inside the .venv boundary, get_weather and get_current_time inside a Tool Execution Layer boundary, with red dashed external boundaries and red X marks at trust boundary crossings](/courses/images/secure-agentic-ai/m2/level1-dfd.webp)
 
 ---
 

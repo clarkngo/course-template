@@ -181,7 +181,7 @@ python threat_model.py --dfd | dot -Tpng -o dfd.png
 
 `dot` is the Graphviz command-line tool. This pipes pytm's DOT-format output into Graphviz to produce a PNG. Your `dfd.png` should match this:
 
-![pytm-generated DFD showing four red dashed boundary boxes (Google Cloud Platform, HOS01A Server, Python Virtual Environment, Internet), with Google Gemini API and Web Browser User as rectangles, adk web and agent.py as circles, .env File as a cylinder, and six numbered data flow arrows](/courses/images/secure-agentic-ai/m1/pytm-dfd.png)
+![pytm-generated DFD showing four red dashed boundary boxes (Google Cloud Platform, HOS01A Server, Python Virtual Environment, Internet), with Google Gemini API and Web Browser User as rectangles, adk web and agent.py as circles, .env File as a cylinder, and six numbered data flow arrows](/courses/images/secure-agentic-ai/m1/pytm-dfd.webp)
 
 Every element in the diagram maps directly to a Python object in `threat_model.py`. If a component is missing from the diagram, it means you forgot to define it in the model — and pytm won't analyze it.
 

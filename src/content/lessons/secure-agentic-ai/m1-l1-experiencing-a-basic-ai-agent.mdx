@@ -57,7 +57,7 @@ ADK is optimized for Gemini models but supports other LLMs through LiteLLM.
 
 Before writing any code, here's what you're building and how the pieces connect:
 
-![System architecture diagram showing Web Browser connecting to HOS01A Server via HTTPS:8000, which contains .venv and greeting_agent with agent.py and .env, connecting to Gemini API and Google Cloud Platform](/courses/images/secure-agentic-ai/m1/architecture.png)
+![System architecture diagram showing Web Browser connecting to HOS01A Server via HTTPS:8000, which contains .venv and greeting_agent with agent.py and .env, connecting to Gemini API and Google Cloud Platform](/courses/images/secure-agentic-ai/m1/architecture.webp)
 
 The browser talks to your local server on port 8000. The server runs `agent.py` inside a Python virtual environment. `agent.py` reads your API key from `.env` at startup, then calls Google's Gemini API over HTTPS to process each prompt.
 
