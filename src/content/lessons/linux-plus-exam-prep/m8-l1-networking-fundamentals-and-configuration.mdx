@@ -1,0 +1,136 @@
+---
+title: "Networking Fundamentals & Configuration"
+description: "The OSI and TCP/IP models, frames vs. packets, DNS/DHCP, and where network configuration actually lives on disk."
+module: 8
+moduleTitle: "Networking & Security"
+lesson: 1
+duration: "20 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The OSI Model
+
+The **OSI model** is a 7-layer conceptual framework for how network communication happens, from physical signaling up to the application itself. Linux+ questions typically test recognition of the layer, not deep protocol internals:
+
+| Layer | Name | Deals with |
+|---|---|---|
+| 7 | Application | The protocol the actual software speaks — HTTP, DNS, SSH |
+| 6 | Presentation | Data formatting, encryption, compression |
+| 5 | Session | Establishing, managing, and tearing down connections |
+| 4 | Transport | End-to-end delivery — TCP (reliable) and UDP (fast, no guarantee) |
+| 3 | Network | Logical addressing and routing — IP addresses |
+| 2 | Data Link | Physical addressing on a local segment — MAC addresses, switches |
+| 1 | Physical | The actual bits on the wire, fiber, or radio signal |
+
+The **TCP/IP suite** is the practical, 4-layer model the real internet actually runs on, which maps loosely onto OSI:
+
+| TCP/IP layer | Roughly maps to OSI |
+|---|---|
+| Application | Layers 5-7 |
+| Transport | Layer 4 |
+| Internet | Layer 3 |
+| Link (Network Access) | Layers 1-2 |
+
+<Pitfall title="Frame vs. Packet: Know the Layer">
+
+A **frame** is the Layer 2 (Data Link) unit of data — it carries MAC addresses and exists only within a single local network segment. A **packet** is the Layer 3 (Network) unit — it carries IP addresses and is what actually gets routed between networks. A router forwards packets between networks; a switch forwards frames within one.
+
+</Pitfall>
+
+---
+
+## Network Identities and Devices
+
+| Identity | What it is |
+|---|---|
+| **MAC address** | A hardware-burned, Layer 2 address unique to a network interface |
+| **IP address** | A Layer 3, logical address assigned to an interface — can change, unlike a MAC address |
+| **Hostname** | A human-readable name for a device on the network |
+
+| Device | Role |
+|---|---|
+| **Switch** | Forwards frames between devices on the same local network, based on MAC address |
+| **Router** | Forwards packets between different networks, based on IP address |
+| **NIC** | The physical interface connecting a host to the network |
+| **Access point** | Bridges wireless clients onto a wired network |
+
+---
+
+## DNS and DHCP
+
+**DNS** (Domain Name System) resolves human-readable hostnames into IP addresses. **DHCP** (Dynamic Host Configuration Protocol) automatically assigns an IP address, subnet mask, gateway, and DNS servers to a device joining the network, instead of requiring manual static configuration.
+
+**Common well-known ports** (0-1023 is the reserved "well-known" range):
+
+| Port | Service |
+|---|---|
+| 22 | SSH |
+| 53 | DNS |
+| 67/68 | DHCP |
+| 80 | HTTP |
+| 443 | HTTPS |
+| 25 | SMTP (email) |
+
+---
+
+## Viewing and Configuring Network Settings
+
+| Task | Command |
+|---|---|
+| View current IP addressing configuration (modern) | `ip addr show` (short: `ip a`) |
+| The now-deprecated legacy equivalent | `ifconfig` — replaced by `ip` on virtually every modern distribution |
+| View/manage routing table | `ip route` (replaces the legacy `route`) |
+
+<Pitfall title="ifconfig Is Deprecated — Use ip">
+
+The `net-tools` package (`ifconfig`, `route`, `netstat`, `arp`) is no longer installed by default on most modern distributions, replaced by the `iproute2` suite (`ip`, `ss`). The exam expects you to recognize `ip addr`/`ip route` as the current standard, with `ifconfig`/`route` as legacy commands you might still encounter on older systems.
+
+</Pitfall>
+
+**Where network configuration actually lives** (this varies more than almost anything else across distro families):
+
+| File / directory | Purpose | Distro family |
+|---|---|---|
+| `/etc/sysconfig/network-scripts/` (or NetworkManager profiles) | Per-interface configuration files | RHEL/Rocky/AlmaLinux/Fedora |
+| `/etc/netplan/*.yaml` | Declarative network configuration, rendered into NetworkManager or `systemd-networkd` | Ubuntu (modern) |
+| `/etc/network/interfaces` | Legacy interface configuration | Debian, older Ubuntu |
+| `/etc/sysconfig/network` or `/etc/hostname` | Whether networking is enabled at boot, hostname, default gateway | RHEL-family |
+| `/etc/dhcp/dhclient.conf` | DHCP client-side configuration options | Most distros running `dhclient` |
+| `/etc/resolv.conf` | Which DNS servers to query (often managed automatically by DHCP or NetworkManager now, rather than hand-edited) |
+| `/etc/nsswitch.conf` | Defines the **order** in which name resolution sources are checked (e.g., local `/etc/hosts` file before DNS) via its `hosts:` line |
+
+---
+
+<Quiz questions={[
+  {
+    question: "What's the key difference between a frame and a packet?",
+    options: [
+      "They're the same thing, just different names",
+      "A frame is the Layer 2 unit addressed by MAC address, local to one network segment; a packet is the Layer 3 unit addressed by IP, routed between networks",
+      "Frames are used only for wireless networks",
+      "Packets are always larger than frames"
+    ],
+    correctIndex: 1,
+    explanation: "Switches forward frames within a local segment using MAC addresses. Routers forward packets between different networks using IP addresses — a packet gets wrapped in a new frame at every hop."
+  },
+  {
+    question: "You're troubleshooting on a modern distribution and want current IP configuration. Which command should you reach for?",
+    options: ["ifconfig", "ip addr show", "netstat -i", "route -n"],
+    correctIndex: 1,
+    explanation: "ifconfig and the rest of net-tools are deprecated and often not even installed by default anymore. ip addr (from iproute2) is the current standard."
+  },
+  {
+    question: "A workstation resolves 'myhost' from its local /etc/hosts file before ever querying DNS. Which file controls that lookup order?",
+    options: ["/etc/resolv.conf", "/etc/dhcp/dhclient.conf", "/etc/nsswitch.conf", "/etc/hostname"],
+    correctIndex: 2,
+    explanation: "/etc/nsswitch.conf's 'hosts:' line defines which name resolution sources are checked, and in what order. /etc/resolv.conf only lists which DNS servers to query, not the priority relative to other sources."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 2** puts these fundamentals to work with the actual tools you'll use to test and troubleshoot connectivity.

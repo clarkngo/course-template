@@ -1,0 +1,143 @@
+---
+title: "Encryption, SSH, Firewalls & Logging"
+description: "LUKS disk encryption, SSH key-based authentication, PKI, the firewall generations, and where to actually find out what happened."
+module: 8
+moduleTitle: "Networking & Security"
+lesson: 4
+duration: "24 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Encrypting Data at Rest
+
+| Task | Command / tool |
+|---|---|
+| Platform-independent full-disk encryption standard for Linux storage devices | **LUKS** (Linux Unified Key Setup), built on the kernel's `dm-crypt` |
+| Front-end command for setting up and managing LUKS/`dm-crypt` volumes | `cryptsetup luksFormat /dev/sdb1` |
+| Securely wipe a storage device (overwrite data so it can't be recovered) | `shred -v -n 3 /dev/sdb1` |
+
+---
+
+## SSH: Key-Based Authentication
+
+| Task | Command / file |
+|---|---|
+| Generate a public/private key pair | `ssh-keygen -t ed25519` |
+| Append your public key to a remote server's authorized-keys list | `ssh-copy-id user@remotehost` |
+| Add a private key to the running SSH agent so you're not re-prompted for its passphrase every connection | `ssh-add ~/.ssh/id_ed25519` |
+| Configure the SSH **server's** behavior | `/etc/ssh/sshd_config` |
+
+**Key files used to configure key-based SSH authentication:**
+
+| File | Purpose |
+|---|---|
+| `~/.ssh/id_ed25519` (or `id_rsa`) | Your **private** key — never shared, never leaves your machine |
+| `~/.ssh/id_ed25519.pub` | Your **public** key — safe to share, gets copied to servers you want to access |
+| `~/.ssh/authorized_keys` (on the server) | Public keys that are allowed to log in as that account |
+| `~/.ssh/known_hosts` | Fingerprints of remote hosts you've previously connected to, used to detect a changed host key |
+| `~/.ssh/config` | Per-user client shortcuts (aliases, default usernames, ports, per-host options) |
+
+<Pitfall title="Harden sshd_config After Setting Up Keys">
+
+Key-based auth is only a real security improvement if you also disable the fallback. Once keys are working, set `PasswordAuthentication no` in `/etc/ssh/sshd_config` and restart `sshd` — otherwise a weak password on the same account undermines the whole point of switching to keys.
+
+</Pitfall>
+
+---
+
+## PKI and Transport Encryption
+
+**PKI (Public Key Infrastructure)** is the system of certificate authorities, certificates, and cryptographic components that together provide identity, authentication, and authorization for encrypted communication. Its core components:
+
+| Component | Role |
+|---|---|
+| **Certificate Authority (CA)** | The trusted party that issues and vouches for certificates |
+| **Certificate** | Binds a public key to an identity, signed by a CA |
+| **Public/private key pair** | The underlying cryptography making the whole system work |
+
+| Tool | Purpose |
+|---|---|
+| **OpenSSL** | The open-source implementation of the SSL/TLS protocol for encrypting data in transit — generates keys, certificates, and certificate signing requests |
+| **IPsec VPN utilities** (e.g., strongSwan, Libreswan) | Implement encrypted IPsec tunnels between sites or for remote-access VPN clients |
+
+---
+
+## Firewalls
+
+A **firewall** is software or hardware that protects a system or network from unauthorized access by blocking unwanted traffic based on a rule set. Firewalls have evolved through three broad generations:
+
+| Generation | Approach |
+|---|---|
+| 1st — Packet filtering | Allows/denies based purely on source/destination IP and port, with no awareness of connection state |
+| 2nd — Stateful inspection | Tracks the state of active connections, so return traffic for an already-permitted connection is automatically allowed |
+| 3rd — Next-generation / application-aware | Inspects traffic up to the application layer — can filter by application identity, not just port |
+
+**Netfilter** is the Linux kernel's built-in framework implementing network routing and packet filtering functionality — `iptables` (legacy) and `nftables` (current) are both just user-space front ends for configuring netfilter's rules. An **ipset** is a stored, named collection of IP addresses or networks that firewall rules can reference in bulk, instead of writing one rule per address.
+
+---
+
+## Logging
+
+Linux keeps **logs** — records of system activities and events — both for troubleshooting and for security auditing.
+
+| Task | Command / location |
+|---|---|
+| Traditional log file location | `/var/log/` (`/var/log/messages` or `/var/log/syslog` depending on distro, `/var/log/secure` or `/var/log/auth.log` for authentication events) |
+| View and query the systemd journal (structured, binary logs) | `journalctl` |
+| Follow the journal live | `journalctl -f` |
+| Filter journal entries to just kernel messages | `journalctl -k` |
+| Show login/logout history | `last` |
+| Show every user's most recent login | `lastlog` |
+| Replicate data to another logical or physical location (backups, mirroring, offsite copies) | `rsync -av source/ destination/` |
+
+<Pitfall title="journalctl vs. /var/log — Know Both">
+
+`journalctl` is the modern, structured way to query logs on any systemd-based distribution, and it captures far more (including boot-time and early-service messages that never touch a flat file). But plenty of applications and legacy services still write directly to their own file under `/var/log/` regardless of `journalctl`'s existence — a thorough investigation checks both, not just one.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "After configuring SSH key-based authentication for a user, what should you also do to actually harden the connection?",
+    options: [
+      "Nothing further is needed",
+      "Set PasswordAuthentication no in /etc/ssh/sshd_config so a weak password can't bypass the key requirement",
+      "Delete the user's known_hosts file",
+      "Disable ssh-agent"
+    ],
+    correctIndex: 1,
+    explanation: "Key-based auth doesn't improve security by itself if password login is still enabled as a fallback — an attacker can just try the password instead. Disabling password authentication closes that gap."
+  },
+  {
+    question: "What's the difference between iptables/nftables and netfilter?",
+    options: [
+      "They're unrelated technologies",
+      "netfilter is the kernel's built-in packet-filtering framework; iptables and nftables are user-space tools for configuring netfilter's rules",
+      "iptables replaced netfilter entirely",
+      "nftables runs in kernel space while netfilter runs in user space"
+    ],
+    correctIndex: 1,
+    explanation: "netfilter is the actual in-kernel mechanism doing the filtering. iptables (legacy) and nftables (current) are both just the command-line tools administrators use to write rules into that framework."
+  },
+  {
+    question: "You're investigating an authentication failure and want the most complete picture on a modern systemd-based distro. What should you check?",
+    options: [
+      "Only /var/log/auth.log or /var/log/secure",
+      "Only journalctl",
+      "Both journalctl (for structured, boot-inclusive logs) and the relevant /var/log/ files, since some services still log directly to flat files",
+      "Neither — check dmesg instead"
+    ],
+    correctIndex: 2,
+    explanation: "journalctl captures more than flat log files, including early boot messages, but some applications and legacy services still write their own logs directly under /var/log/ regardless. A thorough check covers both."
+  }
+]} />
+
+---
+
+## What's Next
+
+You've now covered every technical domain in this guide. **Module 9** wraps up with exam-day strategy and the gaps this course doesn't cover.

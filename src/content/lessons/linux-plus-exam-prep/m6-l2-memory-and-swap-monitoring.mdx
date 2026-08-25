@@ -1,0 +1,96 @@
+---
+title: "Memory & Swap Monitoring"
+description: "Reading free, vmstat, and /proc/meminfo correctly, understanding the OOM killer, and diagnosing CPU vs. memory bottlenecks."
+module: 6
+moduleTitle: "Processes, Kernel & Hardware"
+lesson: 2
+duration: "18 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Reading Memory Statistics
+
+| Task | Command |
+|---|---|
+| Raw kernel-maintained memory data | `cat /proc/meminfo` |
+| Human-readable summary parsed from `/proc/meminfo` | `free -h` |
+| Detailed virtual memory statistics (processes, swap activity, I/O, CPU) | `vmstat 1` (refreshes every second) |
+
+<Pitfall title="'Low Free Memory' Usually Isn't a Problem">
+
+Linux aggressively uses otherwise-idle RAM to **cache** disk data, on the theory that free memory is wasted memory — that cache is instantly reclaimed the moment an application actually needs it. In `free -h` output, look at the **`available`** column, not `free`. A system showing 200 MB "free" but 6 GB "available" is healthy; the rest is reclaimable cache, not memory under real pressure.
+
+</Pitfall>
+
+---
+
+## When Memory Runs Out: The OOM Killer
+
+When a system is critically low on memory — genuinely out, not just low on the "free" column — the kernel's **OOM (Out-Of-Memory) Killer** decides which process to forcibly terminate to reclaim enough RAM to keep the system responsive. It scores every process (weighing memory usage, priority, and process age) and kills whichever one scores worst, logging the event to the kernel ring buffer (`dmesg`) and the system journal.
+
+Swap space directly delays this outcome: it lets the kernel page out less-active memory to disk instead of killing a process outright, buying time when the system (or a specific application) is requesting more memory than physical RAM provides. But swap is not a substitute for adequate RAM — once swap itself is exhausted, or the system is thrashing (constantly paging in and out under heavy load), the OOM killer activates regardless.
+
+<Pitfall title="Find OOM Kills in the Logs, Not Just Symptoms">
+
+A service that "just disappeared" with no crash log of its own is a classic OOM-kill symptom. Check `dmesg | grep -i "out of memory"` or `journalctl -k | grep -i oom` before assuming a software bug — the kernel logs exactly which process it killed and why.
+
+</Pitfall>
+
+---
+
+## Diagnosing CPU vs. Memory Bottlenecks
+
+| Symptom | Likely cause | Where to look |
+|---|---|---|
+| High load average, low CPU usage in `top` | Processes stuck waiting on I/O (disk or network), not actually CPU-bound | Process state `D` in `ps`; check `iostat` |
+| High CPU usage from one process | A runaway or looping process | `top` sorted by `%CPU`, then investigate that specific PID |
+| High swap activity (`si`/`so` columns in `vmstat` constantly non-zero) | The system is under real memory pressure and actively paging | `free -h` `available` column, `vmstat` |
+| Services disappearing without a crash log | OOM killer activity | `dmesg`, `journalctl -k` |
+
+**Common process-level issues to recognize:** a **runaway process** consumes CPU without bound (fix: `renice` it down, or `kill` it); a **zombie process** (see Lesson 1) indicates a parent that isn't reaping children; **memory leaks** show as a single process's resident memory climbing steadily over time in repeated `ps`/`top` snapshots without ever releasing it back.
+
+---
+
+<Quiz questions={[
+  {
+    question: "`free -h` shows only 300 MB in the \"free\" column but 5.8 GB in \"available.\" Should you be concerned?",
+    options: [
+      "Yes — the system is almost out of memory",
+      "No — most of that memory is reclaimable disk cache, which Linux uses opportunistically since idle RAM is otherwise wasted",
+      "Yes — you should immediately add swap",
+      "This output means the OOM killer has already run"
+    ],
+    correctIndex: 1,
+    explanation: "\"free\" only counts memory doing nothing at all. \"available\" accounts for cache the kernel will instantly hand back to an application that needs it, which is the number that actually reflects memory pressure."
+  },
+  {
+    question: "A background service vanished with no error in its own logs. Where should you check first?",
+    options: [
+      "The service's own configuration file",
+      "dmesg or journalctl -k, to check whether the kernel's OOM killer terminated it under memory pressure",
+      "The network interface logs",
+      "There's no way to determine what happened"
+    ],
+    correctIndex: 1,
+    explanation: "A process killed by the OOM killer doesn't get to log its own shutdown — the kernel logs the kill event itself, which is why the kernel ring buffer or journal is the right place to look."
+  },
+  {
+    question: "vmstat shows constant non-zero values in the si (swap-in) and so (swap-out) columns under normal load. What does that indicate?",
+    options: [
+      "Nothing unusual — this is expected at all times",
+      "The system is under genuine memory pressure and is actively paging data to and from swap",
+      "The CPU is overloaded, unrelated to memory",
+      "Swap has been disabled"
+    ],
+    correctIndex: 1,
+    explanation: "Occasional swap activity is normal, but sustained, constant si/so activity means the system doesn't have enough physical RAM for its current workload and is thrashing between RAM and disk-backed swap."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 3** moves from processes to the kernel modules and hardware they run on top of.

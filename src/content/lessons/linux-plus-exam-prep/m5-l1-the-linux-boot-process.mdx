@@ -1,0 +1,128 @@
+---
+title: "The Linux Boot Process"
+description: "Everything that happens between pressing the power button and reaching a login prompt — firmware, bootloader, kernel, and initramfs."
+module: 5
+moduleTitle: "Boot Process & System Initialization"
+lesson: 1
+duration: "20 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What "Booting" Means
+
+**Booting** is the process — repeated every time a computer starts — of loading an operating system from a storage device into memory so a user can access it. At a high level, four components hand off control to each other in sequence:
+
+**Firmware → Bootloader → Kernel → Init system**
+
+---
+
+## Firmware: BIOS vs. UEFI
+
+| | BIOS | UEFI |
+|---|---|---|
+| Age | Legacy, standard since the 1980s | Modern replacement for BIOS |
+| Stored on | The motherboard's ROM chip | The motherboard's ROM chip |
+| Partition table it expects | MBR | GPT (though most UEFI implementations can boot MBR too) |
+| Speed / capability | Slower, 16-bit, limited addressable memory | Faster, supports larger disks and more memory, has its own mini file-browsing environment |
+| Boot record | **MBR** — the first physical sector of the disk, containing both the bootloader and the partition table | **GPT** with an **EFI System Partition (ESP)** — a small FAT-formatted partition holding boot loader files |
+| Security feature both support | A boot password can protect the boot process from unauthorized changes; UEFI additionally supports **Secure Boot**, which cryptographically verifies each boot component before it's allowed to run |
+
+---
+
+## The Bootloader: GRUB2
+
+Once firmware hands off, the **bootloader** — GNU GRUB2 on virtually every modern Linux distribution — finds and loads the kernel. Its components include the boot menu, kernel selection, and the ability to pass boot parameters.
+
+GRUB2 gives administrators fine control over the boot process, boot devices, and boot behavior (rescue/single-user boots, kernel parameter overrides, dual-boot menus). We cover GRUB2's configuration files and commands in the next lesson.
+
+---
+
+## The Kernel, initramfs, and initrd
+
+Once selected, the bootloader loads the **kernel image** — a compressed executable file containing the Linux kernel itself — into memory.
+
+The kernel alone can't mount the real root filesystem yet, because the drivers it needs to do so (storage controller drivers, filesystem drivers, LVM/RAID support) might not be built directly into it. That's the job of a temporary root filesystem loaded into memory first:
+
+| Term | What it is |
+|---|---|
+| **initramfs** | A compressed **cpio archive** containing the essential files (drivers, tools) needed to mount the real root filesystem — the current standard approach |
+| **initrd** | The older approach to the same problem, using a different mechanism (a full mountable filesystem image rather than an archive) — largely superseded by initramfs |
+| `mkinitrd` | Builds an initrd image |
+| `dracut` (produces `mkinitramfs`-style output) | Builds an initramfs image, preloading the kernel modules needed at boot |
+
+Once the real root filesystem is mounted, the kernel discards the temporary root and hands off to the init system.
+
+---
+
+## The 12(ish)-Step Boot Sequence
+
+1. Power on — hardware self-test (POST)
+2. Firmware (BIOS/UEFI) initializes and locates a boot device
+3. Firmware reads the boot record (MBR or the ESP/GPT boot entry)
+4. Bootloader (GRUB2) loads and displays its menu
+5. Bootloader loads the selected kernel image into memory
+6. Bootloader loads the initramfs into memory
+7. Kernel decompresses and initializes itself
+8. Kernel mounts the initramfs as a temporary root filesystem
+9. Kernel loads drivers/modules needed to reach the real root filesystem
+10. Kernel mounts the real root filesystem and discards the temporary one
+11. Kernel starts the init system (PID 1 — `systemd` on virtually all modern distributions)
+12. The init system brings the system up to its target run state, starting services until a login prompt (or graphical login) appears
+
+---
+
+## When It Goes Wrong: Kernel Panic
+
+A **kernel panic** is the mechanism by which the kernel detects it has hit a fatal, unrecoverable error and halts rather than risk further damage or data corruption. Common causes include a corrupted or missing root filesystem, a critical hardware failure, an incompatible or corrupted kernel module, or a bad initramfs.
+
+<Pitfall title="A Missing initramfs Looks Like a Much Scarier Problem">
+
+If a boot fails with errors about being unable to find or mount the root filesystem, don't assume the disk itself has failed — check whether the initramfs is missing, corrupted, or simply doesn't include the driver needed for that storage controller (common after migrating a VM between hypervisors, or upgrading storage hardware). Rebuilding it with `dracut` from a rescue environment is often the entire fix.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "Put these in the correct order: firmware, kernel, bootloader, init system.",
+    options: [
+      "Firmware → Bootloader → Kernel → Init system",
+      "Bootloader → Firmware → Init system → Kernel",
+      "Kernel → Firmware → Bootloader → Init system",
+      "Firmware → Kernel → Bootloader → Init system"
+    ],
+    correctIndex: 0,
+    explanation: "Firmware initializes hardware and finds a boot device, hands off to the bootloader, which loads the kernel, which finally starts the init system (PID 1)."
+  },
+  {
+    question: "Why does the kernel need an initramfs before it can mount the real root filesystem?",
+    options: [
+      "It doesn't — initramfs is purely optional decoration",
+      "The kernel may lack the storage/filesystem drivers needed to reach the real root filesystem until it loads them from a temporary in-memory root first",
+      "initramfs is only used for graphical boot splash screens",
+      "initramfs replaces the kernel entirely"
+    ],
+    correctIndex: 1,
+    explanation: "initramfs is a minimal, compressed in-memory filesystem containing just enough drivers and tools to locate and mount the actual root filesystem, which may depend on modules not built into the kernel image itself."
+  },
+  {
+    question: "A VM was just migrated to a hypervisor with a different virtual storage controller, and now it fails to boot with a 'cannot find root filesystem' error. What's the most likely first thing to check?",
+    options: [
+      "Replace the physical hard drive",
+      "Whether the initramfs includes a driver for the new storage controller — rebuild it with dracut if not",
+      "Reinstall the entire operating system",
+      "This error is always caused by a corrupted MBR"
+    ],
+    correctIndex: 1,
+    explanation: "A driver mismatch in the initramfs is a very common cause of this exact symptom after a hardware or hypervisor change, and it's fixable from a rescue environment without reinstalling anything."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 2** goes deeper on the two systems that carry the boot process across that handoff line: GRUB2's configuration, and systemd's units and targets.

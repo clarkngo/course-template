@@ -1,0 +1,97 @@
+---
+title: "Practice Strategy & What's Next"
+description: "Exam logistics, how to close the scripting/containers gap this course leaves open, and a final mixed review before you schedule the test."
+module: 9
+moduleTitle: "Exam Readiness"
+lesson: 1
+duration: "14 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What You've Covered
+
+Across eight modules, you've worked through the bulk of CompTIA Linux+ (XK0-005) **Domain 1 (System Management)**, **Domain 2 (Security)**, and a good portion of **Domain 4 (Troubleshooting)** — filesystem navigation, permissions, users and groups, the full storage stack, boot and init, process/memory/kernel management, hardware and package management, networking, and system security.
+
+---
+
+## The Gap This Course Doesn't Close
+
+As flagged back in Module 1: this course does **not** cover **Domain 3 (Scripting, Containers & Automation)**, which is roughly a sixth of the current exam. Before scheduling your test, make sure you can comfortably:
+
+- Write a Bash script using variables, conditionals (`if`/`case`), loops (`for`/`while`), and functions
+- Use basic Git commands (`clone`, `add`, `commit`, `push`, `pull`, branching)
+- Explain the difference between a container and a VM, and run basic `docker`/`podman` commands (`run`, `build`, `ps`, `images`)
+- Recognize the shape of a basic Ansible playbook and what "infrastructure as code" means in practice
+
+CompTIA's own official **exam objectives PDF** (search "CompTIA Linux+ XK0-005 exam objectives" on comptia.org) is the authoritative source for exactly what's testable — cross-check it against this course before your exam date, since exam objectives do get revised.
+
+---
+
+## Exam Logistics
+
+| Detail | What to expect |
+|---|---|
+| Format | A mix of multiple-choice and **performance-based questions** (PBQs) — simulated terminal tasks where you actually type commands, not just pick an answer |
+| Testing provider | Pearson VUE — in-person at a testing center or online-proctored from home |
+| Registration | Through CompTIA's own store or an authorized training partner; check with your academic department first for any available student pricing or vouchers before paying full price |
+
+<Pitfall title="PBQs Reward Muscle Memory, Not Just Recognition">
+
+Performance-based questions ask you to actually solve a small task in a simulated terminal — configure a permission, fix an `/etc/fstab` entry, chase down a process. Passive reading gets you through multiple-choice questions; PBQs are why building and breaking a real lab VM (Module 1) matters so much more than memorizing tables alone.
+
+</Pitfall>
+
+---
+
+## How to Use the Time Before Your Exam
+
+1. **Rebuild every command table in this course from memory, in your lab VM**, not on paper — if you can't type it, you don't know it yet.
+2. **Break something on purpose every study session.** Corrupt a permission, remove a fstab entry, lock an account, then fix it under a self-imposed time limit.
+3. **Alternate between your RHEL-family and Debian-family VMs** so command syntax differences (`dnf` vs `apt`, `firewalld` vs `ufw`) stop tripping you up.
+4. **Take a full-length practice exam** under real time pressure before test day — CompTIA sells official practice exams, and knowing your weak domains ahead of time is far better than discovering them live.
+
+---
+
+<Quiz questions={[
+  {
+    question: "Which exam domain does this course intentionally not cover, and that you should study separately before your exam?",
+    options: [
+      "1.0 System Management",
+      "2.0 Security",
+      "3.0 Scripting, Containers & Automation",
+      "4.0 Troubleshooting"
+    ],
+    correctIndex: 2,
+    explanation: "This course was built from a 2020-era study deck that predates the current exam's heavier automation/scripting/container focus. Bash scripting, Git, and container basics need dedicated separate practice."
+  },
+  {
+    question: "Why do performance-based questions (PBQs) reward hands-on lab practice more than passive review?",
+    options: [
+      "PBQs are always easier than multiple-choice questions",
+      "PBQs require you to actually perform a task in a simulated terminal, which tests muscle memory that reading alone doesn't build",
+      "PBQs don't count toward your final score",
+      "PBQs only appear if you fail the multiple-choice section"
+    ],
+    correctIndex: 1,
+    explanation: "A PBQ asks you to solve a real, simulated task — fix a config file, set a permission, diagnose a broken mount. That's a different skill than recognizing the right answer in a list, and it's exactly what practicing destructively in a lab VM builds."
+  },
+  {
+    question: "You want to stop getting tripped up by dnf vs. apt syntax differences on the exam. What's the most effective way to fix that?",
+    options: [
+      "Memorize a static comparison table and nothing else",
+      "Alternate hands-on practice between a RHEL-family VM and a Debian-family VM until both command sets feel equally natural",
+      "Only study the RHEL-family commands, since they're used more often",
+      "Skip package management questions entirely"
+    ],
+    correctIndex: 1,
+    explanation: "Recognition under time pressure comes from repetition, not memorized tables. Practicing the same tasks on both VM families builds the pattern-matching the exam actually tests."
+  }
+]} />
+
+---
+
+## Good luck.
+
+You've now got a working command reference and a real lab environment to practice in. The rest is repetition — go break your VM a few more times before test day.

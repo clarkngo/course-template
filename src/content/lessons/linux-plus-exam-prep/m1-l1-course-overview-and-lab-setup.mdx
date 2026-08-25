@@ -1,0 +1,90 @@
+---
+title: "Course Overview & Building Your Lab"
+description: "What CompTIA Linux+ (XK0-005) actually tests, how this guide is organized, and how to build a free virtual lab to practice every command in it."
+module: 1
+moduleTitle: "Setup & Study Plan"
+lesson: 1
+duration: "12 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## What CompTIA Linux+ Actually Tests
+
+CompTIA Linux+ certifies that you can administer a Linux system day-to-day: manage users, storage, processes, and services; secure a box; and troubleshoot it when something breaks. It's distribution-neutral — questions could reference Red Hat/CentOS-family tools (`dnf`, `firewalld`) or Debian/Ubuntu-family tools (`apt`, `ufw`), and you're expected to recognize both.
+
+The current version of the exam, **XK0-005**, organizes everything into four domains:
+
+| Domain | Approx. weight | What it covers |
+|---|---|---|
+| **1.0 System Management** | ~32% | Users/groups, permissions, storage, boot, processes, packages — the bulk of day-to-day administration |
+| **2.0 Security** | ~20% | Authentication, access control, encryption, hardening, firewalls |
+| **3.0 Scripting, Containers & Automation** | ~17% | Bash scripting, version control basics, Ansible/Podman/Docker concepts |
+| **4.0 Troubleshooting** | ~19% | Diagnosing storage, network, performance, and boot failures |
+
+<Pitfall title="This Course Doesn't Cover Domain 3">
+
+This study guide was built from a personal flashcard deck originally organized in 2020, back when the exam (then XK0-004) had a lighter automation focus. It's strong on Domains 1, 2, and 4 — but it does **not** cover scripting, version control, or containers, which now make up roughly a sixth of the current exam.
+
+Before your exam date, pair this course with dedicated Bash scripting practice and a short primer on Docker/Podman basics. Don't let this gap surprise you on test day.
+
+</Pitfall>
+
+---
+
+## How This Course Is Organized
+
+Each module maps to a cluster of related exam objectives, moving roughly in the order you'd actually configure a machine: filesystem orientation → files and permissions → users → storage → boot → processes and hardware → system configuration → networking and security. The final module covers exam-day strategy.
+
+Every lesson favors **command tables you can scan the night before the exam** over long prose, plus a short knowledge check at the end. Type the commands yourself as you go — muscle memory is what gets you through scenario-based questions under time pressure.
+
+---
+
+## Building a Free Practice Lab
+
+You need a disposable Linux box you're not afraid to break. A virtual machine on your own laptop is the right tool — mistakes cost you a VM snapshot restore, not a semester project.
+
+**1. Install a hypervisor.** [VirtualBox](https://www.virtualbox.org/) is free and cross-platform (Windows/macOS/Linux host). If you're on an Apple Silicon Mac, use [UTM](https://mac.getutm.app/) instead — VirtualBox doesn't yet run well on ARM Macs.
+
+**2. Pick a distribution.** The original version of this deck used CentOS — but **CentOS Linux ended general support in 2021** and is no longer a safe pick. Use one of these instead:
+
+| Distro | Family | Why pick it |
+|---|---|---|
+| **Rocky Linux** or **AlmaLinux** | RHEL clone | Closest match to CentOS's old role — practice `dnf`, `firewalld`, SELinux, exactly as Linux+ expects |
+| **Ubuntu Server (LTS)** | Debian | Practice `apt`, `ufw`/`nftables`, and the Debian-family file layout |
+| **Debian** | Debian | Minimal, close to upstream — good if you want fewer defaults pre-configured for you |
+
+A strong study plan installs **both** a RHEL-family and a Debian-family VM, since the exam expects you to recognize commands from either family.
+
+**3. Create the VM.** Download the distro's server ISO, create a new VM in VirtualBox (2 GB+ RAM, 20 GB+ disk), attach the ISO, and walk through the text-based installer. Take a **snapshot** immediately after first boot — that's your restore point every time you break something on purpose.
+
+**4. Practice destructively.** Break permissions. Corrupt `/etc/fstab` on purpose and fix it. Lock yourself out of `sudo` and recover via single-user mode. The exam rewards people who've actually broken and fixed a system, not just read about it.
+
+---
+
+<Quiz questions={[
+  {
+    question: "Which of the four current CompTIA Linux+ (XK0-005) domains carries the most exam weight?",
+    options: ["1.0 System Management", "2.0 Security", "3.0 Scripting, Containers & Automation", "4.0 Troubleshooting"],
+    correctIndex: 0,
+    explanation: "System Management is roughly a third of the exam — it covers users, permissions, storage, boot, processes, and packages, which is why this course spends the most time there."
+  },
+  {
+    question: "Why shouldn't you install CentOS Linux for your practice lab today?",
+    options: [
+      "It never supported VirtualBox",
+      "CentOS Linux ended general support in 2021, so it's no longer a safe or representative environment to learn on",
+      "It doesn't use systemd",
+      "It's identical to Ubuntu"
+    ],
+    correctIndex: 1,
+    explanation: "CentOS Linux (the traditional rebuild of RHEL) reached end of life in 2021 when Red Hat shifted its community focus to CentOS Stream. Rocky Linux and AlmaLinux are the current drop-in replacements for that role."
+  }
+]} />
+
+---
+
+## What's Next
+
+With your lab running, **Lesson 2** starts where every Linux session starts: figuring out where you are and what's around you — the Filesystem Hierarchy Standard.

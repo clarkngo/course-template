@@ -1,0 +1,121 @@
+---
+title: "Groups, sudo & Session Environment"
+description: "Managing groups, safely elevating privileges with sudo and visudo, and the login-file chain that configures every shell session."
+module: 3
+moduleTitle: "Users & Access Management"
+lesson: 2
+duration: "18 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Groups: Associating Accounts by Security Requirement
+
+Groups exist to associate accounts that share the same access needs, so you can grant a permission once instead of per-user. Group data lives in `/etc/group`.
+
+| Task | Command |
+|---|---|
+| Create a new group | `groupadd groupname` |
+| Rename an existing group | `groupmod -n newname oldname` |
+| Add an existing user to a group | `usermod -aG groupname username` |
+| Safely edit `/etc/group` by hand | `vigr` |
+
+<Pitfall title="Never Forget -a With usermod -G">
+
+`usermod -G groupname username` **replaces** every supplementary group the user currently belongs to with just that one group. Forgetting `-a` (append) silently kicks the user out of every other group they were in — a common source of "why did this user suddenly lose access to X" tickets. Always use `usermod -aG`.
+
+</Pitfall>
+
+---
+
+## Privilege Escalation: sudo
+
+`sudo` lets an authorized user run a single command with elevated (typically root) privileges, without sharing the root password directly — a much smaller blast radius than logging in as root outright.
+
+| Concept | Detail |
+|---|---|
+| **`/etc/sudoers`** | Contains the rules that define who can run what as whom |
+| **`visudo`** | The *only* safe way to edit `/etc/sudoers` — validates syntax before saving, preventing a broken file from locking out `sudo` entirely |
+| **`wheel` group** (or `sudo` group on Debian-family systems) | The conventional group whose members are granted root-level privileges via `sudoers` |
+| **`su -`** | Switch user entirely, loading that user's full login environment (commonly `su -` to become root outright) |
+
+<Pitfall title="Editing /etc/sudoers Directly Can Lock Out Every Admin">
+
+Just like `/etc/passwd`, a syntax error in a hand-edited `/etc/sudoers` can disable `sudo` for the entire system — including you. `visudo` opens a temporary copy, checks the syntax on save, and only replaces the real file if it's valid.
+
+</Pitfall>
+
+---
+
+## Who Am I, and Who Else Is Here?
+
+| Task | Command |
+|---|---|
+| Print the current username | `whoami` |
+| Print current user, plus what they're logged in as and doing | `who am i` |
+| List everyone currently logged in | `who` |
+| List everyone logged in, what they're running, and how long they've been idle | `w` |
+| Print the current user's UID, GID, and group memberships | `id` |
+| Show the login/logout history for a user (or everyone) | `last` |
+| Show the last time every user logged in | `lastlog` |
+
+`id` is the command to reach for whenever a question hinges on *effective* permissions — it shows exactly which groups (and therefore which permission sets) are actually active for that user's session, not just what `/etc/group` claims on paper.
+
+---
+
+## Customizing the User Environment
+
+Login shells read a chain of files to set up environment variables, aliases, and prompt behavior — in roughly this order:
+
+| File | Scope | When it runs |
+|---|---|---|
+| `/etc/profile` | System-wide | Every login shell |
+| `/etc/profile.d/*.sh` | System-wide, modular | Sourced by `/etc/profile` — the preferred place to drop **new** system-wide scripts without editing `/etc/profile` itself |
+| `~/.bash_profile` (or `~/.bash_login`, `~/.profile`) | Per-user | Login shells only (e.g., a fresh terminal, SSH session) |
+| `~/.bashrc` | Per-user | Every **new interactive** shell, including non-login shells (e.g., opening a new terminal tab) |
+
+<Pitfall title=".bashrc vs .bash_profile: The Classic Mix-Up">
+
+If an alias or environment variable works in a fresh SSH login but disappears when you open a new terminal tab in an already-running session (or vice versa), you've put it in the wrong file. **`.bash_profile`** runs once per login. **`.bashrc`** runs for every new interactive shell. Many setups just have `.bash_profile` source `.bashrc` to avoid duplicating settings.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "You run `usermod -G developers alice` intending to add her to the developers group. What actually happens?",
+    options: [
+      "Alice is added to developers while keeping her other groups",
+      "Alice's supplementary groups are replaced entirely — she's now ONLY in developers",
+      "Nothing changes until she logs out and back in",
+      "The command fails because -G requires -a"
+    ],
+    correctIndex: 1,
+    explanation: "Without -a, -G overwrites the full supplementary group list. The correct command to add without removing existing memberships is usermod -aG developers alice."
+  },
+  {
+    question: "What's the only safe way to edit /etc/sudoers?",
+    options: ["nano /etc/sudoers", "vim /etc/sudoers", "visudo", "echo appended directly with >>"],
+    correctIndex: 2,
+    explanation: "visudo edits a temporary copy and validates syntax before committing, preventing a malformed sudoers file from disabling sudo system-wide."
+  },
+  {
+    question: "A user's custom PATH variable works after SSH login but disappears when they open a new terminal tab within that same session. Where did they most likely define it?",
+    options: [
+      "~/.bashrc, which doesn't run for login shells",
+      "~/.bash_profile, which only runs once at login, not for every new interactive shell",
+      "/etc/profile.d/, which never runs for regular users",
+      "There's no file that would cause this behavior"
+    ],
+    correctIndex: 1,
+    explanation: ".bash_profile executes only at login. A new terminal tab typically opens a non-login interactive shell, which reads .bashrc instead — so anything defined only in .bash_profile won't be there."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Module 4** moves from accounts to the disks those accounts' data actually lives on — partitions, filesystems, and the full storage stack.

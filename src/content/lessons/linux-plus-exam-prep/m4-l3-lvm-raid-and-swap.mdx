@@ -1,0 +1,141 @@
+---
+title: "LVM, RAID & Swap"
+description: "Logical Volume Manager, software RAID with mdadm, device mapper, and swap space — the tools for storage that can grow, survive a drive failure, or extend RAM."
+module: 4
+moduleTitle: "Storage Management"
+lesson: 3
+duration: "24 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Storage Setup Process, End to End
+
+Every storage device generally goes through the same pipeline before an application can use it: **identify the device → partition it → optionally layer LVM or RAID on top → create a filesystem → mount it (and persist that mount in `/etc/fstab`)**. LVM and RAID both sit between "partition" and "filesystem" — they change what a partition-like block device *is*, not how it's eventually mounted.
+
+---
+
+## Device Mapper and Multipath
+
+The **device mapper** is the kernel framework that lets Linux create virtual block devices layered on top of real ones — LVM, software RAID, and encrypted volumes (covered in the Security module) are all built on it.
+
+**DM-Multipath** uses device mapper to present multiple physical I/O paths to the same storage (common with SAN-attached storage that has redundant cabling/controllers) as a single, fault-tolerant device — if one path fails, I/O keeps flowing over another. Its configuration lives in `/etc/multipath.conf`.
+
+---
+
+## Software RAID with mdadm
+
+RAID combines multiple physical disks into one logical unit for redundancy, performance, or both. Linux's software RAID is managed with **`mdadm`**:
+
+```bash
+mdadm --create /dev/md0 --level=1 --raid-devices=2 /dev/sdb1 /dev/sdc1
+```
+
+| RAID level | Behavior |
+|---|---|
+| RAID 0 | Striping — performance, zero redundancy |
+| RAID 1 | Mirroring — full redundancy, half usable capacity |
+| RAID 5 | Striping with distributed parity — tolerates one disk failure |
+| RAID 10 | Mirrored stripes — performance and redundancy, at the cost of capacity |
+
+---
+
+## Logical Volume Manager (LVM)
+
+LVM adds a flexible layer between physical disks and filesystems, so you can resize storage, span a filesystem across multiple disks, and take snapshots — all without unmounting anything or being boxed in by fixed partition boundaries.
+
+LVM's tools fall into three categories, one per layer of its stack:
+
+| Layer | What it is | Tool prefix |
+|---|---|---|
+| **Physical Volume (PV)** | A raw disk or partition, initialized for LVM use | `pv*` |
+| **Volume Group (VG)** | A storage pool combining one or more PVs — can span multiple physical disks | `vg*` |
+| **Logical Volume (LV)** | A resizable "virtual partition" carved out of a VG — this is what actually gets formatted and mounted | `lv*` |
+
+**Building the stack:**
+
+| Task | Command |
+|---|---|
+| Create a physical volume | `pvcreate /dev/sdd2` |
+| Remove a physical volume | `pvremove /dev/sdd2` |
+| Create a volume group spanning two disks | `vgcreate vg_shared /dev/sdd1 /dev/sdd2` |
+| Create a 20 GB logical volume named `sales` inside a volume group | `lvcreate -n sales -L 20G vg_sales` |
+
+**Inspecting the stack:**
+
+| Task | Command |
+|---|---|
+| List current logical volumes, brief | `lvs` |
+| Detailed info on a PV / VG / LV | `pvdisplay`, `vgdisplay`, `lvdisplay` |
+| Even more detail (verbose mode) | add `-v` to any of the above, e.g. `vgdisplay -v` |
+
+**Resizing:**
+
+```bash
+lvextend -L +50G /dev/vg_sales/sales     # grow the logical volume
+resize2fs /dev/vg_sales/sales            # then grow the ext4 filesystem to match
+```
+
+```bash
+lvreduce -L 100G /dev/vg_sales/sales     # shrink the logical volume
+```
+
+<Pitfall title="Shrink the Filesystem Before You Shrink the Logical Volume">
+
+Growing is safe in either order, but shrinking is not: `lvreduce` on ext4 must happen **after** you've already shrunk the filesystem with `resize2fs` to a size at or below the new target — do it in the wrong order and you truncate live data out from under the filesystem. (XFS sidesteps this entirely by refusing to shrink at all — see Lesson 2.)
+
+</Pitfall>
+
+---
+
+## Swap Space
+
+Swap extends usable memory by giving the kernel somewhere on disk to page out data that doesn't fit in physical RAM.
+
+| Swap type | Description |
+|---|---|
+| **Swap partition** | A dedicated partition, formatted specifically for swap use |
+| **Swap file** | A regular file used as swap space — more flexible, easily resized without repartitioning |
+| **zswap / zram** | Compressed swap held in RAM itself, trading CPU cycles for reduced disk I/O — useful on systems with little or no disk-backed swap |
+
+| Task | Command |
+|---|---|
+| Prepare a partition or file as swap | `mkswap /dev/sdb2` |
+| Activate a swap area | `swapon /dev/sdb2` |
+| Deactivate a swap area | `swapoff /dev/sdb2` |
+| View active swap areas | `swapon --show` or `free -h` |
+
+---
+
+<Quiz questions={[
+  {
+    question: "In LVM's three-layer stack, which layer is the one you actually format with a filesystem and mount?",
+    options: ["Physical Volume (PV)", "Volume Group (VG)", "Logical Volume (LV)", "Device Mapper (DM)"],
+    correctIndex: 2,
+    explanation: "PVs are raw disks initialized for LVM, and VGs are storage pools combining PVs. Neither is mounted directly — the Logical Volume, carved out of a VG, is the resizable unit that gets a filesystem and a mount point."
+  },
+  {
+    question: "You need to shrink an ext4 logical volume from 200G to 100G. What's the correct order of operations?",
+    options: [
+      "Run lvreduce first, then resize2fs",
+      "Run resize2fs to shrink the filesystem to 100G or less first, then lvreduce the logical volume",
+      "Order doesn't matter",
+      "You can't shrink an ext4 logical volume, only grow it"
+    ],
+    correctIndex: 1,
+    explanation: "Shrinking the logical volume before the filesystem risks truncating live filesystem data. The filesystem must be shrunk to fit within the new size first."
+  },
+  {
+    question: "Which RAID level provides redundancy by mirroring data across two disks, at the cost of half the total usable capacity?",
+    options: ["RAID 0", "RAID 1", "RAID 5", "RAID 10"],
+    correctIndex: 1,
+    explanation: "RAID 1 writes identical copies of data to each disk in the array — full redundancy against a single disk failure, but usable capacity equals only one disk's worth."
+  }
+]} />
+
+---
+
+## What's Next
+
+Storage is set up before the system even fully boots — **Module 5** walks through exactly what happens from power-on to login prompt.

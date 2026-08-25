@@ -1,0 +1,159 @@
+---
+title: "Kernel Modules & Device Management"
+description: "Kernel space vs. user space, loading and managing kernel modules, and the udev/lspci/lsusb toolkit for identifying attached hardware."
+module: 6
+moduleTitle: "Processes, Kernel & Hardware"
+lesson: 3
+duration: "22 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Kernel Space vs. User Space
+
+The kernel splits memory into two protected regions:
+
+| Space | Runs | Access level |
+|---|---|---|
+| **Kernel space** | The kernel itself, plus system modules like device drivers and filesystem code | Full, unrestricted hardware access |
+| **User space** | Everything else — your applications, shells, and services | Restricted; must go through the kernel to touch hardware |
+
+This split exists for stability and security: a crash or bug in a user-space application can't take down the whole system, because it never has direct access to memory or hardware it doesn't own.
+
+**Kernel design philosophies** differ in how much lives in kernel space:
+
+| Type | Approach |
+|---|---|
+| **Monolithic** (Linux) | Nearly everything — drivers, filesystems, networking — runs in kernel space for performance, with modules allowing pieces to load/unload dynamically |
+| **Microkernel** | The kernel itself runs the bare minimum needed for a functional OS; most services run in user space instead, favoring isolation and fault tolerance over raw speed |
+
+Check which kernel a system is running with `uname -r` (version) or `uname -s` (just the kernel name — "Linux").
+
+**The kernel's major layers**, each responsible for one core job: the **system call interface** (handles calls from user applications into the kernel), **process management**, **memory management**, and **filesystem management** — plus **device management**, covered later in this lesson.
+
+---
+
+## Kernel Modules
+
+A **kernel module** is a system-level object that extends kernel functionality — a driver, filesystem, or feature — without recompiling or rebooting the entire kernel. Modules for the running kernel live under `/lib/modules/$(uname -r)/`, organized into subdirectories by purpose:
+
+| Subdirectory | Contains modules for |
+|---|---|
+| `kernel/arch/` | Architecture-specific support |
+| `kernel/crypto/` | Encryption and other cryptographic functions |
+| `kernel/drivers/` | Hardware device drivers |
+| `kernel/fs/` | Filesystem types |
+| `kernel/net/` | Networking components — firewalls, protocols |
+
+**Managing modules:**
+
+| Task | Command |
+|---|---|
+| List currently loaded modules | `lsmod` |
+| Show detailed information about one module | `modinfo modulename` |
+| Load a module into the running kernel (no dependency resolution) | `insmod modulename.ko` |
+| Unload a module | `rmmod modulename` |
+| Load **or** unload a module, automatically resolving dependencies | `modprobe modulename` / `modprobe -r modulename` |
+| Rebuild the module dependency database | `depmod` — updates `modules.dep`, scanning `/lib/modules/[kernel_version]/` for every module |
+
+<Pitfall title="insmod Doesn't Resolve Dependencies — modprobe Does">
+
+`insmod` loads exactly the module you name and nothing else — if that module depends on another module that isn't already loaded, it fails outright. `modprobe` consults `modules.dep` (built by `depmod`) and loads the full dependency chain automatically. Use `modprobe` for anything beyond quick testing.
+
+</Pitfall>
+
+Loaded modules can call functions defined in other modules through **kernel symbols** — exported functions and objects that let modules interoperate instead of duplicating code (visible via `/proc/kallsyms`).
+
+**Persisting module configuration:**
+
+| Location | Purpose |
+|---|---|
+| `/etc/modprobe.d/*.conf` | Settings that apply persistently to modules loaded on this system — blacklisting a module, setting load-time options |
+| `/sys/module/modulename/parameters/` | Configurable runtime parameters for a currently-loaded module |
+| `sysctl` | View or set kernel parameters at runtime generally (not module-specific) — `sysctl -a` to list all, `sysctl -w param=value` to set one |
+| `/etc/sysctl.conf` (and `/etc/sysctl.d/*.conf`) | Persist `sysctl` parameter changes across reboots |
+
+---
+
+## Identifying and Managing Hardware
+
+| Task | Command |
+|---|---|
+| Display hardware info as reported by the kernel, in detail | `lshw` (add `-short` for a compact one-line-per-device summary) |
+| List devices on the USB bus | `lsusb` |
+| List devices on the PCI bus | `lspci` |
+| Dump the system's DMI/SMBIOS table (motherboard, BIOS, memory module details) | `dmidecode` |
+| Live kernel/hardware event log — the first place to check after plugging something in | `dmesg` |
+
+**Hot-pluggable devices** (USB drives, eSATA disks) can be physically added or removed without a reboot. **`udev`** is the subsystem that manages automatic detection and configuration of hardware as it appears or disappears, working from a layered set of rule directories:
+
+| Directory | Purpose |
+|---|---|
+| `/usr/lib/udev/rules.d/` | Default rules shipped by the distribution/packages |
+| `/etc/udev/rules.d/` | Custom, administrator-authored rules — takes precedence over the defaults |
+| `/run/udev/rules.d/` | Rules generated dynamically by the running system |
+
+| Task | Command |
+|---|---|
+| Manage the udev subsystem | `udevadm` |
+| Show device attributes udev sees for a given device | `udevadm info /dev/sdb` |
+| Watch udev events live | `udevadm monitor` |
+| Manually trigger udev to re-process devices | `udevadm trigger` |
+
+**Device bus and connector reference:**
+
+| Term | What it is |
+|---|---|
+| **SATA** | Bus interface standard for attaching storage devices to traditional computers |
+| **PCIe** | Expansion bus interface standard for attaching peripheral cards (network, storage controllers, GPUs) |
+| **HBA (Host Bus Adapter)** | Hardware component connecting a host system to a storage device/network |
+| **NIC (Network Interface Card)** | Provides the physical interface for a host to exchange data over a network |
+| **GPIO** | General-purpose pins on a circuit board with no fixed, dedicated function — configurable by software |
+
+**Printing:** **CUPS** (Common UNIX Printing System) is Linux's print management system. Submit a file for printing with `lp` or `lpr`; check the print queue with `lpstat` or `lpq`.
+
+<Pitfall title="Common Hardware Troubleshooting Pattern">
+
+When hardware "isn't working," the order of checks is: is it detected at all (`lsusb`/`lspci`/`dmesg`)? If detected, is the right **driver/module** loaded (`lsmod`, `modinfo`)? If loaded, is there a **udev rule** misconfiguring its permissions or naming? Working top-down through that chain — bus, driver, udev — resolves the large majority of "device not working" tickets faster than guessing.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "You run insmod on a module that depends on another module which isn't currently loaded. What happens?",
+    options: [
+      "insmod automatically loads the dependency first",
+      "insmod fails — it doesn't resolve dependencies, unlike modprobe",
+      "The kernel panics",
+      "Nothing — dependencies don't matter for kernel modules"
+    ],
+    correctIndex: 1,
+    explanation: "insmod loads exactly the module specified with no dependency resolution. modprobe consults the modules.dep database (built by depmod) to load the whole dependency chain automatically."
+  },
+  {
+    question: "Where should a custom, administrator-authored udev rule live so it takes precedence over the distribution's defaults?",
+    options: ["/usr/lib/udev/rules.d/", "/etc/udev/rules.d/", "/run/udev/rules.d/", "/boot/udev/rules.d/"],
+    correctIndex: 1,
+    explanation: "/usr/lib/udev/rules.d/ holds package-shipped defaults, and /run/udev/rules.d/ holds dynamically generated rules. /etc/udev/rules.d/ is the designated location for custom admin rules and takes priority."
+  },
+  {
+    question: "A USB device plugged into a Linux system doesn't appear to work. What's the correct first diagnostic step?",
+    options: [
+      "Immediately reinstall the operating system",
+      "Check whether the device is even detected at the bus level with lsusb or dmesg before investigating drivers or udev rules",
+      "Edit /etc/sysctl.conf",
+      "Run depmod"
+    ],
+    correctIndex: 1,
+    explanation: "Working top-down — bus detection, then driver/module, then udev configuration — is the efficient troubleshooting order. If the device isn't even detected at the bus level, chasing driver or udev issues wastes time."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Module 7** moves up a layer: system-wide configuration, the graphical stack, and how software actually gets installed.

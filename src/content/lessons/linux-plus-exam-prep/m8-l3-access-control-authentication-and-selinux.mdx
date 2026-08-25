@@ -1,0 +1,136 @@
+---
+title: "Access Control, Authentication & SELinux"
+description: "The CIA triad, authentication methods, privilege escalation, chroot jails, and how SELinux's mandatory access control goes beyond standard file permissions."
+module: 8
+moduleTitle: "Networking & Security"
+lesson: 3
+duration: "22 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The CIA Triad
+
+Every security control ultimately serves one (or more) of three goals:
+
+| Principle | Goal |
+|---|---|
+| **Confidentiality** | Only authorized parties can read the data |
+| **Integrity** | Data can't be altered undetected |
+| **Availability** | Authorized parties can access the data/system when they need to |
+
+---
+
+## Authentication: Verifying Identity
+
+**Authentication** is the verification of an individual's identity — proving *who* someone claims to be, distinct from **authorization** (what they're allowed to do once verified). Common authentication methods:
+
+| Method | How it works |
+|---|---|
+| Password | Something the user *knows* |
+| Key-based (SSH keys) | Something the user *has* — a private key that mathematically pairs with a known public key |
+| Multi-factor (MFA) | Combines two or more independent factors (knowledge + possession + biometric) |
+| **Kerberos** | A network authentication protocol using time-limited cryptographic tickets instead of transmitting credentials repeatedly |
+
+**Linux Kerberos commands:**
+
+| Task | Command |
+|---|---|
+| Request/renew a Kerberos ticket | `kinit username` |
+| View currently held tickets | `klist` |
+| Destroy (clear) held tickets | `kdestroy` |
+
+**PAM (Pluggable Authentication Modules)** is the framework most Linux authentication actually runs through under the hood — `login`, `sudo`, `sshd`, and `passwd` all defer to PAM modules (configured under `/etc/pam.d/`) to decide how authentication is actually performed, which is why a single PAM misconfiguration can lock out login system-wide even when every individual account is fine.
+
+---
+
+## Privilege Escalation and Containment
+
+**Privilege escalation** occurs when a user obtains additional access or functionality beyond what they're normally allowed — the goal of most attacks, and the reason `sudo` and `su` are audited so closely.
+
+**`chroot`** is a technique for controlling exactly what a process can access on the filesystem, by changing that process's apparent root directory (`/`) to some other location. Anything outside the new root is simply invisible to the process — a lightweight containment mechanism often used to isolate a service, or to build/test software in a clean environment without touching the real system.
+
+<Pitfall title="chroot Is Containment, Not a Security Boundary">
+
+A `chroot` jail restricts what a *process* can see in the filesystem, but a process running as root inside a chroot can often still escape it through kernel-level access, device files, or other tricks. Don't treat `chroot` as equivalent to a container or VM's isolation — it's a much weaker boundary, useful for accident prevention more than defense against a determined attacker.
+
+</Pitfall>
+
+---
+
+## DAC vs. MAC: Two Access Control Models
+
+| Model | How access is decided |
+|---|---|
+| **DAC (Discretionary Access Control)** | The standard `rwx` permission model covered in Module 2 — the file's **owner** decides who gets access, at their discretion |
+| **MAC (Mandatory Access Control)** | Access is decided by the **system**, comparing a security **label** on the object (file/process) against a security **clearance** on the subject (user/process) — the owner has no say |
+
+Multiple pieces of information — user identity, process context, file labels, and policy rules — combine to make each individual access decision under MAC, which is what makes it far more restrictive (and far harder to accidentally misconfigure into an open state) than DAC alone.
+
+---
+
+## SELinux
+
+**SELinux (Security-Enhanced Linux)** is the default MAC implementation shipped with RHEL, Rocky Linux, AlmaLinux, and Fedora — it defines access parameters for every process and resource on the system through a security **policy**, layered on top of standard DAC permissions rather than replacing them.
+
+| Task | Command |
+|---|---|
+| Check SELinux's current mode | `getenforce` |
+| Temporarily change the running mode | `setenforce 0` (permissive — logs violations without blocking) or `setenforce 1` (enforcing) |
+| Full SELinux status report | `sestatus` |
+| View SELinux security context/labels on files | `ls -Z` |
+| View SELinux context for processes | `ps -Z` |
+| Change a file's SELinux context | `chcon -t httpd_sys_content_t file` |
+| Restore a file's **default** context based on policy | `restorecon file` |
+| Manage SELinux policy (booleans, ports, file contexts) persistently | `semanage` |
+
+<Pitfall title="'Permission Denied' With Correct rwx Permissions? Check SELinux Next">
+
+A classic SELinux symptom: standard `ls -l` permissions look completely correct, `chmod`/`chown` are right, and the operation *still* fails — because SELinux's separate policy layer is blocking it. Check `getenforce` and `ausearch -m avc -ts recent` (or `/var/log/audit/audit.log`) before assuming a DAC permissions problem when the DAC permissions are visibly fine.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "What fundamentally distinguishes MAC (Mandatory Access Control) from DAC (Discretionary Access Control)?",
+    options: [
+      "MAC is only used on Windows",
+      "Under DAC, the file's owner decides access at their discretion; under MAC, the system enforces access based on security labels and clearances, regardless of the owner's wishes",
+      "MAC and DAC are the same thing with different names",
+      "DAC is more secure than MAC"
+    ],
+    correctIndex: 1,
+    explanation: "DAC (standard rwx permissions) puts access decisions in the owner's hands. MAC (like SELinux) enforces policy centrally — an object's label and a subject's clearance must both satisfy the policy, and the owner can't override that."
+  },
+  {
+    question: "A web server can't read a file even though `ls -l` shows correct owner, group, and rwx permissions. What should you check?",
+    options: [
+      "Re-run chmod 777 on the file",
+      "Whether SELinux is in enforcing mode and blocking the access despite correct DAC permissions — check getenforce and the audit log",
+      "The file's inode number",
+      "Reboot the server"
+    ],
+    correctIndex: 1,
+    explanation: "This is the textbook SELinux symptom: DAC permissions are fine but a separate MAC policy layer is still denying the operation. Broadening DAC permissions further (chmod 777) won't fix an SELinux denial."
+  },
+  {
+    question: "Why shouldn't a chroot jail be treated as equivalent to a container or VM's security isolation?",
+    options: [
+      "chroot doesn't actually restrict anything",
+      "A process running as root inside a chroot can often still escape it through kernel-level access or device files — it's a much weaker boundary than true isolation",
+      "chroot only works on Windows",
+      "chroot is actually stronger than container isolation"
+    ],
+    correctIndex: 1,
+    explanation: "chroot only changes what filesystem path a process treats as root — it doesn't isolate kernel resources, devices, or namespaces the way containers and VMs do, so it's better understood as accident prevention than a hard security boundary."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 4** covers the last piece of the security domain: encrypting data at rest, securing SSH, firewalls, and reading the logs that tell you what actually happened.

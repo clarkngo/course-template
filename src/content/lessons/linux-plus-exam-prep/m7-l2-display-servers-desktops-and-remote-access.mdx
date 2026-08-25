@@ -1,0 +1,106 @@
+---
+title: "Display Servers, Desktop Environments & Remote Access"
+description: "X11 vs. Wayland, the major Linux desktop environments, and how to reach a GUI (or a headless server) remotely."
+module: 7
+moduleTitle: "System Configuration & Software"
+lesson: 2
+duration: "18 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Graphical Stack
+
+A **GUI** (graphical user interface) lets users interact with the system through visual elements — windows, icons, menus — instead of pure text. Underneath it, a few distinct pieces cooperate:
+
+| Component | Role |
+|---|---|
+| **Display server** | Constructs and manages the windowing system itself — what actually gets drawn to the screen |
+| **Window manager** | Controls window placement, borders, resizing, and switching between windows |
+| **X client** | Any application that talks to the display server, telling it how to draw its graphical elements |
+| **Display manager** | The login screen — where a user authenticates and can also choose *which* desktop session to start (GDM, SDDM, LightDM) |
+
+---
+
+## X11 vs. Wayland
+
+| | X Window System (X11) | Wayland |
+|---|---|---|
+| Origin | Platform-independent protocol developed at MIT in 1984 | Modern successor, designed to replace X |
+| Reference implementation | **X.Org Server** — the free, open-source implementation used by virtually all Linux distributions | The compositor itself *is* the display server implementation |
+| Architecture | Client-server: apps talk to a central X server, which a separate window manager and compositor sit on top of | The compositor **is** the display server — no separate server/WM/compositor stack |
+| Security model | Any client can, by design, snoop on another client's input and screen contents | Each application's rendering is isolated — one app cannot see another's input or screen buffer |
+| Network transparency | Natively network-aware — a remote client can render onto a local X server over the network | Not natively network-transparent; remote access relies on separate protocols layered on top |
+
+<Pitfall title="Wayland's Isolation Breaks Some Old Assumptions">
+
+Wayland's biggest architectural win — isolating each app's rendering and input — is also why some older tools (screen recorders, certain remote-access tools, accessibility software built for X's open model) needed rework to function under Wayland. If a scenario question describes a tool that "used to work but now can't see other windows," Wayland's security model is the likely explanation.
+
+</Pitfall>
+
+**Accessibility:** both stacks support tools for users with disabilities — screen readers, magnification, on-screen keyboards, high-contrast themes — generally exposed through the desktop environment's settings rather than the display server itself.
+
+---
+
+## Desktop Environments
+
+| Desktop Environment | Notes |
+|---|---|
+| **GNOME** | The default DE across most major distributions (Fedora, RHEL/Rocky/AlmaLinux, Ubuntu's default until it briefly switched to Unity and back) |
+| **KDE Plasma** | The second-most-common DE, included as an option on RHEL/CentOS-family and many other distributions; highly configurable |
+| **Cinnamon** | A fork of GNOME 3, and the default desktop for Linux Mint — built to preserve a more traditional desktop metaphor |
+| **MATE** | A fork of GNOME 2, created in direct response to the interface changes introduced in GNOME 3 |
+
+---
+
+## Remote Access to a GUI (and a Shell)
+
+**Remote desktop** is the general concept of a client connecting to a remote system over the network, authenticating, and then interacting with that system's own desktop environment as if sitting in front of it.
+
+| Method | What it does |
+|---|---|
+| **SSH** | Encrypts an interactive shell session (and can tunnel other traffic) over the network — the baseline for secure remote administration |
+| **X11 forwarding** (`ssh -X`) | Because X is network-aware, an SSH session can forward individual graphical application windows back to your local X server, without exposing a whole desktop |
+| **VNC / RDP** | Network-aware protocols that transmit an entire remote desktop's GUI elements — full graphical session, not just one application window |
+| **Serial console redirection** | On headless servers with no GUI or network access at all, output can be redirected through a physical serial connection for out-of-band console access |
+
+<Pitfall title="X11 Forwarding Is Not the Same as VNC/RDP">
+
+`ssh -X` forwards *individual application windows*, rendered by your local X server but running on the remote machine — it does not give you the remote machine's full desktop, taskbar, or session. If a scenario needs the entire remote desktop experience, the answer is VNC or RDP, not X11 forwarding.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "What is the core architectural difference between X11 and Wayland?",
+    options: [
+      "Wayland doesn't support a mouse",
+      "X11 uses a separate server, window manager, and compositor; Wayland's compositor acts as the display server itself, isolating each app's input and rendering",
+      "X11 is newer than Wayland",
+      "There is no meaningful difference"
+    ],
+    correctIndex: 1,
+    explanation: "X11's open client-server model lets any client see another's input, by design. Wayland collapses the stack and isolates apps from each other, which is a security improvement but breaks some tools built around X's older assumptions."
+  },
+  {
+    question: "Which desktop environment is a fork of GNOME 3, created specifically in response to the interface changes GNOME 3 introduced?",
+    options: ["Cinnamon", "MATE", "KDE Plasma", "GNOME Classic"],
+    correctIndex: 1,
+    explanation: "MATE forked from GNOME 2 in direct response to GNOME 3's redesign. Cinnamon is the other GNOME 3 fork, built to preserve a traditional desktop metaphor and is Linux Mint's default."
+  },
+  {
+    question: "A user needs to see the entire remote machine's desktop — taskbar, wallpaper, every open window — not just one application. Which tool is appropriate?",
+    options: ["ssh -X (X11 forwarding)", "VNC or RDP", "scp", "sysctl"],
+    correctIndex: 1,
+    explanation: "X11 forwarding only forwards individual application windows. VNC and RDP transmit the full remote desktop session."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 3** covers how the software you actually run gets onto the system in the first place — package management across both major distribution families.

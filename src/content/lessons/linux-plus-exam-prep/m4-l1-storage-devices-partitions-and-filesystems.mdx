@@ -1,0 +1,134 @@
+---
+title: "Storage Devices, Partitions & Filesystems"
+description: "Block vs. character devices, MBR/GPT partitioning, and the filesystem types — ext4, XFS, and beyond — that CompTIA Linux+ expects you to recognize."
+module: 4
+moduleTitle: "Storage Management"
+lesson: 1
+duration: "22 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Types of Storage Devices
+
+| Type | Example | Notes |
+|---|---|---|
+| Magnetic (rotational) | HDD | Spinning platters — cheap per gigabyte, slower, mechanically fragile |
+| Solid-state | SSD / NVMe | No moving parts — fast, especially NVMe over the PCIe bus |
+| Optical | CD/DVD/Blu-ray | Removable, read-mostly media |
+| Removable/network | USB flash drives, network-attached storage | Attached or detached without a reboot; identified dynamically by `udev` |
+
+Linux exposes each attached device as a **device file** under `/dev`. Devices fall into two device-file categories:
+
+| Category | Behavior | Examples |
+|---|---|---|
+| **Block devices** | Read/written in fixed-size chunks, randomly addressable | `/dev/sda`, `/dev/nvme0n1` |
+| **Character devices** | Read/written as a continuous stream, one character at a time | `/dev/tty`, `/dev/null` |
+
+Device naming follows a pattern: `/dev/sda` is the whole first SCSI/SATA disk; `/dev/sda1` is its first partition. NVMe drives use a slightly different scheme: `/dev/nvme0n1p1` (controller 0, namespace 1, partition 1).
+
+---
+
+## Partitioning: MBR vs. GPT
+
+A **partition** divides one physical disk into multiple independently-formattable regions. Two competing partition table formats exist:
+
+| | MBR (Master Boot Record) | GPT (GUID Partition Table) |
+|---|---|---|
+| Location | First physical sector of the disk | Multiple locations, with backup copies |
+| Max partitions | 4 primary (or 3 primary + 1 extended, subdivided into logical partitions) | 128 by default |
+| Max disk size | 2 TB | Effectively unlimited (exabytes) |
+| Pairs with | Legacy BIOS | UEFI |
+| Boot record redundancy | None — single point of failure | Backup copy stored at the end of the disk |
+
+GPT is the modern standard and is what you should default to on any new install.
+
+**Managing partitions:**
+
+| Task | Command |
+|---|---|
+| Interactive partition editor (menu-driven, both MBR and GPT) | `parted /dev/sda` (menu options include `print`, `mkpart`, `resizepart`, `rm`) |
+| Tell the kernel to re-read the partition table without rebooting | `partprobe` |
+| Create a filesystem on a new partition | `mkfs -t ext4 /dev/sdb1` (or `mkfs.xfs`, `mkfs.ext4`, etc.) |
+| Apply a human-readable label to a filesystem | `e2label /dev/sdb1 mylabel` (ext) or `xfs_admin -L mylabel /dev/sdb1` (XFS) |
+
+---
+
+## Filesystem Types
+
+| Filesystem | Notes |
+|---|---|
+| **ext4** | The long-standing Linux default — journaling, mature, well-supported everywhere |
+| **XFS** | High-performance journaling filesystem, the default on RHEL/Rocky/AlmaLinux — excels with large files |
+| **Btrfs** | Copy-on-write, built-in snapshots and volume management — default on some SUSE and Fedora setups |
+| **NTFS** | Windows' native filesystem — Linux reads/writes it via the `ntfs-3g` driver for interoperability |
+| **Network filesystems** | **NFS** (Linux-native network sharing) and **CIFS/SMB** (Windows-interoperable network sharing) — mounted like local filesystems but backed by a remote server |
+
+---
+
+## Journaling
+
+A **journaling** filesystem (ext3/ext4, XFS, Btrfs) writes pending changes to a log *before* committing them to the main filesystem structure, so an interrupted write (power loss, crash) can be replayed or rolled back cleanly instead of corrupting the filesystem. The general phases are:
+
+1. **Logging** — the intended change is written to the journal first
+2. **Commit** — the journal entry is marked complete
+3. **Checkpoint** — the actual data blocks are updated on disk
+4. **Journal reuse** — once checkpointed, that journal space is freed for new entries
+
+---
+
+## Inodes and the Virtual Filesystem (VFS)
+
+An **inode** is a data structure storing everything about a file *except its name and contents*: permissions, ownership, timestamps, size, and pointers to the actual data blocks on disk. The filename itself just lives in the containing directory, mapped to an inode number.
+
+| Task | Command |
+|---|---|
+| Check inode usage/details for a directory or mount | `df -i` (disk free, inode view) or `stat file` for a single file's inode metadata |
+
+The **Virtual Filesystem (VFS)** is a kernel abstraction layer that lets every filesystem type — ext4, XFS, NFS, even `/proc` — present the same interface to user-space programs, so `cat`, `ls`, and every other tool work identically regardless of what's actually underneath.
+
+---
+
+## Identifying File Types
+
+Linux recognizes several distinct file types under a single hierarchy: regular files, directories, symbolic links, device files (block and character), and special IPC files (named pipes/FIFOs, sockets). Determine any file's actual type with:
+
+```bash
+file somefile
+```
+
+<Pitfall title="File Extensions Are a Suggestion, Not a Rule">
+
+Unlike Windows, Linux doesn't rely on file extensions to determine type or behavior — a script without `.sh` runs exactly the same as one with it, and a `.txt` file could technically be a binary. `file` inspects the actual content (magic bytes) rather than trusting the name, which is why it's the tool Linux+ expects for "determine what kind of file this actually is" questions.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "Which partition table format supports disks larger than 2 TB and up to 128 partitions by default?",
+    options: ["MBR", "GPT", "ext4", "XFS"],
+    correctIndex: 1,
+    explanation: "GPT (GUID Partition Table) removes MBR's 2 TB size ceiling and 4-primary-partition limit, and pairs with UEFI firmware."
+  },
+  {
+    question: "What does a journaling filesystem write before committing an actual change to disk?",
+    options: ["A backup copy of the whole disk", "An entry in the journal describing the intended change", "Nothing — journaling only happens after the fact", "A new inode"],
+    correctIndex: 1,
+    explanation: "Journaling filesystems log the intended change first, so a crash mid-write can be replayed or rolled back cleanly instead of leaving the filesystem structurally corrupted."
+  },
+  {
+    question: "A file named notes.txt is actually a compiled binary with no readable text. Which command reveals its true type by inspecting content rather than trusting the name?",
+    options: ["cat", "file", "ls -l", "chmod"],
+    correctIndex: 1,
+    explanation: "file examines the actual file content (magic bytes) to identify its type, unlike the filename or extension, which Linux never relies on for behavior."
+  }
+]} />
+
+---
+
+## What's Next
+
+Creating a filesystem is only half the job — **Lesson 2** covers actually mounting it, keeping it mounted across reboots, and repairing it when something goes wrong.

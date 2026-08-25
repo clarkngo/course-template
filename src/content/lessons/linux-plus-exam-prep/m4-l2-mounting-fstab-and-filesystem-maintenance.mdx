@@ -1,0 +1,162 @@
+---
+title: "Mounting, fstab & Filesystem Maintenance"
+description: "mount, /etc/fstab, disk usage tracking, filesystem repair and resizing, quotas, and I/O scheduling — keeping storage healthy day to day."
+module: 4
+moduleTitle: "Storage Management"
+lesson: 2
+duration: "24 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Mounting a Filesystem
+
+A freshly-partitioned and formatted device isn't usable yet — it has to be **mounted**: attached to a directory (the "mount point") so its contents become part of the visible filesystem tree.
+
+Three things have to be in place to mount a filesystem: the device (or image/network share) must exist, the target mount point directory must already exist, and the filesystem type must be one the kernel understands (natively or via a loaded module).
+
+| Task | Command |
+|---|---|
+| Mount a device at a directory | `mount /dev/sdb1 /mnt/data` |
+| Mount, explicitly specifying the filesystem type | `mount -t xfs /dev/sdb1 /mnt/data` |
+| Unmount (unload) a mounted filesystem | `umount /mnt/data` |
+| List currently mounted block devices | `lsblk` |
+| List block devices with filesystem type/label/UUID | `lsblk -f` |
+
+<Pitfall title="'Device Is Busy' When Unmounting">
+
+`umount` fails if any process has an open file or a shell's current directory on that filesystem. Track down the culprit with `lsof +D /mnt/data` or `fuser -m /mnt/data`, then close it before retrying — don't reach for `-l` (lazy unmount) as your first move, since it detaches immediately but leaves the underlying cleanup pending.
+
+</Pitfall>
+
+---
+
+## Making It Permanent: /etc/fstab
+
+A manual `mount` doesn't survive a reboot. To mount automatically at boot time, add an entry to **`/etc/fstab`** — one line per filesystem, six whitespace-separated fields:
+
+```
+/dev/sdb1   /mnt/data   xfs   defaults   0   0
+```
+
+| Field | Meaning |
+|---|---|
+| 1. Device | The partition, or better, its **UUID** (`UUID=xxxx-xxxx`) — device names like `/dev/sdb1` can shift between boots |
+| 2. Mount point | Where it attaches in the filesystem tree |
+| 3. Filesystem type | `ext4`, `xfs`, `nfs`, etc. |
+| 4. Options | `defaults`, `ro`, `noauto`, etc. |
+| 5. Dump | Legacy backup flag — `0` disables, almost always left at `0` today |
+| 6. Pass | fsck check order at boot — `0` = skip, `1` = root filesystem, `2` = everything else |
+
+**Verifying and troubleshooting fstab:**
+
+| Task | Command |
+|---|---|
+| Check `/etc/fstab` for syntax/mount errors before rebooting | `findmnt --verify` |
+| Mount everything listed in `/etc/fstab` that isn't already mounted | `mount -a` |
+
+| File | Accuracy |
+|---|---|
+| `/proc/mounts` | Live, kernel-maintained, **always accurate** — reflects exactly what's mounted right now |
+| `/etc/mtab` | Historically maintained by the `mount` command itself — can drift out of sync and is considered **less reliable**; on modern systems it's often just a symlink to `/proc/mounts` |
+| `/etc/fstab` | Not a live status file at all — it's the **desired state**, read only at boot or on `mount -a` |
+
+<Pitfall title="A Bad fstab Entry Can Stop the System From Booting">
+
+An invalid or unreachable entry in `/etc/fstab` (a typo'd UUID, an unreachable NFS share without the `nofail` option) can drop the system into an emergency shell at boot. Always run `findmnt --verify` after editing, and consider adding the `nofail` mount option to non-critical or removable filesystems so a missing device doesn't halt the whole boot process.
+
+</Pitfall>
+
+---
+
+## Tracking Disk Usage
+
+| Task | Command |
+|---|---|
+| Show free space, total size, and mount point per filesystem | `df -h` |
+| Show free space by **inode** count instead of bytes | `df -i` |
+| Show how much space a directory tree and its files actually use | `du -sh directory/` |
+| Set a hard/soft limit on how many file descriptors a process can open | `ulimit -n 4096` |
+| Display current resource limits, including open file descriptors | `ulimit -a` |
+
+---
+
+## Repairing and Resizing Filesystems
+
+| Task | Command |
+|---|---|
+| Check and repair a filesystem for errors (run on an **unmounted** filesystem to avoid corrupting live data) | `fsck /dev/sdb1` |
+| View metadata about an ext2/3/4 filesystem (size, type, status, superblock info) | `dumpe2fs /dev/sdb1` |
+| Tune configurable ext2/3/4 parameters (label, reserved blocks, mount count) | `tune2fs -l /dev/sdb1` |
+| Grow or shrink an ext2/3/4 filesystem | `resize2fs /dev/sdb1 200G` |
+| Grow an XFS filesystem (XFS **cannot** be shrunk, only grown, and must be mounted) | `xfs_growfs /mount/point` |
+
+<Pitfall title="Never fsck a Mounted Filesystem">
+
+Running `fsck` against a filesystem that's actively mounted risks the exact corruption you're trying to prevent — the live filesystem and the checker can disagree about what state the disk is in mid-repair. Unmount it first, or check it from a rescue/live environment, or (for the root filesystem specifically) schedule the check for the next boot.
+
+</Pitfall>
+
+---
+
+## Disk Quotas
+
+Quotas cap how much storage space (and how many files) a user or group can consume, preventing one account from filling a shared filesystem.
+
+| Task | Command |
+|---|---|
+| Enable and initialize quota tracking on a filesystem (after adding `usrquota`/`grpquota` to its `fstab` options) | `quotacheck`, then `quotaon` |
+| Edit a specific user's quota limits interactively | `edquota username` |
+| Report quota usage for every user on a filesystem | `repquota -a` |
+
+---
+
+## I/O Schedulers
+
+The kernel's **I/O scheduler** decides the order in which pending read/write requests actually hit the storage device — the process by which the OS determines I/O operation order for block devices. Common scheduler types include `mq-deadline` (prioritizes request age, good general default), `bfq` (fairness-focused, good for desktop responsiveness), `kyber`, and `none`/`noop` (minimal reordering — ideal for fast NVMe/SSD storage that doesn't benefit from reordering).
+
+| Task | Command |
+|---|---|
+| View or set the active scheduler for a device | `cat /sys/block/sda/queue/scheduler` (view); write a scheduler name into the same file to set it |
+| Generate a report on CPU and device I/O usage | `iostat` |
+| Generate real-time device I/O latency reports | `iostat -x 1` (extended stats, refreshed every second) |
+
+---
+
+<Quiz questions={[
+  {
+    question: "Between /etc/mtab and /proc/mounts, which one reliably reflects exactly what's mounted right now?",
+    options: ["/etc/mtab", "/proc/mounts", "Both are equally reliable", "Neither — you must run mount with no arguments"],
+    correctIndex: 1,
+    explanation: "/proc/mounts is a live, kernel-maintained view of current mounts. /etc/mtab is historically maintained by the mount command and can drift out of sync; many modern systems just symlink it to /proc/mounts."
+  },
+  {
+    question: "Why should you identify a partition in /etc/fstab by UUID rather than by /dev/sdb1?",
+    options: [
+      "UUID entries mount faster",
+      "Device names like /dev/sdb1 can shift between boots (e.g., after adding/removing drives), while a UUID stays fixed to that specific filesystem",
+      "/dev/sdb1 syntax is deprecated and no longer works",
+      "UUIDs are required for ext4 but not XFS"
+    ],
+    correctIndex: 1,
+    explanation: "Device enumeration order can change based on what hardware is detected and when. A UUID is generated when the filesystem is created and uniquely identifies it regardless of which /dev/sdX name it's assigned on a given boot."
+  },
+  {
+    question: "You need to grow an XFS filesystem that's actively in use. What's the correct approach?",
+    options: [
+      "Unmount it, then run resize2fs",
+      "Run xfs_growfs against the mounted filesystem — XFS can only grow, and must be mounted to do so",
+      "XFS filesystems can never be resized",
+      "Run fsck first while it's still mounted"
+    ],
+    correctIndex: 1,
+    explanation: "xfs_growfs operates on a mounted XFS filesystem and can only expand it, never shrink it — a key difference from ext2/3/4's resize2fs, which works on unmounted filesystems and can go either direction."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 3** stacks another layer on top of raw partitions: Logical Volume Manager, software RAID, and swap space — the tools for flexible, resilient storage.

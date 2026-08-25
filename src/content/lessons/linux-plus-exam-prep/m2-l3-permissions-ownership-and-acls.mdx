@@ -1,0 +1,162 @@
+---
+title: "Permissions, Ownership & ACLs"
+description: "chmod, chown, umask, SUID/SGID/sticky bit, immutable attributes, and access control lists — plus the classic 'why can't this user do that' troubleshooting scenarios."
+module: 2
+moduleTitle: "Files, Text & Permissions"
+lesson: 3
+duration: "22 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Permission Contexts and Attributes
+
+Every file and directory has three **permission contexts** — three separate sets of rules for three separate audiences:
+
+| Context | Symbol | Applies to |
+|---|---|---|
+| User (owner) | `u` | The account that owns the file |
+| Group | `g` | Members of the file's owning group |
+| Other | `o` | Everyone else |
+
+Each context can hold three **permission attributes**:
+
+| Attribute | On a file | On a directory |
+|---|---|---|
+| **r**ead | View file contents | List directory contents |
+| **w**rite | Modify file contents | Create/delete/rename entries inside the directory |
+| e**x**ecute | Run the file as a program/script | **Enter** (traverse into) the directory |
+
+`ls -l` shows all three contexts as a 10-character **permission string**: a leading file-type character, then `rwx` repeated for user, group, other. `-rwxr-xr--` means: regular file; owner can read/write/execute; group can read/execute; other can only read.
+
+<Pitfall title="Execute on a Directory ≠ Execute a Program">
+
+Execute permission on a *directory* doesn't run anything — it controls whether you can `cd` into it at all. A user with read-but-not-execute on a directory can technically see filenames (`ls`) but can't enter the directory, open files inside it, or run anything from it. This is the single most-tested permissions gotcha on the exam.
+
+</Pitfall>
+
+---
+
+## Changing Permissions: chmod
+
+`chmod` has two modes:
+
+**Symbolic mode** — uses context letters, an operator, and attribute letters:
+
+| Operator | Meaning |
+|---|---|
+| `+` | Add a permission |
+| `-` | Remove a permission |
+| `=` | Set exactly this permission, clearing anything else |
+
+```bash
+chmod u+x script.sh        # add execute for the owner
+chmod g-w file             # remove write from the group
+chmod o=r file             # set "other" to read-only, nothing else
+chmod a+x script.sh        # add execute for everyone (a = all)
+```
+
+**Absolute (numeric) mode** — each attribute is a bit value (`r=4`, `w=2`, `x=1`), summed per context:
+
+```bash
+chmod 754 file   # owner: rwx (7) · group: r-x (5) · other: r-- (4)
+chmod 644 file   # owner: rw-  · group: r--       · other: r--   (the common "regular file" default)
+chmod 000 file   # remove read, write, execute for everyone
+```
+
+`chmod -R` applies recursively to a directory tree.
+
+---
+
+## umask: Setting Defaults for New Files
+
+`umask` doesn't set permissions directly — it **subtracts** from the system's maximum defaults (666 for files, 777 for directories) every time something new is created. `umask 022` (a very common default) results in new files at `644` and new directories at `755`. Check the current value with `umask` alone; set it for the session with `umask 022`.
+
+---
+
+## Ownership: chown and chgrp
+
+| Task | Command |
+|---|---|
+| Change the owning user | `chown newuser file` |
+| Change the owning group | `chgrp newgroup file` |
+| Change user **and** group at once | `chown newuser:newgroup file` |
+| Change group only, without touching the user | `chown :newgroup file` |
+| Recursively change ownership of a whole tree | `chown -R user:group directory/` |
+
+---
+
+## Special Permissions: SUID, SGID, and the Sticky Bit
+
+| Bit | On a file | On a directory | Set with |
+|---|---|---|---|
+| **SUID** | Runs the program as its *owner*, not the invoking user (classic example: `passwd`) | No effect | `chmod u+s file` or `chmod 4755 file` |
+| **SGID** | Runs the program as its *owning group* | New files created inside inherit the **directory's** group, not the creator's | `chmod g+s dir` or `chmod 2775 dir` |
+| **Sticky bit** | No effect | Only the file's owner (or root) can delete/rename files inside, even if others have write access | `chmod +t dir` or `chmod 1777 dir` |
+
+<Pitfall title="Lowercase t vs. Uppercase T (and s vs. S)">
+
+In `ls -l` output, a lowercase `t` (or `s`) means the special bit **and** the underlying execute permission are both set. An uppercase `T` (or `S`) means the special bit is set but execute is **not** — usually a misconfiguration, since a sticky bit or SUID without execute rarely does what someone intended. `/tmp` is the textbook sticky-bit directory: everyone can create files, but only the owner can delete their own.
+
+</Pitfall>
+
+---
+
+## File Attributes and Access Control Lists (ACLs)
+
+Standard permissions only give you three contexts. When you need finer control — "grant read access to exactly this one extra user, without changing the group" — reach for **ACLs**:
+
+| Task | Command |
+|---|---|
+| View a file's extended attributes (immutable, append-only, etc.) | `lsattr file` |
+| Make a file immutable — **not even root** can modify or delete it until the flag is cleared | `chattr +i file` |
+| Remove the immutable flag | `chattr -i file` |
+| View the ACL on a file or directory | `getfacl file` |
+| Grant an additional user read access via ACL | `setfacl -m u:username:r file` |
+| Grant a group read-only access to a directory via ACL | `setfacl -m g:groupname:r-x directory/` |
+
+<Pitfall title="Immutable Beats Root">
+
+`chattr +i` is the one permission mechanism that overrides even the root user. If a scenario question describes "root can't modify or delete this file even with full permissions," the immutable attribute is almost always the answer — check with `lsattr` before assuming a permissions problem.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "A user has read permission but not execute permission on a directory. What can they do?",
+    options: [
+      "Nothing at all",
+      "List filenames with ls, but they can't cd into the directory or access files inside it",
+      "Enter the directory but not see its contents",
+      "Everything, since read is enough"
+    ],
+    correctIndex: 1,
+    explanation: "Read lets you list directory entries; execute lets you traverse into it. Without execute, you can see names but can't cd in or open anything inside."
+  },
+  {
+    question: "chmod 2775 applied to a shared project directory sets which special permission?",
+    options: ["SUID", "SGID", "Sticky bit", "Immutable"],
+    correctIndex: 1,
+    explanation: "The leading 2 in a 4-digit chmod value sets SGID. On a directory, that means new files created inside automatically inherit the directory's group — ideal for team-shared folders."
+  },
+  {
+    question: "A file shows up as immutable when you run lsattr, but the ticket says 'the owner can't delete it even with full rwx permissions and root access.' What's the fix?",
+    options: [
+      "chmod 777 the file",
+      "chown root the file",
+      "chattr -i the file to clear the immutable flag, then delete it",
+      "There is no fix — immutable files can never be deleted"
+    ],
+    correctIndex: 2,
+    explanation: "The immutable attribute overrides normal permissions and even root's authority. Clearing it with chattr -i restores normal permission-based behavior."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Module 3** shifts from files to the accounts that own them — creating, locking, and managing users and groups.

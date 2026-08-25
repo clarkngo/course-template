@@ -1,0 +1,147 @@
+---
+title: "Package & Software Management"
+description: "RPM/DNF and DPKG/APT across the two major distro families, archiving with tar, and building software from source."
+module: 7
+moduleTitle: "System Configuration & Software"
+lesson: 3
+duration: "20 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Package Managers by Distro Family
+
+A **package manager** installs, updates, inventories, and uninstalls packaged software, automatically resolving dependencies so you don't have to track them by hand.
+
+| Distro family | Low-level tool | High-level tool |
+|---|---|---|
+| RHEL, Rocky, AlmaLinux, Fedora | `rpm` | `dnf` (the modern replacement for `yum`, which still works as an alias on most systems) |
+| Debian, Ubuntu, Linux Mint, Kali | `dpkg` | `apt` |
+
+The low-level tools (`rpm`, `dpkg`) operate on individual package files and know nothing about remote repositories or dependency resolution. The high-level tools (`dnf`/`yum`, `apt`) manage repositories, resolve and pull in dependencies automatically, and are almost always what you actually want to run.
+
+---
+
+## RPM-Based Systems: rpm and dnf
+
+| Task | Command |
+|---|---|
+| Install a local `.rpm` file | `rpm -i package.rpm` |
+| Remove a package | `rpm -e package` |
+| Upgrade a package | `rpm -U package.rpm` |
+| Query whether a package is installed | `rpm -q package` |
+| List **all** installed packages | `rpm -qa` |
+| Find which installed package owns a given file | `rpm -qf /path/to/file` |
+| Show detailed info about an installed package | `rpm -qi package` |
+| Install from a configured repository, resolving dependencies | `dnf install package` |
+| Remove a package (and unused dependencies) | `dnf remove package` |
+| Update all packages | `dnf update` |
+| Search repositories by keyword | `dnf search keyword` |
+| List available or installed packages | `dnf list installed` |
+| View transaction history | `dnf history` |
+
+---
+
+## Debian-Based Systems: dpkg and apt
+
+| Task | Command |
+|---|---|
+| Install a local `.deb` file | `dpkg -i package.deb` |
+| Remove a package | `dpkg -r package` |
+| List installed packages | `dpkg -l` |
+| Find which package owns a given file | `dpkg -S /path/to/file` |
+| Install from a configured repository, resolving dependencies | `apt install package` |
+| Remove a package | `apt remove package` |
+| Refresh the local package index from repositories | `apt update` |
+| Upgrade all installed packages | `apt upgrade` |
+| Search available packages by keyword | `apt search keyword` |
+
+<Pitfall title="rpm/dpkg vs. dnf/apt: Know Which Layer You're On">
+
+`rpm -i` and `dpkg -i` will refuse to install a package if its dependencies aren't already present on the system — they don't reach out to a repository to fetch anything. If a scenario question describes a dependency failure during a manual `.rpm`/`.deb` install, the fix is either to install the missing dependencies first, or to use the high-level tool (`dnf`/`apt`) instead, which resolves and fetches them automatically.
+
+</Pitfall>
+
+---
+
+## Downloading, Archiving, and Compressing
+
+| Task | Command |
+|---|---|
+| Download a file over HTTP/HTTPS/FTP from the command line | `wget URL` or `curl -O URL` |
+| Create a tar archive | `tar -cvf archive.tar directory/` |
+| Extract a tar archive | `tar -xvf archive.tar` |
+| Create a **compressed** tar archive (gzip) | `tar -czvf archive.tar.gz directory/` |
+| Create a compressed tar archive (bzip2, better ratio, slower) | `tar -cjvf archive.tar.bz2 directory/` |
+| Compress a file directly (without archiving multiple files) | `gzip file` (also `bzip2`, `xz` — trading speed for compression ratio) |
+
+`tar` (**t**ape **ar**chiver) bundles multiple files/directories into a single archive file; it doesn't compress by default — the `z` (gzip) or `j` (bzip2) flags add compression on top of the archiving step.
+
+---
+
+## Building Software From Source
+
+Not everything ships as a pre-built package. Building from source generally follows this pattern:
+
+| Step | Purpose |
+|---|---|
+| `./configure` | Checks for required dependencies and generates a `Makefile` tailored to this system |
+| `make` | Compiles the source — automatically looks for a file literally named `Makefile` in the current directory |
+| `make install` | Copies the compiled binaries and supporting files into their final system locations |
+
+A **compiler** (`gcc`/`cc` for C, `g++` for C++) translates human-readable source code into machine-readable binaries. **Libraries** are chunks of pre-compiled code that multiple programs can share instead of each reimplementing the same functionality — check which shared libraries a compiled binary actually depends on with:
+
+```bash
+ldd /path/to/binary
+```
+
+<Pitfall title="Verify Dependencies Are in the Repositories Before You Start">
+
+Before attempting any deployment or `./configure` run, check that every required dependency is actually available — either already installed or present in a configured repository (`dnf search`/`apt search`). Discovering a missing dependency halfway through a `make` run wastes far more time than checking up front.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "You run `rpm -i somepackage.rpm` and it fails, complaining about missing dependencies. Why doesn't it just fetch them?",
+    options: [
+      "rpm is broken and needs reinstalling",
+      "rpm operates only on the local package file — it has no concept of repositories and can't fetch anything. Use dnf instead for automatic dependency resolution",
+      "The package file itself is corrupted",
+      "This never happens with rpm"
+    ],
+    correctIndex: 1,
+    explanation: "rpm and dpkg are low-level tools that act only on the package file you give them. dnf and apt are the high-level tools that track repositories and pull in dependencies automatically."
+  },
+  {
+    question: "What does the 'z' flag do in `tar -czvf archive.tar.gz directory/`?",
+    options: [
+      "Nothing — it's optional decoration",
+      "Compresses the archive with gzip as part of the same operation",
+      "Verifies the archive after creation",
+      "Zips only the first file in the directory"
+    ],
+    correctIndex: 1,
+    explanation: "tar bundles files together but doesn't compress by default. The z flag pipes the archive through gzip compression; j does the same with bzip2."
+  },
+  {
+    question: "When building software from source, what does the ./configure step actually do?",
+    options: [
+      "Compiles the source code into a binary",
+      "Checks for required dependencies and generates a Makefile tailored to the current system",
+      "Installs the compiled binaries system-wide",
+      "Downloads the source code"
+    ],
+    correctIndex: 1,
+    explanation: "./configure is the dependency-check and setup step. make then does the actual compiling using the Makefile configure generated, and make install copies the results into place."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Module 8** covers the last major exam domain in this course: networking configuration, diagnostics, and securing the whole system end to end.

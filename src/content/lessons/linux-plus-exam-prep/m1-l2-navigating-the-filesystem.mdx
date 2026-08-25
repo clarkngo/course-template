@@ -1,0 +1,117 @@
+---
+title: "Navigating the Filesystem & the FHS"
+description: "The Filesystem Hierarchy Standard, absolute vs. relative paths, and the man/apropos toolkit for finding help without leaving the terminal."
+module: 1
+moduleTitle: "Setup & Study Plan"
+lesson: 2
+duration: "16 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Filesystem Hierarchy Standard (FHS)
+
+Every mainstream Linux distribution lays out its directories the same way, because they all follow the **Filesystem Hierarchy Standard**. Memorize this table — Linux+ loves asking "which directory stores X."
+
+| Directory | Stores |
+|---|---|
+| `/` | The root of the entire filesystem — everything else hangs off this one directory |
+| `/bin`, `/sbin` | Essential command-line binaries needed even in single-user/recovery mode (`/sbin` = superuser-oriented tools) |
+| `/boot` | Files required to boot: the kernel, initramfs, and GRUB configuration |
+| `/dev` | Device files representing hardware attached to the system (`/dev/sda`, `/dev/tty1`) |
+| `/etc` | System-wide configuration files (host-specific, not binaries) |
+| `/home` | Regular users' home directories and personal files |
+| `/lib`, `/lib64` | Shared libraries required by the binaries in `/bin` and `/sbin` |
+| `/media` | Mount points for removable media (USB drives, optical discs) |
+| `/mnt` | Conventional mount point for temporarily mounting a filesystem by hand |
+| `/opt` | Optional, self-contained third-party software packages |
+| `/proc` | A **virtual** filesystem exposing live kernel and process information as files |
+| `/root` | The root user's home directory (not the same as `/`) |
+| `/srv` | Data served by this system (web content, FTP files) |
+| `/sys` | A virtual filesystem exposing kernel information about devices |
+| `/tmp` | Temporary files — may be cleared on reboot |
+| `/usr` | Shareable, mostly read-only user-space programs and data — the biggest branch of the tree |
+| `/var` | Variable data that changes as the system runs: logs, mail spools, print spools |
+
+**Inside `/usr`** you'll find a smaller version of the root layout: `/usr/bin` (executables for all users), `/usr/local` (locally-built software, kept separate from package-manager files), `/usr/lib` / `/usr/lib64` (libraries for 32-bit vs. 64-bit binaries), and `/usr/share` (read-only, architecture-independent data like man pages and icons).
+
+<Pitfall title="/root vs. /">
+
+`/root` is the **home directory of the root user** — nothing more. It is *not* a synonym for the filesystem root `/`. Confusing the two is a classic first-week mistake, and Linux+ will test it directly.
+
+</Pitfall>
+
+---
+
+## Absolute vs. Relative Paths
+
+An **absolute path** always starts at `/` and works from anywhere: `/home/clark/notes.txt`. A **relative path** is interpreted from your current location: `notes.txt` or `../shared/notes.txt`.
+
+| Command | Effect |
+|---|---|
+| `pwd` | Print your current working directory |
+| `cd /var/log` | Change to an absolute path |
+| `cd ..` | Move up one level from the current directory |
+| `cd -` | Jump back to the *previous* working directory |
+| `cd` or `cd ~` | Return to your home directory |
+| `cd /` | Return to the root of the filesystem |
+
+You traverse the tree by combining `cd` with either path style — relative paths are shorter for nearby moves, absolute paths are unambiguous no matter where you start.
+
+---
+
+## Listing, Searching & Getting Help
+
+| Task | Command |
+|---|---|
+| List directory contents, long format, including hidden files | `ls -la` |
+| List a directory *itself*, not its contents | `ls -ld directory/` |
+| Colorized output for quick scanning | `ls --color` (often the default already) |
+| Search for files by name, type, or location | `find /path -name "*.conf"` |
+| Search for files indexed system-wide (fast, but only as fresh as the last index) | `locate filename` |
+| Find the absolute path of a command, searching from `/` | `which command` or `whereis command` |
+| Get the full manual page for a command | `man command` |
+| Search **inside** all man page descriptions for a keyword | `man -k keyword` (equivalent to `apropos keyword`) |
+| One-line description of what a command does | `whatis command` |
+| Reference docs for libraries and installed packages | `/usr/share/doc/` |
+
+<Pitfall title="Principle of Least Privilege Starts With Visibility">
+
+Being able to `ls -ld` a directory without listing its contents matters for more than convenience — it's how you audit **who can see what**. The principle of least privilege says every account should have the minimum access needed to do its job, and that starts with knowing exactly what a given permission set exposes. You'll see this idea again constantly in the Security module.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "Which directory holds files required to boot the system, including the kernel and GRUB configuration?",
+    options: ["/etc", "/boot", "/sbin", "/var"],
+    correctIndex: 1,
+    explanation: "/boot contains the kernel image, initramfs, and the GRUB bootloader's configuration files — everything needed before the rest of the filesystem is even mounted."
+  },
+  {
+    question: "You want to list a directory's own permissions and metadata without printing everything inside it. Which command does that?",
+    options: ["ls -la directory/", "ls -ld directory/", "find directory/", "cd directory/"],
+    correctIndex: 1,
+    explanation: "The -d flag tells ls to treat the argument as a plain file (the directory entry itself) rather than listing its contents."
+  },
+  {
+    question: "What's the difference between /root and / (root)?",
+    options: [
+      "They're the same directory",
+      "/root is the root user's home directory; / is the top of the entire filesystem tree",
+      "/root only exists on Debian-family systems",
+      "/ is a symlink to /root"
+    ],
+    correctIndex: 1,
+    explanation: "/ is the base of the whole filesystem hierarchy. /root is just one directory within it — the home directory reserved for the superuser."
+  }
+]} />
+
+---
+
+## What's Next
+
+You can now find your way around a live system and its documentation. **Module 2** puts that to work: creating, editing, and locking down files and directories.

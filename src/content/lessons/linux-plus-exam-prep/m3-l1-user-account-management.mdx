@@ -1,0 +1,108 @@
+---
+title: "User Account Management"
+description: "useradd, usermod, passwd, and the /etc/passwd and /etc/shadow files that actually store account data."
+module: 3
+moduleTitle: "Users & Access Management"
+lesson: 1
+duration: "20 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Account Types
+
+| Type | UID range (typical) | Purpose |
+|---|---|---|
+| **Superuser (root)** | `0` | Unrestricted access to the entire system |
+| **System accounts** | Below 1000 (varies by distro) | Run services/daemons — not meant for interactive login |
+| **Regular user accounts** | 1000+ | Human users logging in and doing work |
+
+---
+
+## Where Account Data Lives
+
+| File | Stores |
+|---|---|
+| `/etc/passwd` | Account metadata: username, UID, GID, home directory, default shell (password field is just a placeholder, `x`) |
+| `/etc/shadow` | The actual **hashed password** and password-aging data, readable only by root |
+| `/etc/login.defs` | System-wide defaults for newly created accounts (UID ranges, password aging defaults) |
+| `/etc/default/useradd` | Another location for `useradd` defaults — view with `useradd -D` |
+| `/etc/skel/` | Template files copied into every new user's home directory at creation time |
+
+Modern distributions store the hashed password using **SHA-512** by default (you'll see a `$6$` prefix in `/etc/shadow`) — a major upgrade over the old, now-broken DES and MD5 schemes.
+
+<Pitfall title="Never Edit /etc/passwd or /etc/shadow Directly">
+
+These files can be hand-edited, but a syntax mistake can lock out every user on the system — including root. Always go through the dedicated tools instead:
+
+- `vipw` — safely edit `/etc/passwd` (locks the file, validates syntax on save)
+- `vipw -s` — safely edit `/etc/shadow`
+- `pwck` — check both files for consistency errors
+
+</Pitfall>
+
+---
+
+## Creating and Modifying Accounts
+
+| Task | Command |
+|---|---|
+| Add a new user (with defaults) | `useradd username` |
+| Add a user with a full name/comment field | `useradd -c "Jane Doe" username` |
+| Add a user whose account expires on a specific date | `useradd -e 2026-12-31 username` |
+| Set/change a user's password | `passwd username` |
+| Modify an existing user's account expiry | `usermod -e 2026-12-31 username` |
+| Attach a real name to an existing account | `usermod -c "Jane Doe" username` |
+| Change a user's default shell | `usermod -s /bin/ksh username` |
+| Delete a user | `userdel username` |
+| Delete a user **and** their home directory | `userdel -r username` |
+
+Populate a new account's home directory from a custom template instead of the default `/etc/skel`:
+
+```bash
+useradd -k /path/to/template -m username
+```
+
+---
+
+## Password Aging and Account Locking
+
+| Task | Command |
+|---|---|
+| View a user's password aging details | `chage -l username` |
+| Change how often a password must be changed | `chage -M 90 username` |
+| Force a password change at next login | `chage -d 0 username` |
+| Lock a user's account (disable password login) | `usermod -L username` or `passwd -l username` |
+| Unlock a user's account | `usermod -U username` or `passwd -u username` |
+
+`usermod -L` and `passwd -l` both work by prefixing the hash in `/etc/shadow` with `!`, which makes it impossible to match — this is a *quick* lock, distinct from setting an actual account expiration date.
+
+---
+
+<Quiz questions={[
+  {
+    question: "Where are user passwords actually stored (hashed), as opposed to general account metadata?",
+    options: ["/etc/passwd", "/etc/shadow", "/etc/login.defs", "/etc/skel"],
+    correctIndex: 1,
+    explanation: "/etc/passwd holds account metadata with just a placeholder in the password field. The real hashed password and aging data live in /etc/shadow, readable only by root."
+  },
+  {
+    question: "You need to edit /etc/passwd by hand. What's the safe way to do it?",
+    options: ["Open it directly in vim", "Use vipw, which locks the file and validates syntax before saving", "Use cat >> to append changes", "There's no safe way to edit it manually"],
+    correctIndex: 1,
+    explanation: "vipw prevents concurrent edits and checks for syntax errors before committing — a raw edit risks a malformed file that locks out every account, including root."
+  },
+  {
+    question: "Which command creates a new user's home directory contents from a custom template directory instead of the default /etc/skel?",
+    options: ["useradd -m username", "useradd -k /path/to/template -m username", "cp -r /etc/skel username", "usermod -d /path/to/template username"],
+    correctIndex: 1,
+    explanation: "The -k flag overrides the skeleton directory useradd copies from, while -m ensures the home directory is actually created."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 2** covers the other half of access management: groups, `sudo` privilege escalation, and the environment files that shape a user's shell session.

@@ -1,0 +1,97 @@
+---
+title: "Locale, Time & System Configuration"
+description: "timedatectl, localectl, hwclock, and how Linux handles timezones, character encoding, and regional settings."
+module: 7
+moduleTitle: "System Configuration & Software"
+lesson: 1
+duration: "14 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Localization
+
+**Localization** is the process of adapting system components — language, date format, currency, keyboard layout — for a specific region or audience. The **`/usr/share/zoneinfo/`** directory is the container for every regional timezone definition the system can be configured to use.
+
+| Task | Command |
+|---|---|
+| View or set system date/time (the modern, systemd-native tool) | `timedatectl` |
+| Show current date/time/timezone status | `timedatectl status` |
+| Set the timezone | `timedatectl set-timezone America/Los_Angeles` |
+| Set the system clock manually | `timedatectl set-time "2026-08-25 09:00:00"` |
+| Print the date in a specific format | `date "+%Y-%m-%d %H:%M:%S"` |
+| Common `date` format codes | `%Y` year, `%m` month, `%d` day, `%H:%M:%S` time |
+| View the configured timezone directly (Debian-family systems) | `cat /etc/timezone` |
+
+**The hardware clock:** the motherboard keeps its own battery-backed clock (RTC) independent of the OS, so time survives a power-off. Sync between the two with `hwclock`:
+
+| Task | Command |
+|---|---|
+| View the hardware clock | `hwclock` (or `hwclock --show`) |
+| Set the hardware clock **from** the system clock | `hwclock --systohc` |
+| Set the system clock **from** the hardware clock | `hwclock --hctosys` |
+
+<Pitfall title="Two Clocks, Two Sources of Truth">
+
+`date` and `timedatectl` operate on the OS's software clock. `hwclock` operates on the motherboard's separate hardware clock. These can drift out of sync with each other — a system with the wrong time after a reboot, despite `date` showing correctly before shutdown, is a classic sign the two clocks disagree and need an explicit `hwclock --systohc`.
+
+</Pitfall>
+
+---
+
+## Locale and Keyboard Layout
+
+**`localectl`** manages the system's language/locale and keyboard layout settings:
+
+| Task | Command |
+|---|---|
+| Show current locale/keyboard settings | `localectl status` |
+| Set the system-wide language locale | `localectl set-locale LANG=en_US.UTF-8` |
+| Set the keyboard layout | `localectl set-keymap us` |
+
+---
+
+## Character Encoding
+
+**Encoding** converts text into bytes for storage or transmission; **decoding** converts those bytes back into readable text. Nearly every modern Linux system defaults to **UTF-8** — a variable-width encoding that can represent virtually any character from any language while staying backward-compatible with plain ASCII for the first 128 characters.
+
+<Pitfall title="Encoding Mismatches Cause 'Mojibake'">
+
+Garbled text (question marks, boxes, or nonsense characters where accented letters or non-Latin scripts should be) almost always means a file was written in one encoding and read assuming another. Check a file's actual encoding with `file -i filename`, and check the shell's active locale with `locale` before assuming the file itself is corrupted.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "A server's date command shows the correct time before a reboot, but after rebooting the clock is wrong. What should you check?",
+    options: [
+      "The /etc/timezone file only",
+      "Whether the hardware clock (RTC) and system clock have drifted out of sync — sync them with hwclock --systohc",
+      "The date command itself is broken",
+      "This can only be fixed by reinstalling the OS"
+    ],
+    correctIndex: 1,
+    explanation: "The motherboard's battery-backed hardware clock is separate from the OS's software clock. If they disagree, a reboot re-reads from the hardware clock and can appear to 'lose' time that was correct just before shutdown."
+  },
+  {
+    question: "Which command is the modern, systemd-native way to view and set the system date, time, and timezone?",
+    options: ["hwclock", "localectl", "timedatectl", "date -s"],
+    correctIndex: 2,
+    explanation: "timedatectl is systemd's tool for managing the software clock and timezone. hwclock manages only the separate hardware clock, and localectl handles language/keyboard settings, not time."
+  },
+  {
+    question: "What encoding does the vast majority of modern Linux systems default to?",
+    options: ["ASCII", "UTF-8", "Latin-1", "UTF-16"],
+    correctIndex: 1,
+    explanation: "UTF-8 is the near-universal default — variable-width, able to represent essentially any character set, and backward-compatible with plain ASCII."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 2** covers the graphical side of the system: display servers, desktop environments, and how to reach a GUI remotely.

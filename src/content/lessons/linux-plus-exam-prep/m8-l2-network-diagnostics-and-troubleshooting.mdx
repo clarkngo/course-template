@@ -1,0 +1,106 @@
+---
+title: "Network Diagnostics & Troubleshooting"
+description: "ping, traceroute, ss, dig, tcpdump, and the rest of the toolkit for proving exactly where a connection is breaking."
+module: 8
+moduleTitle: "Networking & Security"
+lesson: 2
+duration: "20 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Connectivity and Path Testing
+
+| Task | Command |
+|---|---|
+| Send test packets to check basic reachability | `ping host` |
+| Report the network path (hop by hop) between source and destination | `traceroute host` (or `tracepath`, which doesn't need elevated privileges) |
+| A single tool combining continuous ping **and** traceroute in one live view | `mtr host` |
+| Discover MAC addresses the system already knows about on the local network | `arp -a` (or `ip neigh` on modern systems) |
+| Look up ownership/registration info for a domain | `whois domain.com` |
+
+---
+
+## Connection and Port Inspection
+
+| Task | Command |
+|---|---|
+| Gather info about TCP connections to the system (legacy) | `netstat -tuln` |
+| The modern, faster replacement for `netstat` — simpler syntax, same purpose | `ss -tuln` |
+| Test connectivity and send arbitrary data across a network connection | `nc` (netcat) — `nc -zv host port` to test whether a port is open |
+| Explore a network environment, discovering hosts and open ports | `nmap` |
+
+<Pitfall title="netstat Is Deprecated, Same as ifconfig">
+
+Like `ifconfig`, `netstat` comes from the old `net-tools` package and is being phased out in favor of `iproute2`'s `ss`. `ss -tuln` gives you the same "what's listening on what port" answer faster and is what current distributions ship by default — recognize both, default to `ss`.
+
+</Pitfall>
+
+---
+
+## Name Resolution Testing
+
+| Task | Command |
+|---|---|
+| Powerful, detailed DNS query tool (the one most admins reach for) | `dig domain.com` |
+| Simple name resolution tool, available on both Linux and Windows | `host domain.com` |
+| Another simple resolution tool, installed on most Linux distributions | `nslookup domain.com` |
+
+---
+
+## Packet Capture and Bandwidth Testing
+
+| Task | Command |
+|---|---|
+| Command-line packet sniffer — the most popular one, installed by default on most distributions | `tcpdump -i eth0` |
+| Full GUI packet sniffer and protocol analyzer | Wireshark |
+| Display current bandwidth usage per process/connection, live | `iftop` |
+| Test the maximum throughput an interface can actually support | `iperf` (or `iperf3`) |
+
+**Bandwidth** is the theoretical, potential amount of data that could move through a network connection. **Throughput** is the amount of data that actually moves through it in practice, in a given time — always less than or equal to bandwidth, due to overhead, congestion, and real-world conditions.
+
+<Pitfall title="A Working ping Doesn't Prove the Application Works">
+
+`ping` only confirms basic Layer 3 (ICMP) reachability. A host can respond to `ping` while the actual service you care about is down, firewalled, or unreachable on its specific port. The correct escalation when `ping` succeeds but the application still fails: `ss`/`netstat` to confirm the service is listening, then `nc -zv` or `nmap` against the specific port to confirm it's reachable from the client's side, then check for a firewall in between.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "A user can ping a web server successfully, but their browser still can't load the site. What should you check next?",
+    options: [
+      "Nothing else — ping success means the network is fine",
+      "Whether the web service is actually listening on port 80/443 (ss/netstat), then whether that specific port is reachable (nc -zv or nmap), then check for a firewall blocking it",
+      "Only the DNS configuration",
+      "Restart the entire network"
+    ],
+    correctIndex: 1,
+    explanation: "ping only tests basic ICMP reachability at Layer 3. A service can be down, not listening, or blocked by a firewall on its specific port even while ICMP responds fine — you need to test the actual port next."
+  },
+  {
+    question: "Which modern command replaces the deprecated netstat for viewing listening ports and connections?",
+    options: ["ip addr", "ss", "dig", "arp"],
+    correctIndex: 1,
+    explanation: "ss, from the iproute2 suite, replaces netstat with faster performance and simpler syntax, and is what modern distributions ship by default."
+  },
+  {
+    question: "What's the difference between bandwidth and throughput?",
+    options: [
+      "They mean exactly the same thing",
+      "Bandwidth is the theoretical maximum capacity of a connection; throughput is the amount of data that actually moves through it in practice",
+      "Throughput is always higher than bandwidth",
+      "Bandwidth only applies to wireless connections"
+    ],
+    correctIndex: 1,
+    explanation: "Bandwidth describes potential capacity. Throughput is the real, measured data rate achieved in practice, which is always at or below the bandwidth ceiling due to overhead and real-world conditions."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Lesson 3** shifts from getting the network working to locking it down — authentication, access control, and SELinux.

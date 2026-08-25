@@ -1,0 +1,128 @@
+---
+title: "Text Processing & I/O Redirection"
+description: "grep, sed, awk, and the pipe-and-redirect toolkit that turns raw command output into exactly the answer you need."
+module: 2
+moduleTitle: "Files, Text & Permissions"
+lesson: 2
+duration: "20 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Viewing File Contents
+
+| Task | Command |
+|---|---|
+| Print an entire file to the terminal | `cat file` |
+| Print with line numbers, tabs marked, etc. | `cat -A file` |
+| Concatenate multiple files together | `cat file1 file2 > combined` |
+| Show the first 10 lines | `head file` |
+| Show the last 10 lines | `tail file` |
+| Follow a growing file (log tailing) live | `tail -f file` |
+| Page through a file, scroll up **and** down | `less file` |
+| Page through a file, scroll **forward only** | `more file` |
+
+---
+
+## Searching Text: grep
+
+`grep` searches file contents for a pattern:
+
+| Flag | Effect |
+|---|---|
+| `grep "text" file` | Print lines matching `text` |
+| `grep -i "text" file` | Match case-insensitively |
+| `grep -r "text" dir/` | Search recursively through a directory |
+| `grep -v "text" file` | Invert the match — print lines that **don't** match |
+| `grep -c "text" file` | Count matching lines instead of printing them |
+| `grep -E "regex"` | Enable extended regular expressions (or use `egrep`) |
+
+---
+
+## Transforming Text: cut, sort, uniq, tr, sed, awk
+
+| Task | Command |
+|---|---|
+| Extract a column by delimiter | `cut -d: -f1 /etc/passwd` |
+| Arrange lines alphabetically/numerically | `sort file` (add `-n` for numeric, `-r` for reverse) |
+| Collapse adjacent duplicate lines | `uniq file` (usually piped after `sort`) |
+| Translate/delete characters | `tr 'a-z' 'A-Z' < file` |
+| Extract specified lines by number | `sed -n '5,10p' file` |
+| Find-and-replace across a file | `sed 's/old/new/g' file` |
+| Pattern-driven field processing (a full mini-language) | `awk '{print $1}' file` |
+| Merge lines from multiple files side by side | `paste file1 file2` |
+| Show line-by-line differences between two files | `diff file1 file2` |
+
+**sed** and **awk** are both "programs to modify text according to parameters" — the difference is scope: `sed` is a stream editor built around find/replace and line selection; `awk` is a full field-processing language built around columns and conditions. If a question needs "print the 3rd column where the 2nd column equals X," that's `awk`. If it needs "replace every instance of X with Y," that's `sed`.
+
+---
+
+## Standard Streams & Redirection
+
+Every process has three open streams:
+
+| Stream | Number | Purpose |
+|---|---|---|
+| **stdin** (standard input) | `0` | Where a command reads its input from — the keyboard, by default |
+| **stdout** (standard output) | `1` | Where normal output goes — the terminal, by default |
+| **stderr** (standard error) | `2` | Where error messages go — also the terminal, by default, but a *separate* stream |
+
+**Redirection operators** point a stream somewhere other than the terminal:
+
+| Operator | Effect |
+|---|---|
+| `command > file` | Redirect stdout to a file, **overwriting** it |
+| `command >> file` | Redirect stdout to a file, **appending** to it |
+| `command < file` | Redirect stdin to read from a file instead of the keyboard |
+| `command 2> file` | Redirect stderr only |
+| `command &> file` | Redirect both stdout and stderr to the same file |
+| `command1 \| command2` | **Pipe** — send command1's stdout directly into command2's stdin |
+
+<Pitfall title="A Single > Will Destroy Data Silently">
+
+`command > file` truncates `file` to zero length before writing — there's no confirmation prompt. Appending with `>>` is the safe default whenever you're not certain a file should be replaced outright.
+
+</Pitfall>
+
+**Combining and discarding output:**
+
+| Task | Command |
+|---|---|
+| Run a command for each line of input | `xargs`, e.g. `find . -name "*.log" \| xargs rm` |
+| Send output to the screen *and* copy it to a file | `command \| tee file` |
+| Discard all output written to it | Redirect to `/dev/null` — `command > /dev/null 2>&1` |
+
+---
+
+<Quiz questions={[
+  {
+    question: "You want to see every line in access.log containing 'error', regardless of capitalization. Which command does that?",
+    options: ["grep error access.log", "grep -v error access.log", "grep -i error access.log", "grep -c error access.log"],
+    correctIndex: 2,
+    explanation: "-i makes the match case-insensitive, so it catches 'error', 'Error', and 'ERROR' alike."
+  },
+  {
+    question: "What's the risk of running `long_command > output.txt` on a file that already contains important data?",
+    options: [
+      "Nothing — > always appends",
+      "It silently overwrites (truncates) the existing file with no warning",
+      "It asks for confirmation first",
+      "It merges the old and new content automatically"
+    ],
+    correctIndex: 1,
+    explanation: "A single > always truncates the target file before writing. Use >> if you intend to append instead of replace."
+  },
+  {
+    question: "Which command should you reach for to extract and print only the 3rd column of a space-delimited file where the 1st column equals \"active\"?",
+    options: ["cat", "sed", "awk", "tr"],
+    correctIndex: 2,
+    explanation: "awk is built around column/field processing with conditions — exactly this kind of 'if column 1 matches, print column 3' task. sed is better suited to line-based find-and-replace."
+  }
+]} />
+
+---
+
+## What's Next
+
+Now that you can read and reshape file contents, **Lesson 3** covers who's allowed to do that in the first place — permissions, ownership, and access control lists.

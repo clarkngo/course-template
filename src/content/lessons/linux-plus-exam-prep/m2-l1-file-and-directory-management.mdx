@@ -1,0 +1,112 @@
+---
+title: "File & Directory Management"
+description: "Creating, copying, moving, and linking files, plus the two text editors every Linux+ candidate needs on their fingertips: vim and nano."
+module: 2
+moduleTitle: "Files, Text & Permissions"
+lesson: 1
+duration: "18 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Core File Operations
+
+| Task | Command |
+|---|---|
+| Create an empty file / update its timestamp to now | `touch file` |
+| Copy a file | `cp source dest` |
+| Move or rename a file | `mv source dest` |
+| Remove files | `rm file` |
+| Remove exactly one file at a time (prompt-free, no globbing surprises) | `rm -- file` |
+| Create a directory | `mkdir dirname` |
+| Create a directory **and any missing parent directories** | `mkdir -p a/b/c` |
+| Remove an empty directory | `rmdir dirname` |
+| Remove a directory and everything in it | `rm -r dirname` |
+
+<Pitfall title="mkdir Fails Silently on Missing Parents">
+
+`mkdir a/b/c` fails with "No such file or directory" if `a/b` doesn't already exist. `mkdir -p a/b/c` creates every missing directory in the chain in one shot — the flag Linux+ scenario questions expect when a script needs to guarantee a nested path exists.
+
+</Pitfall>
+
+---
+
+## Hard Links vs. Symbolic Links
+
+`ln file1 file2` creates a **hard link** — a second directory entry pointing at the exact same inode (same data on disk). `ln -s file1 file2` creates a **symbolic (soft) link** — a small file that just points at another path by name.
+
+| | Hard link | Symbolic link |
+|---|---|---|
+| Points to | An inode directly | A path (by name) |
+| Crosses filesystems? | No | Yes |
+| Links to a directory? | No (with rare exceptions) | Yes |
+| Survives the original being deleted? | Yes — data persists until the last link is removed | No — becomes a "dangling" link |
+
+---
+
+## Text Editors: vim and nano
+
+**nano** is the beginner-friendly editor — what you're typing is what gets saved, and the shortcuts are always listed at the bottom of the screen (`^O` write out, `^X` exit).
+
+**vim** is modal, faster once learned, and the editor Linux+ scenario questions assume you know. It has three core modes:
+
+| Mode | How you get there | What it's for |
+|---|---|---|
+| **Normal** | `Esc` (the default mode on open) | Navigation and running commands |
+| **Insert** | `i`, `a`, `o` from Normal mode | Typing text directly into the file |
+| **Command-line (Ex)** | `:` from Normal mode | Save, quit, search-and-replace, and other line commands |
+
+**Common Execute-mode commands** (typed after `:`):
+
+| Command | Effect |
+|---|---|
+| `:w` | Write (save) the file |
+| `:q` | Quit |
+| `:wq` or `:x` | Write and quit |
+| `:q!` | Quit without saving, discarding changes |
+| `:%s/old/new/g` | Replace every occurrence of `old` with `new` in the file |
+
+**Motions** move the cursor without switching modes: `h j k l` (left/down/up/right), `w`/`b` (next/previous word), `0`/`$` (start/end of line), `gg`/`G` (top/bottom of file).
+
+**Editing operators** combine with motions to act on text: `d` (delete), `c` (change — delete and enter Insert mode), `y` (yank/copy). So `dw` deletes to the end of the word, and `d$` deletes to the end of the line.
+
+<Pitfall title="Stuck in vim? Everyone Has Been There">
+
+If a scenario question describes a user "stuck" in an editor, the fix is almost always `Esc` followed by `:q!` — return to Normal mode, then quit without saving. It's a running joke in the Linux world for a reason: it happens to everyone at least once.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "You need to create the directory /data/reports/2024, but neither /data nor /data/reports exists yet. Which command creates the whole path in one step?",
+    options: ["mkdir /data/reports/2024", "mkdir -p /data/reports/2024", "touch /data/reports/2024", "mkdir -r /data/reports/2024"],
+    correctIndex: 1,
+    explanation: "The -p (parents) flag tells mkdir to create any missing directories along the path instead of failing on the first one that doesn't exist."
+  },
+  {
+    question: "What happens to a symbolic link when the file it points to is deleted?",
+    options: [
+      "It automatically deletes itself",
+      "It still holds the file's data because it's a separate inode",
+      "It becomes a dangling link that points to nothing",
+      "The original file is restored"
+    ],
+    correctIndex: 2,
+    explanation: "A symbolic link only stores a path, not the data itself. Delete the target, and the link remains but no longer resolves to anything — a 'dangling' link."
+  },
+  {
+    question: "In vim, you're in Insert mode and need to save and exit. What's the fastest correct sequence?",
+    options: ["Ctrl+S, then close the window", "Esc, then :wq", "Esc, then :q!", "Just close the terminal"],
+    correctIndex: 1,
+    explanation: "Esc returns you to Normal mode, and :wq writes the file and quits. :q! (discarding changes) would lose your edits."
+  }
+]} />
+
+---
+
+## What's Next
+
+Files rarely stand alone — **Lesson 2** covers reading, filtering, and transforming their contents from the command line.

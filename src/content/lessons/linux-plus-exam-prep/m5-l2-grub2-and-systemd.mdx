@@ -1,0 +1,130 @@
+---
+title: "GRUB2 & systemd"
+description: "Configuring the GRUB2 bootloader, and how systemd replaced SysVinit's runlevels with units, targets, and parallel service startup."
+module: 5
+moduleTitle: "Boot Process & System Initialization"
+lesson: 2
+duration: "22 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Configuring GRUB2
+
+| Item | Location / command |
+|---|---|
+| Main built config GRUB2 actually reads at boot | `/boot/grub2/grub.cfg` (BIOS) or `/boot/efi/EFI/<distro>/grub.cfg` (UEFI) |
+| Scripts used to **build** `grub.cfg` | `/etc/grub.d/` — numbered scripts run in order, each contributing a section to the final config |
+| Customization file read by `/etc/grub.d/` scripts (default menu entry, timeout, kernel parameters) | `/etc/default/grub` |
+| Regenerate `grub.cfg` after editing `/etc/default/grub` | `grub2-mkconfig -o /boot/grub2/grub.cfg` |
+| Install the GRUB2 bootloader onto a device's boot record | `grub2-install /dev/sda` |
+| Password-protect the boot menu against unauthorized changes | `grub2-setpassword`, which generates and stores a password hash |
+
+<Pitfall title="Never Hand-Edit grub.cfg">
+
+`grub.cfg` is a **generated** file, rebuilt from `/etc/default/grub` and the `/etc/grub.d/` scripts. Manual edits to `grub.cfg` are overwritten the next time it's regenerated (which can happen automatically after a kernel update). Always change `/etc/default/grub` and re-run `grub2-mkconfig`.
+
+</Pitfall>
+
+**Editing the boot menu interactively:** at the GRUB2 menu itself, press `e` to edit the highlighted entry's boot parameters for a one-time boot (useful for appending `single` or `rd.break` to reach a recovery shell), or `c` to drop into a limited GRUB command line.
+
+---
+
+## systemd: The Modern Init System
+
+`systemd` is the **init daemon** — the process that begins the instant the kernel finishes loading, always **PID 1**, and the software suite responsible for bringing the rest of the system up: starting services, mounting filesystems, and managing the run state from that point forward.
+
+| Concept | What it is |
+|---|---|
+| **Unit** | A single manageable resource — a service, mount point, device, timer, or socket — defined by a configuration file |
+| **Unit file** | Configuration systemd reads to determine how to handle a given unit, e.g. `/etc/systemd/system/nginx.service` |
+| **Target** | A group of units systemd brings up together — the systemd replacement for SysVinit's runlevels |
+
+**Controlling services and units with `systemctl`:**
+
+| Task | Command |
+|---|---|
+| Start / stop / restart a service right now | `systemctl start\|stop\|restart nginx` |
+| Enable / disable a service at boot | `systemctl enable\|disable nginx` |
+| Check a service's current status | `systemctl status nginx` |
+| List all currently loaded units | `systemctl list-units` |
+| Switch the current target (e.g., drop to a minimal environment) | `systemctl isolate multi-user.target` |
+| Reload systemd's own configuration after editing a unit file | `systemctl daemon-reload` |
+
+`systemctl` is the command used to control services in most cases on any systemd-based distribution — which today means nearly all of them, including RHEL/Rocky/AlmaLinux, Ubuntu, Debian, and Fedora.
+
+---
+
+## Runlevels vs. Targets
+
+SysVinit — the older init method, now largely replaced by systemd — organized system states into numbered **runlevels**. systemd maps each one to an equivalent **target**:
+
+| SysVinit runlevel | systemd target | Meaning |
+|---|---|---|
+| 0 | `poweroff.target` | Shut down |
+| 1 | `rescue.target` | Single-user/rescue mode — superuser must log in, minimal services |
+| 3 | `multi-user.target` | Full multi-user, non-graphical |
+| 5 | `graphical.target` | Full multi-user with a graphical login |
+| 6 | `reboot.target` | Reboot |
+
+`systemctl get-default` shows the current default target; `systemctl set-default multi-user.target` changes it.
+
+<Pitfall title="The Core Difference: Parallel vs. Sequential Startup">
+
+The single biggest architectural difference between systemd and SysVinit is that **systemd starts units in parallel based on declared dependencies**, while SysVinit ran numbered scripts strictly **sequentially**. That's why systemd boots noticeably faster — independent services no longer wait in line behind each other for no reason.
+
+</Pitfall>
+
+---
+
+## SysVinit Legacy Reference
+
+Even on modern systemd systems, you may still encounter SysVinit-style compatibility layers or need to recognize this vocabulary on the exam:
+
+| Concept | Detail |
+|---|---|
+| `/etc/inittab` | Stored process/runlevel details on a SysVinit system (systemd has no direct equivalent — this file is effectively obsolete) |
+| `/etc/init.d/` | Directory storing SysVinit service scripts, still used by many systemd distributions as a **compatibility layer** for older scripts |
+| `/etc/rc.local` | Script executed at the very end of the boot process — a historical catch-all for custom startup commands, still supported (though discouraged) on most distributions |
+| `service servicename start\|stop\|status` | Controls SysVinit-style services — often still works on systemd systems as a compatibility wrapper around `systemctl` |
+| `chkconfig --level 3 servicename on` | Controlled which runlevels a SysVinit service started in — the SysVinit equivalent of `systemctl enable` |
+
+---
+
+<Quiz questions={[
+  {
+    question: "You edited /boot/grub2/grub.cfg directly to add a kernel parameter, and it disappeared after the next kernel update. Why?",
+    options: [
+      "grub.cfg is read-only and your edit never actually applied",
+      "grub.cfg is a generated file, rebuilt from /etc/default/grub and /etc/grub.d/ scripts — direct edits don't survive regeneration",
+      "Kernel updates always reset GRUB entirely",
+      "You needed to run chmod +w first"
+    ],
+    correctIndex: 1,
+    explanation: "The correct place to persist boot parameter changes is /etc/default/grub, followed by grub2-mkconfig to regenerate grub.cfg from it."
+  },
+  {
+    question: "What is the primary architectural advantage systemd has over SysVinit?",
+    options: [
+      "systemd uses less disk space",
+      "systemd starts units in parallel based on dependencies, instead of running numbered scripts strictly one after another",
+      "systemd doesn't use unit files",
+      "systemd only works on RHEL-based distributions"
+    ],
+    correctIndex: 1,
+    explanation: "SysVinit's sequential, numbered script execution meant independent services waited in line unnecessarily. systemd's dependency-based parallel startup is the main reason systemd boots faster."
+  },
+  {
+    question: "Which systemd target is the closest equivalent to SysVinit's runlevel 5?",
+    options: ["poweroff.target", "rescue.target", "multi-user.target", "graphical.target"],
+    correctIndex: 3,
+    explanation: "Runlevel 5 was full multi-user mode with a graphical login — graphical.target is systemd's equivalent."
+  }
+]} />
+
+---
+
+## What's Next
+
+**Module 6** covers what happens after boot completes: managing running processes, memory, kernel modules, and the hardware they depend on.

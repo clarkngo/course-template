@@ -1,0 +1,130 @@
+---
+title: "Process & Performance Management"
+description: "ps, top, kill signals, nice/renice priority, and the process states you need to recognize when something on a Linux box is misbehaving."
+module: 6
+moduleTitle: "Processes, Kernel & Hardware"
+lesson: 1
+duration: "22 min"
+---
+
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Viewing Processes
+
+Every running program gets a unique **PID** (Process ID) the moment it starts.
+
+| Task | Command |
+|---|---|
+| Snapshot of currently running processes | `ps aux` (BSD-style) or `ps -ef` (UNIX-style) |
+| Live, auto-refreshing view — sort/prioritize/kill processes interactively | `top` |
+| A friendlier, color-coded, mouse-scrollable version of `top` | `htop` (not installed by default everywhere — install it before you need it) |
+| Find the PID(s) of a process by name | `pgrep processname` |
+| List every file a process currently has open | `lsof` (or `lsof -p PID` for one specific process) |
+| Show how long the system has been running and its load average | `uptime` |
+| View CPU model, cores, and flags | `cat /proc/cpuinfo` |
+| Generate historical system-activity reports (CPU, memory, I/O over time) | `sar` |
+| Retrieve performance statistics for the boot process itself | `systemd-analyze` (add `blame` to rank the slowest-starting units) |
+
+---
+
+## The Five Process States
+
+| State | Meaning |
+|---|---|
+| **Running (R)** | Actively executing on the CPU, or ready to run and waiting its turn |
+| **Sleeping / interruptible (S)** | Waiting on an event (input, a timer, a lock) — can be woken by a signal |
+| **Uninterruptible sleep (D)** | Waiting on I/O (usually disk) and **cannot** be interrupted by a signal, not even `SIGKILL`, until the I/O completes |
+| **Stopped (T)** | Execution paused, typically by a job-control signal (`Ctrl+Z`) or by the debugger |
+| **Zombie (Z)** | The process has finished executing, but its parent hasn't yet collected its exit status — it lingers as an entry in the process table only |
+
+<Pitfall title="You Can't Kill a Zombie">
+
+A zombie process is already dead — there's no running program left to signal. What actually needs fixing is the **parent process**, which hasn't called `wait()` to reap the zombie's exit status. If a system accumulates zombies, the real fix is restarting or patching the parent process, not trying (and failing) to `kill -9` the zombie's PID directly.
+
+</Pitfall>
+
+---
+
+## Sending Signals: Terminating and Controlling Processes
+
+A **signal** determines how a targeted process should respond — most commonly, but not exclusively, to end it.
+
+| Signal | Number | Effect |
+|---|---|---|
+| `SIGHUP` | 1 | Hangup — traditionally "reload configuration" for daemons |
+| `SIGINT` | 2 | Interrupt — what `Ctrl+C` sends |
+| `SIGKILL` | 9 | Force-terminate immediately — cannot be caught, blocked, or ignored by the process |
+| `SIGTERM` | 15 | Politely ask the process to terminate (the **default** signal for `kill`) — the process can catch this and clean up first |
+| `SIGSTOP` | 19 | Pause the process — cannot be caught or ignored |
+| `SIGCONT` | 18 | Resume a stopped process |
+
+| Command | Effect |
+|---|---|
+| `kill PID` | Send `SIGTERM` (default) to a specific PID |
+| `kill -9 PID` or `kill -SIGKILL PID` | Force-terminate a specific PID |
+| `killall processname` | Send a signal to every process matching a name |
+| `pkill -f pattern` | Send a signal to every process matching a pattern, including the full command line |
+
+<Pitfall title="Always Try SIGTERM Before SIGKILL">
+
+`SIGTERM` gives a process the chance to close files, flush buffers, and shut down cleanly. `SIGKILL` gives it no chance at all — the kernel just removes it, which can leave corrupted files or orphaned locks behind. Reach for `-9` only after a plain `kill` has failed to end the process.
+
+</Pitfall>
+
+---
+
+## Priority: nice and renice
+
+Every process has a **nice value** from `-20` (highest scheduling priority) to `19` (lowest) that influences how much CPU time the scheduler gives it relative to other processes.
+
+| Task | Command |
+|---|---|
+| Start a new process with a specific (non-default) nice value | `nice -n 10 somecommand` |
+| Change the nice value of an **already-running** process | `renice -n 5 -p PID` |
+| Keep a process running after its terminal/session closes | `nohup somecommand &` (redirects hangup signals and detaches output to `nohup.out`) |
+
+<Pitfall title="Lower Nice Value = Higher Priority (Counterintuitive!)">
+
+A process with nice value `-20` is the **most** aggressive about grabbing CPU time; a process with nice value `19` is the most willing to yield. "Nice" describes how considerate the process is being toward everything else on the system — a low number means it isn't being very nice at all. Only root can set a negative nice value.
+
+</Pitfall>
+
+---
+
+<Quiz questions={[
+  {
+    question: "A process shows state Z in ps output and won't respond to kill -9. What's actually wrong?",
+    options: [
+      "The process is corrupted and needs a reboot",
+      "It's a zombie — already finished executing; the fix is to address its parent process, which hasn't reaped its exit status",
+      "kill -9 doesn't work on this distribution",
+      "The PID number is wrong"
+    ],
+    correctIndex: 1,
+    explanation: "A zombie has no running code left to signal. The entry persists in the process table until the parent calls wait() on it — so the real target for troubleshooting is the parent, not the zombie's PID."
+  },
+  {
+    question: "Which signal should you send first when trying to stop a misbehaving process cleanly?",
+    options: ["SIGKILL (9)", "SIGSTOP (19)", "SIGTERM (15)", "SIGHUP (1)"],
+    correctIndex: 2,
+    explanation: "SIGTERM is kill's default signal and gives the process a chance to clean up and exit gracefully. SIGKILL should be a last resort since the process gets no opportunity to shut down cleanly."
+  },
+  {
+    question: "You set a background job's nice value to -15. What does that do to its scheduling priority?",
+    options: [
+      "Lowers its priority — it will get less CPU time than default processes",
+      "Raises its priority — it will be more aggressive about getting CPU time than default processes",
+      "Has no effect until the system reboots",
+      "This is invalid — nice values can't be negative"
+    ],
+    correctIndex: 1,
+    explanation: "Nice values run from -20 (highest priority) to 19 (lowest). A more negative value means the process is less 'nice' about yielding the CPU to others, so it gets scheduled more aggressively. Setting a negative value requires root."
+  }
+]} />
+
+---
+
+## What's Next
+
+Processes compete for more than CPU time — **Lesson 2** covers how the kernel manages memory and what to check when a system starts thrashing.
