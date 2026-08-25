@@ -1,0 +1,206 @@
+---
+title: "Experiencing the Full App: Chat, Search, and Recommendations"
+description: "Wire up the FastAPI /chat endpoint, the ExpressJS streaming proxy, and a frontend that decodes the response chunk by chunk — then run the whole stack end to end."
+module: 5
+moduleTitle: "Building the Full RAG Application"
+lesson: 2
+duration: "45 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Last Mile: Getting a Response Back to the User
+
+Every backend piece from the last four modules — the RAG pipeline, the tracked recommendation model, the proxy routing — is only useful once it can actually reach a user's screen. This lesson wires up the final leg: the FastAPI endpoint that runs your RAG query, the ExpressJS proxy that streams that response onward, and a frontend that reads the stream and renders it as it arrives.
+
+---
+
+## Step 1: The FastAPI /chat Endpoint
+
+Wrap the `query_rag` function from Module 3 in an actual HTTP endpoint:
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class QueryRequest(BaseModel):
+    query_text: str
+
+@app.post("/chat")
+def chat_endpoint(request: QueryRequest):
+    try:
+        response = query_rag(request.query_text)
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+Run it:
+
+```bash
+uvicorn main:app --reload
+```
+
+`uvicorn` is an ASGI server — the thing that actually listens on a port and turns incoming HTTP requests into calls to your FastAPI app. `--reload` restarts it automatically whenever you edit the file, which is worth having on for everything except a production deployment.
+
+---
+
+## Step 2: The ExpressJS Streaming Proxy
+
+The frontend never talks to FastAPI directly — it talks to ExpressJS, which forwards the request and relays the response back. Here's the part worth understanding closely: this proxy **simulates streaming**, even though the FastAPI call underneath it returns its answer all at once.
+
+```javascript
+const { PassThrough } = require('stream');
+const axios = require('axios');
+
+app.post('/chat', async (req, res) => {
+  const { query_text } = req.body;
+  if (!query_text) {
+    return res.status(400).json({ error: 'query_text is required' });
+  }
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Transfer-Encoding', 'chunked');
+
+  const stream = new PassThrough();
+  stream.pipe(res);
+
+  try {
+    const fastApiResponse = await axios.post('http://localhost:8000/chat', { query_text });
+    const responseText = fastApiResponse.data.response;
+
+    for (let i = 0; i < responseText.length; i++) {
+      stream.write(responseText[i]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    stream.end();
+  } catch (error) {
+    stream.end();
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+```
+
+<CodeLab title="Why Simulate Streaming Instead of Just Sending the Whole Response">
+
+`Transfer-Encoding: chunked` tells the client that the response is arriving in pieces rather than all at once — the client can start reading before the full response has finished. That's a genuine streaming response.
+
+But notice `fastApiResponse` already has the *complete* answer the moment `axios.post` resolves — FastAPI isn't streaming anything to Express here. The `for` loop that follows is deliberately writing the already-complete text to the client one character at a time, with a small artificial delay, purely to *simulate* the incremental feel of a real token-by-token stream (the kind you'd get directly from a model API that supports it).
+
+This matters to understand honestly: a genuinely streaming LLM API sends tokens as they're generated, so time-to-first-token is fast even for a long response. This simulated version still waits for FastAPI's *entire* response before writing anything — it improves perceived UX on the frontend (text appears to type out) but doesn't reduce actual latency the way real token streaming would.
+
+</CodeLab>
+
+---
+
+## Step 3: The Frontend — Reading the Stream
+
+The frontend has to read that chunked response incrementally and update the UI as pieces arrive, rather than waiting for the whole thing:
+
+```javascript
+async function handleChat(userInput) {
+  setIsLoading(true);
+  try {
+    const response = await fetch(`${API_URL}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query_text: userInput }),
+    });
+
+    if (response.ok) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let accumulatedResponse = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const decodedChunk = decoder.decode(value, { stream: true });
+        accumulatedResponse += decodedChunk;
+        setMessages(prev => [...prev, decodedChunk]);
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching chat:', error);
+  } finally {
+    setIsLoading(false);
+  }
+}
+```
+
+`response.body.getReader()` gives you a `ReadableStream` reader — `read()` resolves each time a new chunk of bytes arrives, `done` flips to `true` once the server has called `stream.end()`. `TextDecoder`'s `{ stream: true }` option matters specifically for multi-byte UTF-8 characters: without it, a character that happens to be split across two chunk boundaries can decode incorrectly, since a UTF-8 character can span more than one byte and chunk boundaries don't know or care where those character boundaries fall.
+
+---
+
+## Step 4: Run the Whole Stack
+
+Each piece runs in its own terminal, and **order matters** — start the servers your other services depend on first:
+
+```bash
+# Terminal 1 — Ollama
+ollama serve
+
+# Terminal 2 — pull the model once (skip if already pulled)
+ollama pull gemma2:2b
+
+# Terminal 3 — MLflow tracking server
+mlflow server
+
+# Terminal 4 — FastAPI model/RAG server
+cd modelserver-fastapi
+uvicorn main:app --reload
+
+# Terminal 5 — ExpressJS proxy/API server
+cd backend-expressjs
+npm run start
+
+# Terminal 6 — frontend
+cd frontend-reactnative
+npx expo start --web
+```
+
+Update the frontend's `.env` with the ExpressJS server's address (make sure it doesn't end in a trailing `/` — a double slash in the resulting URL is a common cause of confusing 404s), and open the app in your browser.
+
+---
+
+## Step 5: Full End-to-End Test
+
+Run through all four features and confirm each one actually reaches the backend service it's supposed to:
+
+1. **Search** — type into the search box, confirm it filters the movie list (frontend → ExpressJS → MongoDB).
+2. **Initial recommendations** — a fresh load should show randomized starter movies.
+3. **Pick 3 movies** — new recommendations should update based on your picks (frontend → ExpressJS → FastAPI → the MLflow-registered model from Module 4).
+4. **Chat** — ask about a movie that's in your loaded PDF, confirm a real grounded answer streams in; then ask about one that isn't, and confirm it says it doesn't know instead of guessing — the exact test from Module 3, now running through the full stack instead of a bare terminal script.
+
+---
+
+<Pitfall title="CORS Errors After Restarting Just the Frontend">
+
+**Common mistake:** restarting the frontend dev server after an error, but leaving the ExpressJS server running from before — and then hitting a CORS error that looks like a frontend configuration problem.
+
+If the ExpressJS server was started before certain environment variables or CORS settings were finalized, restarting only the frontend won't pick up a fix that lives on the backend. When you hit a CORS error mid-development, restart the ExpressJS server itself before assuming the frontend's fetch call or headers are wrong — it's often the simpler, faster fix.
+
+</Pitfall>
+
+<Quiz question="In the ExpressJS proxy code in this lesson, is the response actually streamed token-by-token from the LLM, or something else?">
+<div>
+
+**Something else — FastAPI returns the complete response in one piece, and Express simulates a stream by writing that already-complete text to the client one character at a time with an artificial delay.**
+
+`Transfer-Encoding: chunked` and the `for` loop do make the *client* receive and render the response incrementally, which is a real UX improvement — the text appears to type out rather than popping in all at once. But `fastApiResponse.data.response` is already the full answer the moment it arrives from FastAPI. A genuinely streaming pipeline would need the LLM call itself to emit tokens incrementally (most model APIs support this directly), with Express relaying each token as it's generated rather than replaying a complete response after the fact. Knowing that distinction matters if you ever need to explain why this version's time-to-first-token doesn't actually improve, even though it looks like it's streaming.
+
+</div>
+</Quiz>
+
+---
+
+## Course Complete
+
+You went from "what's the difference between AI, ML, and deep learning" to a running application with a real RAG pipeline, a tracked and deployable prediction model, and a proxy architecture tying five separate services together. That's the actual shape of AI engineering work: mostly wiring, testing, and understanding *why* each piece behaves the way it does — not just calling an API and hoping.
+
+From here, the natural next steps are the ones the workshop this course is based on pointed to as well: add proper authentication and error handling to the proxy layer, try swapping in a larger model now that you understand the resource trade-off, or push the whole stack through a CI/CD pipeline instead of running six terminals by hand.
