@@ -2,6 +2,7 @@
 title: "Data & Python"
 description: "Learn Python from the ground up and apply it to real data — read, clean, analyze, and visualize datasets with confidence."
 icon: "🐍"
+category: "Software Development"
 color: "#16a34a"
 status: "available"
 order: 7

@@ -2,6 +2,7 @@
 title: "Physical AI"
 description: "Explore how AI moves beyond software into the physical world — robotics, autonomous systems, and intelligent machines that sense, decide, and act."
 icon: "🤖"
+category: "AI & Machine Learning"
 color: "#7c3aed"
 status: "available"
 order: 1

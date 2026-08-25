@@ -7,6 +7,7 @@ const courses = defineCollection({
     description: z.string(),
     icon: z.string(),
     color: z.string().optional(),
+    category: z.string(),
     status: z.enum(['available', 'coming-soon']).default('coming-soon'),
     order: z.number(),
     audience: z.string().optional(),

@@ -2,6 +2,7 @@
 title: "Digital Twins"
 description: "Learn how digital replicas of physical systems are transforming industries — from smart cities to manufacturing — and how AI powers them."
 icon: "🔮"
+category: "AI & Machine Learning"
 color: "#0891b2"
 status: "available"
 order: 2
