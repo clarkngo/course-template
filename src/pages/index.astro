@@ -18,6 +18,38 @@ function lessonCount(courseSlug: string) {
 
 const availableCount = courses.filter(c => c.data.status === 'available').length;
 const totalCount = courses.length;
+
+// Display order for categories; anything not listed here falls back to
+// alphabetical order after these, so a new category never disappears silently.
+const CATEGORY_ORDER = [
+  'AI & Machine Learning',
+  'AI for Public Safety',
+  'Vibe Coding & No-Code AI',
+  'Software Development',
+  'IT & Cloud Infrastructure',
+  'Business & Strategy',
+  'Teaching & Instructional Design',
+  'Skilled Trades',
+];
+
+function categorySlug(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+const categories = [...new Set(courses.map(c => c.data.category))].sort((a, b) => {
+  const ia = CATEGORY_ORDER.indexOf(a);
+  const ib = CATEGORY_ORDER.indexOf(b);
+  if (ia === -1 && ib === -1) return a.localeCompare(b);
+  if (ia === -1) return 1;
+  if (ib === -1) return -1;
+  return ia - ib;
+});
+
+const coursesByCategory = categories.map(category => ({
+  name: category,
+  slug: categorySlug(category),
+  courses: courses.filter(c => c.data.category === category),
+}));
 ---
 
 <BaseLayout title="Course Catalog" description="Master AI, web development, data science, and more — all built for complete beginners.">
@@ -66,12 +98,26 @@ const totalCount = courses.length;
       </div>
     </section>
 
+    <!-- ── Category jump nav ────────────────────────────── -->
+    <div class="sticky top-16 z-10 bg-white/95 backdrop-blur border-b border-gray-200 overflow-x-auto">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 whitespace-nowrap">
+        {coursesByCategory.map(({ name, slug, courses: catCourses }) => (
+          <a
+            href={`#${slug}`}
+            class="text-xs font-medium text-gray-500 hover:text-brand-600 hover:bg-brand-50 border border-gray-200 rounded-full px-3 py-1.5 transition-colors flex-shrink-0"
+          >
+            {name} <span class="text-gray-400">· {catCourses.length}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+
     <!-- ── Course Catalog ────────────────────────────── -->
     <section class="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8 sm:mb-10">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-10 sm:mb-14">
         <div>
           <h2 class="text-2xl font-bold text-gray-900">All Courses</h2>
-          <p class="text-gray-500 mt-1">{totalCount} courses · built for complete beginners</p>
+          <p class="text-gray-500 mt-1">{totalCount} courses across {categories.length} categories · built for complete beginners</p>
         </div>
         <div class="flex items-center gap-2">
           <span class="w-3 h-3 rounded-full bg-brand-500 inline-block"></span>
@@ -81,63 +127,74 @@ const totalCount = courses.length;
         </div>
       </div>
 
-      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {courses.map(course => {
-          const count = lessonCount(course.slug);
-          const isAvailable = course.data.status === 'available';
-          const href = isAvailable ? `${base}${course.slug}/` : undefined;
-
-          return (
-            <div
-              class={`module-card flex flex-col group ${isAvailable ? 'cursor-pointer' : 'opacity-75'}`}
-              style={isAvailable ? `--card-color: ${course.data.color}` : ''}
-            >
-              <!-- Card top accent bar -->
-              {isAvailable && (
-                <div
-                  class="h-1 rounded-t-2xl -mt-6 -mx-6 mb-5"
-                  style={`background-color: ${course.data.color}`}
-                ></div>
-              )}
-
-              <!-- Icon + status -->
-              <div class="flex items-start justify-between mb-3">
-                <span class="text-4xl">{course.data.icon}</span>
-                {isAvailable ? (
-                  <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
-                    ✓ Available
-                  </span>
-                ) : (
-                  <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-                    Coming Soon
-                  </span>
-                )}
-              </div>
-
-              <!-- Title + description -->
-              <h3 class={`text-lg font-bold mb-2 ${isAvailable ? 'text-gray-900 group-hover:text-brand-700 transition-colors' : 'text-gray-600'}`}>
-                {course.data.title}
-              </h3>
-              <p class="text-sm text-gray-500 leading-relaxed flex-1 mb-5">
-                {course.data.description}
-              </p>
-
-              <!-- Meta + CTA -->
-              <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
-                <span class="text-xs text-gray-400">
-                  {isAvailable && count > 0 ? `${count} lesson${count !== 1 ? 's' : ''}` : '🔒 In development'}
-                </span>
-                {isAvailable ? (
-                  <a href={href} class="btn-primary text-xs py-1.5 px-4">
-                    Start Course →
-                  </a>
-                ) : (
-                  <span class="text-xs text-gray-400 font-medium">Notify me</span>
-                )}
-              </div>
+      <div class="space-y-14 sm:space-y-16">
+        {coursesByCategory.map(({ name, slug, courses: catCourses }) => (
+          <div id={slug} class="scroll-mt-32">
+            <div class="flex items-baseline gap-3 mb-6">
+              <h3 class="text-lg font-bold text-gray-900">{name}</h3>
+              <span class="text-sm text-gray-400">{catCourses.length} course{catCourses.length !== 1 ? 's' : ''}</span>
             </div>
-          );
-        })}
+
+            <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {catCourses.map(course => {
+                const count = lessonCount(course.slug);
+                const isAvailable = course.data.status === 'available';
+                const href = isAvailable ? `${base}${course.slug}/` : undefined;
+
+                return (
+                  <div
+                    class={`module-card flex flex-col group ${isAvailable ? 'cursor-pointer' : 'opacity-75'}`}
+                    style={isAvailable ? `--card-color: ${course.data.color}` : ''}
+                  >
+                    <!-- Card top accent bar -->
+                    {isAvailable && (
+                      <div
+                        class="h-1 rounded-t-2xl -mt-6 -mx-6 mb-5"
+                        style={`background-color: ${course.data.color}`}
+                      ></div>
+                    )}
+
+                    <!-- Icon + status -->
+                    <div class="flex items-start justify-between mb-3">
+                      <span class="text-4xl">{course.data.icon}</span>
+                      {isAvailable ? (
+                        <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                          ✓ Available
+                        </span>
+                      ) : (
+                        <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+                          Coming Soon
+                        </span>
+                      )}
+                    </div>
+
+                    <!-- Title + description -->
+                    <h4 class={`text-lg font-bold mb-2 ${isAvailable ? 'text-gray-900 group-hover:text-brand-700 transition-colors' : 'text-gray-600'}`}>
+                      {course.data.title}
+                    </h4>
+                    <p class="text-sm text-gray-500 leading-relaxed flex-1 mb-5">
+                      {course.data.description}
+                    </p>
+
+                    <!-- Meta + CTA -->
+                    <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
+                      <span class="text-xs text-gray-400">
+                        {isAvailable && count > 0 ? `${count} lesson${count !== 1 ? 's' : ''}` : '🔒 In development'}
+                      </span>
+                      {isAvailable ? (
+                        <a href={href} class="btn-primary text-xs py-1.5 px-4">
+                          Start Course →
+                        </a>
+                      ) : (
+                        <span class="text-xs text-gray-400 font-medium">Notify me</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </section>
 

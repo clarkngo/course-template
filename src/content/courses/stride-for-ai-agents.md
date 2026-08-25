@@ -2,6 +2,7 @@
 title: "STRIDE for AI Agents"
 description: "In partnership with City University of Seattle. Apply Microsoft's STRIDE threat model to autonomous, tool-calling AI agents — six threat categories, six real attack scenarios, and the concrete mitigations to build in. An extension of the STRIDE Analysis on Agentic Systems talk."
 icon: "🎭"
+category: "AI & Machine Learning"
 color: "#9333ea"
 status: "available"
 order: 25
