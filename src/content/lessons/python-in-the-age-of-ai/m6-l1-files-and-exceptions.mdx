@@ -1,0 +1,296 @@
+---
+title: "Working With Files & Exceptions"
+description: "Read and write text and CSV files safely with context managers, and handle the things that inevitably go wrong — missing files, bad data, malformed rows — with try/except instead of letting them crash your program."
+module: 6
+moduleTitle: "Files & Exceptions"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+Every program you've written so far has lived entirely in memory — run it, it does something, it ends, nothing persists. Real programs read data that already exists (a CSV of orders, a patient record, a transaction log) and often write results back out. The moment your code touches a file, it's touching something outside your control: the file might not exist, might be locked by another program, might have a malformed row halfway through. Functions that assume clean input will crash. Functions that anticipate messy input degrade gracefully — or fail loudly and clearly instead of silently producing wrong numbers.
+
+This is also where AI-generated code most often looks fine and isn't. An AI assistant will readily generate a function that reads a CSV and sums a column — and it will just as readily generate one that catches every possible error with a bare `except: pass`, silently skipping bad rows instead of telling you they existed. Both versions run without crashing on a clean file. Only one of them is safe to ship. This lesson gives you the file-handling and exception-handling fundamentals; the next lesson gives you the judgment to tell those two versions apart.
+
+---
+
+## Opening Files With `open()` and `with`
+
+`open()` gives you a file object you can read from or write to:
+
+```python
+f = open("orders.txt", "r")
+contents = f.read()
+f.close()
+```
+
+This works, but it has a real problem: if anything goes wrong between `open()` and `close()` — an exception is raised, a function returns early — `f.close()` never runs, and the file stays open (a **resource leak**). On a long-running program that opens many files, this adds up to real trouble.
+
+The `with` statement fixes this by using the file as a **context manager** — it guarantees the file is closed when the block exits, even if an exception happens inside it:
+
+```python
+with open("orders.txt", "r") as f:
+    contents = f.read()
+# f is automatically closed here, no matter what happened inside the block
+```
+
+Use `with` for every file you open in this course, and in practice, everywhere. There's essentially never a reason not to.
+
+### Reading Line by Line
+
+```python
+with open("orders.txt", "r") as f:
+    for line in f:
+        print(line.strip())   # .strip() removes the trailing newline
+```
+
+Iterating a file object line by line is memory-efficient — it doesn't load the whole file at once — and is the standard pattern for processing a file row by row.
+
+### Writing to a File
+
+```python
+with open("report.txt", "w") as f:
+    f.write("Monthly Order Summary\n")
+    f.write("Total orders: 142\n")
+```
+
+`"w"` mode **overwrites** the file if it already exists. Use `"a"` (append) to add to the end of an existing file instead of replacing it:
+
+```python
+with open("audit_log.txt", "a") as f:
+    f.write("Order #4471 processed\n")
+```
+
+---
+
+## Reading and Writing CSV Files
+
+CSV (comma-separated values) is the most common plain-text format for tabular data — spreadsheets, exported reports, transaction logs. Python's built-in `csv` module handles the quoting and edge cases you'd otherwise get wrong by hand (a field containing a comma, for instance).
+
+```python
+import csv
+
+with open("orders.csv", "r") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        print(row["order_id"], row["total"])
+```
+
+`csv.DictReader` treats the first row as headers and gives you each row as a dictionary keyed by column name — much easier to work with than tracking column positions by index.
+
+### Computing a Total From a CSV
+
+```python
+import csv
+
+def total_order_value(filepath):
+    """Return the sum of the 'total' column across all rows in the CSV."""
+    running_total = 0.0
+    with open(filepath, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            running_total += float(row["total"])
+    return running_total
+```
+
+### Writing a CSV
+
+```python
+import csv
+
+rows = [
+    {"order_id": "1001", "total": "84.50"},
+    {"order_id": "1002", "total": "120.00"},
+]
+
+with open("summary.csv", "w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=["order_id", "total"])
+    writer.writeheader()
+    writer.writerows(rows)
+```
+
+`newline=""` on the `open()` call avoids a known quirk where the `csv` module can otherwise write extra blank lines on some platforms — worth knowing, easy to forget, and something an AI assistant will sometimes omit.
+
+---
+
+## Handling Errors With `try`/`except`
+
+The `total_order_value` function above has a real weakness: if `filepath` doesn't exist, or a row's `total` column is missing or contains text instead of a number, it crashes with an unhandled exception and the whole program stops.
+
+```python
+try:
+    with open("orders.csv", "r") as f:
+        ...
+except FileNotFoundError:
+    print("orders.csv not found — check the file path.")
+```
+
+The `try` block contains code that might fail. The `except` block runs only if a matching exception is raised, and only then. Python keeps running afterward instead of crashing.
+
+### Catching Specific Exceptions
+
+Catch the *specific* exception type you expect, not everything:
+
+```python
+def total_order_value(filepath):
+    running_total = 0.0
+    try:
+        with open(filepath, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    running_total += float(row["total"])
+                except (ValueError, KeyError) as e:
+                    print(f"Skipping bad row: {e}")
+    except FileNotFoundError:
+        print(f"File not found: {filepath}")
+        return None
+    return running_total
+```
+
+`ValueError` catches a `total` that isn't a valid number (`"N/A"`, empty string). `KeyError` catches a row missing the `total` column entirely. Catching them by name means a genuinely unexpected error — a bug in your own logic, say — still surfaces as a crash with a real traceback, instead of being silently absorbed along with the errors you actually anticipated.
+
+### `else` and `finally`
+
+```python
+try:
+    with open(filepath, "r") as f:
+        data = f.read()
+except FileNotFoundError:
+    print("File missing.")
+else:
+    print("File read successfully.")   # runs only if no exception occurred
+finally:
+    print("Done attempting read.")      # always runs, exception or not
+```
+
+`else` runs only when the `try` block succeeded with no exception — useful for code that should run *after* a success but that you don't want accidentally caught by the same `except` if it also happened to raise something. `finally` always runs, success or failure — useful for cleanup that has to happen either way (though with files, `with` already handles the closing part of that for you).
+
+---
+
+## Raising Your Own Exceptions
+
+Sometimes your own code, not Python or a library, is what should refuse to proceed. `raise` lets you signal that:
+
+```python
+def load_patient_record(record):
+    if "patient_id" not in record:
+        raise ValueError("Record is missing required field: patient_id")
+    return record
+```
+
+A custom, specific message here is far more useful to whoever hits this error later — including future you — than letting the code fail two lines further down with a confusing `KeyError` on an unrelated line.
+
+---
+
+## Code Lab: A Resilient Order-Total Function
+
+<CodeLab title="From Crash-Prone to Resilient">
+
+**Step 1 — The naive version.**
+
+```python
+import csv
+
+def total_order_value(filepath):
+    running_total = 0.0
+    with open(filepath, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            running_total += float(row["total"])
+    return running_total
+```
+
+Works on a clean file. Crashes the whole program on a missing file, a missing column, or one bad row anywhere in a 10,000-row CSV.
+
+**Step 2 — Handle the missing-file case explicitly.**
+
+```python
+def total_order_value(filepath):
+    try:
+        with open(filepath, "r") as f:
+            reader = csv.DictReader(f)
+            running_total = 0.0
+            for row in reader:
+                running_total += float(row["total"])
+            return running_total
+    except FileNotFoundError:
+        print(f"Could not find {filepath}")
+        return None
+```
+
+**Step 3 — Handle bad rows without losing the whole file.**
+
+```python
+def total_order_value(filepath):
+    try:
+        with open(filepath, "r") as f:
+            reader = csv.DictReader(f)
+            running_total = 0.0
+            skipped = 0
+            for row in reader:
+                try:
+                    running_total += float(row["total"])
+                except (ValueError, KeyError):
+                    skipped += 1
+            if skipped:
+                print(f"Warning: skipped {skipped} row(s) with bad data.")
+            return running_total
+    except FileNotFoundError:
+        print(f"Could not find {filepath}")
+        return None
+```
+
+Notice the shape: skipped rows are *counted and reported*, not silently discarded. That distinction — fail loudly, or at least visibly, versus fail silently — is the entire subject of the next lesson.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Bare except: Swallowing Real Bugs">
+
+**Common mistake:** catching every possible exception with a bare `except:` (or `except Exception:`) and doing nothing useful with it.
+
+```python
+def total_order_value(filepath):
+    try:
+        with open(filepath, "r") as f:
+            reader = csv.DictReader(f)
+            running_total = 0.0
+            for row in reader:
+                try:
+                    running_total += float(row["total"])
+                except:
+                    pass   # silently skip ANYTHING that goes wrong
+            return running_total
+    except:
+        return None
+```
+
+This looks defensive — "handle every error!" — but it's the opposite. A bare `except: pass` doesn't distinguish between a bad row you expected (a `total` field that's empty) and a real bug in your own code (a typo in a column name, a logic error that raises `TypeError` on every single row). Both get silently swallowed. The function returns `0.0` or some partial total that *looks* like a legitimate answer, and nothing tells you it's wrong.
+
+This is also exactly the pattern an AI assistant will generate if you ask it to "make this function not crash" without specifying *how* it should handle failure — "don't crash" and "handle failure correctly" are different requirements, and only one of them is what you actually want. Catch specific exception types, and when you do catch something, report it — a printed warning, a logged line, a count of skipped rows — so a silent failure never masquerades as a successful run.
+
+</Pitfall>
+
+---
+
+<Quiz question="A function reads a CSV of hospital lab results and wraps the entire row-processing loop in try / except Exception: continue, with no logging. It runs without errors on every file you've tested. Why is that not enough evidence that the function is correct?">
+
+<div>
+
+Because `except Exception: continue` with no logging means the function has no way to fail visibly even when it should — a row with a corrupted value, a wrong column, or a unit-conversion bug in your own code all get silently skipped and simply don't show up in the output. "Ran without errors" only tells you nothing *raised an exception past the try block* — it tells you nothing about whether every row was correctly processed, because the whole point of that except clause is to prevent you from ever seeing which rows weren't. The fix is to catch specific expected exceptions, count and report anything skipped, and let truly unexpected errors surface instead of being absorbed.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You can now read and write text and CSV files safely, and handle expected failures with `try`/`except` instead of letting your whole program crash — or worse, silently producing a wrong answer. Lesson 2 puts this directly to the test with the Error-Handling Diff Sprint: two AI-generated versions of the same file-processing function, each handling errors differently, and a time limit to figure out which one is actually safe to ship.

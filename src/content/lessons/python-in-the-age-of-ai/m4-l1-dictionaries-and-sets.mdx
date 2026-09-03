@@ -1,0 +1,232 @@
+---
+title: "Dictionaries & Sets"
+description: "Move from position-based lists to label-based lookup with dictionaries, and learn when a set's speed and uniqueness beat both."
+module: 4
+moduleTitle: "Dictionaries & Sets"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Naming Your Data Instead of Numbering It
+
+A list tracks position — item 0, item 1, item 2. That's fine when order is the whole story. But a patient record isn't "value 0, value 1, value 2" — it's a name, a date of birth, a list of medications, each accessed by what it *is*, not where it happens to sit. Module 3 gave you ordered collections; this module gives you **labeled** ones — the dictionary, keyed by name, and the set, which drops position and duplicates entirely in exchange for speed.
+
+These are the structures AI assistants reach for constantly when generating anything that models a real-world record, and for good reason — most real data has named fields, not just a sequence. Knowing when a dict is the right call, versus a list or a set, is exactly the kind of structural decision this course keeps insisting is yours to make, not the AI's.
+
+---
+
+## Creating and Accessing Dictionaries
+
+A dictionary pairs each **key** with a **value**, written with curly braces:
+
+```python
+customer = {
+    "name": "Amara Okafor",
+    "email": "amara@example.com",
+    "loyalty_points": 340,
+}
+```
+
+Access a value by its key:
+
+```python
+>>> customer["name"]
+'Amara Okafor'
+>>> customer["loyalty_points"]
+340
+```
+
+Direct bracket access raises `KeyError` if the key doesn't exist — sometimes exactly what you want (a missing required field should be loud), but often not. `.get()` returns `None`, or a default you supply, instead of crashing:
+
+```python
+>>> customer.get("phone")
+None
+>>> customer.get("phone", "not provided")
+'not provided'
+```
+
+Add or update a key the same way you'd assign a variable — there's no separate "insert" method:
+
+```python
+customer["phone"] = "555-0142"       # add a new key
+customer["loyalty_points"] = 355     # update an existing key
+```
+
+Remove a key with `del`, or with `.pop()` if you want its value back:
+
+```python
+del customer["phone"]
+points = customer.pop("loyalty_points")
+```
+
+---
+
+## Iterating Over Dictionaries
+
+Three ways to loop over a dict, depending on what you need:
+
+```python
+for key in customer:                      # keys only (default)
+    print(key)
+
+for value in customer.values():           # values only
+    print(value)
+
+for key, value in customer.items():       # both together
+    print(f"{key}: {value}")
+```
+
+`.items()` is the one you'll reach for most — printing, filtering, or transforming a dict almost always needs both the key and the value at once.
+
+---
+
+## Nested Dictionaries
+
+Real records nest. A shipping manifest has containers, and each container has items — a dict whose values are themselves dicts or lists:
+
+```python
+manifest = {
+    "vessel": "MV Coral Horizon",
+    "containers": [
+        {"id": "CNT-001", "weight_kg": 1250, "contents": ["textiles", "electronics"]},
+        {"id": "CNT-002", "weight_kg": 890, "contents": ["furniture"]},
+    ],
+}
+```
+
+Reach into nested structure by chaining access:
+
+```python
+>>> manifest["vessel"]
+'MV Coral Horizon'
+>>> manifest["containers"][0]["id"]
+'CNT-001'
+>>> manifest["containers"][0]["contents"][1]
+'electronics'
+```
+
+Read that chain left to right: get `"containers"` (a list), index into it with `[0]` (a dict), get `"id"` from that dict. This is precisely the shape AI tools generate by default for anything record-like, and it's precisely the shape you'll be sketching *before* generation in the next lesson.
+
+Dict comprehensions build a new dict in one line, the same idea as a list comprehension but producing key-value pairs:
+
+```python
+container_weights = {c["id"]: c["weight_kg"] for c in manifest["containers"]}
+# {'CNT-001': 1250, 'CNT-002': 890}
+```
+
+---
+
+## Sets: Fast Uniqueness, No Order
+
+A set holds unique values with no guaranteed order, written with curly braces but no colons:
+
+```python
+active_skus = {"SKU-100", "SKU-204", "SKU-317"}
+```
+
+Two things a set gives you that a list doesn't: **automatic deduplication** — adding an existing value is a no-op — and **fast membership testing** with `in`, which doesn't slow down as the set grows the way a list scan does.
+
+```python
+today_orders = {"SKU-204", "SKU-500", "SKU-100", "SKU-204"}  # duplicate dropped automatically
+>>> today_orders
+{'SKU-204', 'SKU-500', 'SKU-100'}
+>>> "SKU-204" in today_orders
+True
+```
+
+Set operations answer questions about overlap directly, without writing a loop:
+
+```python
+>>> active_skus & today_orders    # intersection: in both
+{'SKU-204', 'SKU-100'}
+>>> active_skus | today_orders    # union: in either
+{'SKU-100', 'SKU-204', 'SKU-317', 'SKU-500'}
+>>> active_skus - today_orders    # difference: in active_skus but not today_orders
+{'SKU-317'}
+```
+
+`active_skus - today_orders` reads naturally as "active SKUs, minus whatever sold today" — the kind of question ("what didn't move today?") that would take a multi-line loop with lists and reads as a single expression with sets.
+
+---
+
+## Choosing the Right Structure
+
+| Need | Structure |
+|---|---|
+| Order matters; duplicates are fine | **list** |
+| Fast "is this in the collection" checks; duplicates don't matter | **set** |
+| Look values up by a meaningful name, not position | **dict** |
+| A fixed-shape record that shouldn't be mutated | **tuple** |
+
+This table is a starting point, not a rule to apply mechanically — real scenarios often need more than one of these together (a list of dicts, a dict of sets). The judgment is in reading the *shape* of the problem: are you asking "what's here?" (set), "what's at this position?" (list), or "what's the value for this name?" (dict).
+
+---
+
+<CodeLab title="Modeling an Inventory Count">
+
+You're tracking warehouse inventory: item names mapped to counts, plus a set of SKUs currently on backorder.
+
+```python
+inventory = {
+    "wireless mouse": 42,
+    "usb-c cable": 130,
+    "laptop stand": 8,
+}
+
+backordered = {"laptop stand", "webcam"}
+
+for item, count in inventory.items():
+    status = "BACKORDERED" if item in backordered else "in stock"
+    print(f"{item}: {count} ({status})")
+
+# Restock: add 20 units, capped by nothing (simple version)
+inventory["laptop stand"] = inventory.get("laptop stand", 0) + 20
+
+# Which backordered items aren't even tracked in inventory yet?
+untracked = backordered - inventory.keys()
+print(f"Untracked backorders: {untracked}")
+```
+
+`inventory.keys()` returns a view that behaves like a set for operations like `-`, which is why the last line works without converting anything explicitly. Run this, then add a fourth inventory item and confirm the loop and the untracked check both pick it up automatically — no other line should need to change.
+
+</CodeLab>
+
+<Pitfall title="Dict Keys Must Be Hashable — Lists Can't Be Keys">
+
+Dictionary keys must be immutable (technically, *hashable*), because Python uses a key's fixed value to compute where to store it internally. This is the same immutability idea from Module 3's tuples, showing up again with a concrete consequence:
+
+```python
+# Wrong — lists are mutable, so they can't be dict keys
+coordinates = {}
+coordinates[[1.264, 103.822]] = "Singapore"
+# TypeError: unhashable type: 'list'
+```
+
+```python
+# Right — a tuple is immutable, so it works as a key
+coordinates = {}
+coordinates[(1.264, 103.822)] = "Singapore"
+```
+
+This is exactly why Module 3 called out tuples as valid dict keys and lists as invalid ones — it wasn't a trivia fact, it's the reason you reach for a tuple the moment you need a composite key like `(container_id, port_code)` or `(latitude, longitude)`. AI-generated code sometimes tries to use a list as a key when modeling exactly this kind of composite lookup — catching it is a quick, mechanical check: if it's a key, it needs to be immutable.
+
+</Pitfall>
+
+<Quiz question="You reach into a dict with square brackets, customer['phone'], and it crashes with KeyError because most customer records in your dataset don't have a phone number on file. Is switching every single bracket access in the codebase to .get() automatically the right fix?">
+
+<div>
+
+**Not automatically — it depends on whether the missing key represents a real, expected possibility or a bug that should be caught loudly.**
+
+`.get()` is right when a field is genuinely optional and a sensible default exists — most customer records lacking a phone number is exactly that case, so `customer.get("phone", "not provided")` is the right call. But if a key is supposed to always be present — like `"id"` on every customer record — silently swallowing its absence with `.get()` can hide a real data problem (a malformed record slipping through) until it causes a confusing bug much later, far from where the missing key actually originated. The rule of thumb: use `[]` when absence should be loud and immediate; use `.get()` when absence is expected and has an obvious fallback.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You can now model records with dicts and reason about uniqueness and overlap with sets. The next lesson pulls the decision-making earlier than the code itself: **Schema Design**, where you sketch the shape of your data before you or the AI writes a single line implementing it.

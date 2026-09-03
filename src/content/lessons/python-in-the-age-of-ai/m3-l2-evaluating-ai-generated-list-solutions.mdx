@@ -1,0 +1,145 @@
+---
+title: "Evaluating AI-Generated List Solutions"
+description: "AI will hand you several plausible ways to solve the same list problem. Learn to compare them on correctness, efficiency, and readability, and justify a recommendation — the Evaluation Brief."
+module: 3
+moduleTitle: "Lists & Tuples"
+lesson: 2
+duration: "35 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Quiz from '@components/Quiz.astro';
+
+## When AI Gives You Options, Not Answers
+
+Ask an AI assistant to "dedupe this list" or "find the top orders" and it won't hand you one canonical solution — ask three times, or ask it to suggest alternatives, and you'll get three genuinely different approaches, each looking reasonable at a glance. Some of them will have real problems: one might mishandle an empty list, another might silently drop the wrong item on a tie, another might work correctly but scale badly on a large list. Telling them apart is not a syntax skill. It's judgment, and it's the actual work now that generating a first draft is nearly free.
+
+This lesson introduces this module's exercise, the **Evaluation Brief**: given two or three candidate solutions to the same problem, you write a short structured comparison — correctness, efficiency, readability — and recommend one, with reasons. You already practiced spotting a single planted bug in **Debug the AI**; the Evaluation Brief is the same skill applied across multiple candidates at once, where the right answer isn't "which one is broken" but "which one is *best*, and why."
+
+---
+
+## The Problem: Dedupe a List of Customer Emails
+
+Here's the scenario: a marketing team exported a list of customer emails from two overlapping campaigns, and it has duplicates. You need a function that returns the list with duplicates removed, **preserving the original order** — the first occurrence of each email should stay in its original position, later repeats dropped.
+
+```python
+emails = [
+    "amy@example.com",
+    "bo@example.com",
+    "amy@example.com",
+    "cal@example.com",
+    "bo@example.com",
+    "dee@example.com",
+]
+```
+
+Three AI-generated candidates, all offered as solutions to this exact prompt:
+
+### Candidate A
+
+```python
+def dedupe_emails(emails):
+    return list(set(emails))
+```
+
+### Candidate B
+
+```python
+def dedupe_emails(emails):
+    result = []
+    for email in emails:
+        if email not in result:
+            result.append(email)
+    return result
+```
+
+### Candidate C
+
+```python
+def dedupe_emails(emails):
+    seen = set()
+    result = []
+    for email in emails:
+        if email not in seen:
+            seen.add(email)
+            result.append(email)
+    return result
+```
+
+Before reading on, try to spot the difference yourself. All three "work" in the loose sense that they return a list without duplicates. Only some of them satisfy the actual requirement.
+
+---
+
+## Evaluating Against Explicit Criteria
+
+**Correctness.** Candidate A converts the list to a `set`, which removes duplicates — but sets are unordered in the sense that matters here: converting back to a list does not preserve the original insertion order the way the requirement demands. Run it and the output order is unreliable relative to the input. This is a real, disqualifying bug for this specific requirement, even though the function "removes duplicates" in a narrow sense. It also silently produces a *different* wrong answer on different Python versions or runs, which makes it worse than a bug that fails loudly — nothing crashes, so nothing tells you it's wrong.
+
+Candidates B and C both preserve order correctly: they walk the list once, keep track of what's already been added, and only append first occurrences.
+
+**Efficiency.** This is where B and C split. Candidate B checks `email not in result` — and `in` on a list is a linear scan, checking every existing element one at a time. As `result` grows, each check gets slower, so the whole function's work grows roughly with the *square* of the list length. On six emails that's invisible. On a 200,000-row customer export, it's the difference between a script that finishes in a second and one that grinds for minutes. Candidate C checks `email not in seen`, and membership testing on a `set` is fast regardless of how large it gets — so C's total work grows roughly linearly with the list length, not quadratically. You don't need formal Big-O notation to reason about this: the question is just "does the per-item check get slower as the collection grows?" For a list, yes. For a set, no.
+
+**Readability and maintainability.** B and C are both short and use the same overall shape — a loop, a check, a conditional append — so both are easy for a teammate to read six months from now. C adds one extra line (`seen.add(email)`) and one extra variable, which is a small cost for a large efficiency gain, not a readability tax worth avoiding. A is the shortest of the three, but its brevity is hiding the bug, not earning it — short and wrong is not a tradeoff worth making.
+
+---
+
+## Example Evaluation Brief
+
+> **Problem:** Dedupe a list of customer emails while preserving first-occurrence order.
+>
+> **Candidates compared:** A (`set()` conversion), B (linear `in` check against result), C (`in` check against a companion set).
+>
+> **Correctness:** A fails the stated requirement — `set()` does not guarantee to preserve insertion order, so the output order is not reliable. B and C both pass: both keep only first occurrences and preserve input order. Tested against an empty list, all three return `[]` correctly; against a list with no duplicates, all three return it unchanged.
+>
+> **Efficiency:** B's `in result` check is a linear scan repeated for every element, so total work scales roughly quadratically with list length. C's `in seen` check against a set is fast regardless of size, so total work scales roughly linearly. On the scale this function will actually run at (customer exports in the thousands to hundreds of thousands of rows), this difference is not theoretical.
+>
+> **Readability:** B and C are equally readable; C's one extra line is easy to follow and clearly named (`seen`).
+>
+> **Recommendation:** Candidate C. It's the only candidate that is both correct against the stated requirement and efficient at realistic list sizes, at negligible cost to readability.
+
+Notice what this brief is *not*: it isn't "I ran it and it looked fine," and it isn't a vague preference. It states the criteria up front, checks each candidate against each one, and the recommendation follows from the evidence rather than a gut call.
+
+---
+
+<CodeLab title="Practice: Top 3 Highest-Value Orders">
+
+Here's a second problem to run the same evaluation process against, this time yourself. The requirement: given a list of order dicts, each with an `"amount"` key, return the 3 highest-value orders, highest first.
+
+```python
+orders = [
+    {"id": "A1", "amount": 42.00},
+    {"id": "A2", "amount": 199.50},
+    {"id": "A3", "amount": 12.75},
+    {"id": "A4", "amount": 88.00},
+    {"id": "A5", "amount": 199.50},  # tie with A2
+]
+
+# Candidate 1
+def top_three_v1(orders):
+    orders.sort(key=lambda o: o["amount"], reverse=True)
+    return orders[:3]
+
+# Candidate 2
+def top_three_v2(orders):
+    return sorted(orders, key=lambda o: o["amount"], reverse=True)[:3]
+```
+
+Run both against `orders`, then check `orders` itself afterward — one of these candidates has a side effect the other doesn't: `list.sort()` reorders the original list in place, while `sorted()` returns a new list and leaves the input untouched. If any other part of the program relies on `orders` keeping its original order, Candidate 1 introduces a bug that has nothing to do with the top-3 logic itself and everything to do with an unannounced side effect. Write a two-line evaluation for these two candidates using the same three criteria — correctness, efficiency, readability — before moving on.
+
+</CodeLab>
+
+---
+
+<Quiz question="Two candidate functions both correctly solve a list problem and run at nearly identical speed on realistic input sizes. One is four lines shorter than the other. Is the shorter one automatically the better recommendation in an Evaluation Brief?">
+
+<div>
+
+**No — length alone isn't a criterion. The shorter version is only the better recommendation if it's also at least as readable and doesn't hide behavior a maintainer would need to know about.**
+
+A shorter solution that relies on a dense one-liner or an obscure standard-library trick can cost a future reader more time understanding it than the extra lines would have taken to write. The Evaluation Brief's criteria are correctness, efficiency, and readability/maintainability — brevity is not one of them directly, though it often correlates loosely with readability. When two candidates are truly equivalent on correctness and efficiency, the tiebreaker is which one a teammate can understand fastest and modify safely later, not which one has fewer characters.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You've now practiced comparing competing solutions against explicit criteria instead of picking whichever one "looks right." Module 4 moves from ordered collections to labeled ones — dictionaries and sets — and introduces **Schema Design**, where the judgment call moves even earlier: before any code gets written or generated at all.

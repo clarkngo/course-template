@@ -1,0 +1,242 @@
+---
+title: "Inheritance & Polymorphism"
+description: "Share behavior across related classes with inheritance, and let each subclass respond to the same method call in its own way."
+module: 8
+moduleTitle: "Object-Oriented Programming"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## When Several Classes Are Variations on One Theme
+
+Module 7 gave you the mechanics of a single class — data and behavior bundled into one unit. Real systems rarely stop at one. A logistics company tracks cargo ships and trucks, both of which are shipments, but they calculate transit time differently. A payroll system handles managers and contractors, both of which are employees, but they're paid differently. Writing three separate, unrelated classes for these would mean copying the shared parts — `shipment_id`, `origin`, `destination` — into each one, and then keeping all three copies in sync by hand forever.
+
+**Inheritance** lets one class (a subclass) start from another (a base class) and inherit its attributes and methods automatically, adding or overriding only what's actually different. **Polymorphism** is the payoff: code that calls a method on a general `Shipment` doesn't need to know or care whether the object underneath is actually a `CargoShip` or a `Truck` — each one responds to the same call in its own way. This lesson covers both, plus a first look at composition as an alternative approach you'll dig into properly in the next lesson.
+
+---
+
+## Basic Inheritance Syntax
+
+```python
+class Shipment:
+    def __init__(self, shipment_id, origin, destination):
+        self.shipment_id = shipment_id
+        self.origin = origin
+        self.destination = destination
+
+    def summary(self):
+        return f"Shipment {self.shipment_id}: {self.origin} -> {self.destination}"
+```
+
+A subclass names its base class in parentheses:
+
+```python
+class CargoShip(Shipment):
+    pass
+```
+
+`CargoShip` now has everything `Shipment` has, with zero extra code:
+
+```python
+>>> ship = CargoShip("SHIP-001", "Rotterdam", "Singapore")
+>>> ship.summary()
+'Shipment SHIP-001: Rotterdam -> Singapore'
+```
+
+That's inheritance in its simplest form — reuse with no new behavior yet. It gets useful once the subclass adds attributes or methods the base class doesn't have.
+
+---
+
+## Calling the Parent's `__init__` with super()
+
+A subclass usually needs its own `__init__` to add extra attributes, but it still needs the base class's `__init__` to run so the shared attributes get set up too. `super()` gives you a way to call the parent's version explicitly:
+
+```python
+class CargoShip(Shipment):
+    def __init__(self, shipment_id, origin, destination, container_capacity):
+        super().__init__(shipment_id, origin, destination)
+        self.container_capacity = container_capacity
+```
+
+```python
+>>> ship = CargoShip("SHIP-001", "Rotterdam", "Singapore", 4500)
+>>> ship.shipment_id
+'SHIP-001'
+>>> ship.container_capacity
+4500
+```
+
+`super().__init__(shipment_id, origin, destination)` runs `Shipment`'s `__init__` exactly as if you'd called it directly, setting `self.shipment_id`, `self.origin`, and `self.destination` on this instance. Then the subclass's own `__init__` continues and sets `container_capacity` — the piece only `CargoShip` needs. Skip the `super()` call and those three base attributes never get set at all; see this lesson's Pitfall for exactly what that looks like when it goes wrong.
+
+---
+
+## Overriding Methods
+
+A subclass can redefine a method it inherited, replacing the base class's version entirely for instances of that subclass:
+
+```python
+class Shipment:
+    def __init__(self, shipment_id, origin, destination):
+        self.shipment_id = shipment_id
+        self.origin = origin
+        self.destination = destination
+
+    def calculate_transit_time(self):
+        return 7   # default: one week, in days
+
+class CargoShip(Shipment):
+    def __init__(self, shipment_id, origin, destination, container_capacity):
+        super().__init__(shipment_id, origin, destination)
+        self.container_capacity = container_capacity
+
+    def calculate_transit_time(self):
+        return 21   # ocean freight: three weeks
+
+class Truck(Shipment):
+    def __init__(self, shipment_id, origin, destination, distance_km):
+        super().__init__(shipment_id, origin, destination)
+        self.distance_km = distance_km
+
+    def calculate_transit_time(self):
+        return max(1, round(self.distance_km / 800))   # ~800 km/day
+```
+
+Each subclass now has its own answer to "how long does this take," appropriate to how that kind of shipment actually moves.
+
+---
+
+## Polymorphism: Same Call, Different Behavior
+
+The point of overriding methods becomes clear once you write code that treats different subclasses uniformly:
+
+```python
+shipments = [
+    CargoShip("SHIP-001", "Rotterdam", "Singapore", 4500),
+    Truck("TRK-118", "Chicago", "Dallas", 1290),
+]
+
+for s in shipments:
+    print(f"{s.shipment_id}: {s.calculate_transit_time()} days")
+```
+
+```
+SHIP-001: 21 days
+TRK-118: 2 days
+```
+
+The `for` loop calls `s.calculate_transit_time()` identically for every item, without ever checking what type `s` actually is. Python looks up the right version — `CargoShip`'s or `Truck`'s — automatically, based on the actual object, not the variable name. This is polymorphism: the same method call, sent to different types of objects, produces the behavior appropriate to each one. It's what lets you write one loop, one report generator, or one billing function that works correctly no matter how many shipment types get added later, as long as each new subclass implements `calculate_transit_time()`.
+
+---
+
+## A First Look at the Alternative: Composition
+
+Inheritance says "a `CargoShip` *is a* `Shipment`." That's the right relationship here — every cargo ship genuinely is a kind of shipment, and it makes sense for it to inherit shipment behavior directly.
+
+Not every relationship is an is-a relationship, though. If you needed a `Shipment` that could send status update notifications, the tempting move is a `NotifyingShipment` subclass — but a shipment isn't a *kind of* notifier, it just *uses* one. That's a has-a relationship, better modeled by **composition**: giving `Shipment` an attribute that holds a separate notifier object, and calling out to it, rather than inheriting from it.
+
+```python
+class Shipment:
+    def __init__(self, shipment_id, notifier):
+        self.shipment_id = shipment_id
+        self.notifier = notifier   # composition: holds a reference, doesn't inherit
+
+    def mark_delivered(self):
+        self.notifier.send(f"Shipment {self.shipment_id} delivered")
+```
+
+Hold onto that distinction — is-a versus has-a — because the next lesson is built entirely around it. AI assistants default to inheritance more often than the relationship actually calls for, and telling the two apart is exactly the judgment AI won't reliably do for you.
+
+---
+
+<CodeLab title="Employee, Manager, and Contractor">
+
+Build an `Employee` base class and two subclasses that override how pay is calculated.
+
+```python
+class Employee:
+    def __init__(self, name, employee_id):
+        self.name = name
+        self.employee_id = employee_id
+
+    def calculate_pay(self):
+        raise NotImplementedError("Subclasses must implement calculate_pay")
+
+class Manager(Employee):
+    def __init__(self, name, employee_id, annual_salary):
+        super().__init__(name, employee_id)
+        self.annual_salary = annual_salary
+
+    def calculate_pay(self):
+        return self.annual_salary / 12   # monthly
+
+class Contractor(Employee):
+    def __init__(self, name, employee_id, hourly_rate, hours_this_month):
+        super().__init__(name, employee_id)
+        self.hourly_rate = hourly_rate
+        self.hours_this_month = hours_this_month
+
+    def calculate_pay(self):
+        return self.hourly_rate * self.hours_this_month
+
+staff = [
+    Manager("Priya Nair", "E-201", 96000),
+    Contractor("Diego Ramos", "E-330", 65, 142),
+]
+
+for person in staff:
+    print(f"{person.name}: ${person.calculate_pay():.2f}")
+```
+
+Notice `Employee.calculate_pay` deliberately raises `NotImplementedError` instead of returning a default value — it's a way of saying "every subclass must define this; the base class has no sensible answer of its own." Add a `Intern` subclass that's unpaid, and decide for yourself whether `calculate_pay` should return `0` or whether an intern actually needs `calculate_pay` at all — a design question the base class's `raise` is quietly forcing you to confront.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Forgetting super().__init__() — Losing the Parent's Attributes">
+
+```python
+class Shipment:
+    def __init__(self, shipment_id, origin, destination):
+        self.shipment_id = shipment_id
+        self.origin = origin
+        self.destination = destination
+
+class CargoShip(Shipment):
+    def __init__(self, shipment_id, origin, destination, container_capacity):
+        # forgot super().__init__(...) here
+        self.container_capacity = container_capacity
+```
+
+```python
+>>> ship = CargoShip("SHIP-001", "Rotterdam", "Singapore", 4500)
+>>> ship.container_capacity
+4500
+>>> ship.shipment_id
+AttributeError: 'CargoShip' object has no attribute 'shipment_id'
+```
+
+Defining `__init__` in a subclass completely replaces the base class's `__init__` — it does not run automatically alongside it. Without an explicit `super().__init__(...)` call, `Shipment`'s `__init__` never runs at all, so `shipment_id`, `origin`, and `destination` are never set, even though the subclass's constructor happily accepted all three as parameters. This is a mistake AI-generated subclasses make more often than you'd expect, especially when a class is retrofitted with a new attribute after the fact — the new parameter gets added and stored, but the `super().__init__()` call above it gets left out or forgotten. Always check that a subclass's `__init__` calls `super().__init__(...)` with the base class's required arguments before doing anything else.
+
+A related, subtler pitfall worth naming: deep inheritance chains — a subclass of a subclass of a subclass — become hard to reason about, because understanding any one class means tracing behavior up through every ancestor. If you find yourself more than two levels deep, or overriding the same method at three different levels, that's usually a sign composition would keep the design easier to follow.
+
+</Pitfall>
+
+<Quiz question="A base Shipment class has a calculate_transit_time() method, and CargoShip and Truck subclasses each override it with their own logic. Why does calling s.calculate_transit_time() inside a single loop over a mixed list of CargoShip and Truck objects work correctly without any if/else checking each object's type?">
+
+<div>
+
+**Python resolves which version of an overridden method to run based on the actual type of the object at the moment of the call, not based on the type of the variable or how the loop is written — this is polymorphism.** When `s` refers to a `CargoShip` instance, `s.calculate_transit_time()` runs `CargoShip`'s version; when `s` refers to a `Truck` instance, it runs `Truck`'s version. The loop itself has no idea which is which, and doesn't need to.
+
+This is exactly what makes polymorphism useful in practice: you can write one function, one loop, or one report generator against the base class's interface, and it keeps working correctly as new subclasses get added later, as long as each new subclass implements the method being called. Without overriding, you'd need an `if isinstance(s, CargoShip): ... elif isinstance(s, Truck): ...` chain that has to be updated by hand every time a new shipment type is introduced — the exact maintenance burden polymorphism removes.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You can now build class hierarchies with inheritance, call parent constructors with `super()`, override methods, and rely on polymorphism to write code that works uniformly across subclasses. The next lesson picks up exactly where the composition preview left off: the **Inheritance vs. Composition Evaluation**, where you'll critique an AI-generated solution that reached for inheritance in a spot where composition actually fits the relationship better — and rewrite it.

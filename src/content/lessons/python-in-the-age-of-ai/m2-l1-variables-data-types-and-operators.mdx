@@ -1,0 +1,245 @@
+---
+title: "Variables, Data Types & Operators"
+description: "Assign variables, work with Python's core data types, and use arithmetic, comparison, and logical operators — the vocabulary every later Python program is built from."
+module: 2
+moduleTitle: "Variables, Data Types, Operators & Control Flow"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+Variables and data types are the vocabulary of every Python program you'll write, in this course and after it. They're also exactly the kind of thing an AI assistant will get right nearly every time — which is precisely why you still need to know them cold: to read AI-generated code fluently, to spot the rare case where a type mismatch causes a bug, and to give an AI a precise, checkable prompt instead of a vague one. You can't verify what you can't read.
+
+---
+
+## Variables and Naming
+
+A variable is a name bound to a value. Assignment uses `=`:
+
+```python
+tracking_number = "1Z999AA10123456784"
+package_weight_kg = 4.5
+is_fragile = True
+```
+
+Python naming conventions (not enforced by the language, but followed by virtually every codebase you'll read, including AI-generated code):
+
+- Use `snake_case` for variable names: `package_weight_kg`, not `packageWeightKg` or `PackageWeightKg`.
+- Names must start with a letter or underscore, and can contain letters, digits, and underscores — no spaces, no hyphens.
+- Names are case-sensitive: `total` and `Total` are different variables.
+- Choose descriptive names. `w` tells a reader nothing; `package_weight_kg` tells them the value, the unit, and roughly what it's for — which matters just as much when you're reading code an AI wrote as when you're reading your own.
+
+---
+
+## Core Data Types
+
+Python has four types you'll use constantly from day one:
+
+| Type | Example | Meaning |
+|---|---|---|
+| `int` | `342` | a whole number |
+| `float` | `4.5` | a number with a decimal point |
+| `str` | `"Long Beach"` | text, in quotes |
+| `bool` | `True` / `False` | a truth value |
+
+Check any value's type with the built-in `type()` function:
+
+```python
+patient_age = 47
+print(type(patient_age))       # <class 'int'>
+
+account_balance = 1204.50
+print(type(account_balance))   # <class 'float'>
+
+patient_name = "J. Alvarez"
+print(type(patient_name))      # <class 'str'>
+
+is_insured = True
+print(type(is_insured))        # <class 'bool'>
+```
+
+### Type Conversion
+
+Python won't automatically treat a string like `"47"` as the number `47` — you have to convert explicitly, using `int()`, `float()`, `str()`, or `bool()`:
+
+```python
+age_input = "47"          # a string, e.g. from user input
+age = int(age_input)      # now an actual int, 47
+print(age + 3)            # 50
+
+price = 19.99
+price_label = "Price: $" + str(price)   # str() makes it joinable with text
+print(price_label)        # Price: $19.99
+```
+
+Converting a string that doesn't actually look like a number raises an error:
+
+```python
+int("forty-seven")
+# ValueError: invalid literal for int() with base 10: 'forty-seven'
+```
+
+This matters constantly in real code — anything read from a file, a form, or a web page arrives as a string, and you have to convert it deliberately before doing math with it.
+
+---
+
+## Arithmetic Operators
+
+```python
+container_count = 12
+containers_per_row = 5
+
+print(container_count + containers_per_row)   # 17  addition
+print(container_count - containers_per_row)   # 7   subtraction
+print(container_count * containers_per_row)   # 60  multiplication
+print(container_count / containers_per_row)   # 2.4 division (always returns a float)
+print(container_count // containers_per_row)  # 2   floor division (rounds down to an int)
+print(container_count % containers_per_row)   # 2   modulo (the remainder)
+print(container_count ** 2)                   # 144 exponent
+```
+
+`//` and `%` together are how you'd compute, say, "how many full rows of 5 containers, and how many left over" — `12 // 5` is 2 full rows, `12 % 5` is 2 left over.
+
+---
+
+## Comparison and Logical Operators
+
+Comparison operators evaluate to a `bool`:
+
+```python
+order_total = 84.50
+free_shipping_threshold = 75.00
+
+print(order_total > free_shipping_threshold)    # True
+print(order_total == free_shipping_threshold)   # False
+print(order_total != free_shipping_threshold)   # True
+print(order_total >= free_shipping_threshold)   # True
+```
+
+`==` checks equality; `=` assigns a value. Mixing these up is one of the most common early errors, and one an AI assistant essentially never makes — but you will, until it's automatic.
+
+Logical operators combine or invert boolean values:
+
+```python
+is_prime_member = True
+order_total = 40.00
+
+qualifies_for_free_shipping = is_prime_member or order_total >= free_shipping_threshold
+print(qualifies_for_free_shipping)   # True
+
+is_in_stock = True
+is_discontinued = False
+can_sell = is_in_stock and not is_discontinued
+print(can_sell)   # True
+```
+
+- `and` — `True` only if both sides are `True`
+- `or` — `True` if at least one side is `True`
+- `not` — flips a boolean
+
+### Operator Precedence
+
+Python evaluates `**` first, then `*`, `/`, `//`, `%`, then `+` and `-`, then comparisons, then `not`, then `and`, then `or`. In practice: **use parentheses whenever there's any doubt**, both for correctness and for readability — this is true whether you're writing the expression yourself or reviewing one an AI wrote for you.
+
+```python
+# ambiguous to a reader, even though Python evaluates it consistently
+result = 10 + 5 * 2 > 15 and not False
+
+# clearer with parentheses, and behaves identically
+result = (10 + (5 * 2)) > 15 and (not False)
+```
+
+---
+
+## F-Strings for Formatting
+
+An f-string lets you embed variables directly inside a string, prefixed with `f`:
+
+```python
+patient_name = "J. Alvarez"
+patient_age = 47
+account_balance = 1204.50
+
+print(f"{patient_name} is {patient_age} years old.")
+print(f"Balance due: ${account_balance:.2f}")
+```
+
+`{account_balance:.2f}` formats the number to two decimal places — useful anywhere money, percentages, or measurements need a fixed, predictable format. F-strings are the standard way to build formatted output in modern Python; you'll use them in nearly every lesson from here forward.
+
+---
+
+<CodeLab title="Build a Shipment Cost Summary">
+
+Put it together — variables, types, arithmetic, and an f-string:
+
+```python
+carrier = "Pacific Freight Co."
+weight_kg = 18.4
+rate_per_kg = 3.25
+distance_km = 620
+fuel_surcharge_pct = 0.12
+
+base_cost = weight_kg * rate_per_kg
+surcharge = base_cost * fuel_surcharge_pct
+total_cost = base_cost + surcharge
+
+print(f"Carrier: {carrier}")
+print(f"Base cost: ${base_cost:.2f}")
+print(f"Fuel surcharge ({fuel_surcharge_pct:.0%}): ${surcharge:.2f}")
+print(f"Total: ${total_cost:.2f}")
+print(f"Cost per km: ${total_cost / distance_km:.4f}")
+```
+
+Try changing `weight_kg` or `rate_per_kg` and rerunning — notice how every downstream value recalculates, because Python evaluates the script top to bottom, in order, every time it runs.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Integer Division vs. True Division">
+
+**Common mistake:** using `/` when you meant `//`, or expecting `/` to return a whole number when both operands are integers.
+
+In Python 3, `/` **always** returns a `float`, even when the division comes out even:
+
+```python
+print(10 / 2)    # 5.0, not 5
+```
+
+If you need a whole-number result — for something like "how many full boxes of 12 fit in this order" — use `//` instead:
+
+```python
+print(29 // 12)   # 2
+```
+
+A related trap: **never compare floats with `==` after arithmetic.** Floating-point math is imprecise at the bit level, so a calculation you'd expect to equal `0.3` might actually come out as `0.30000000000000004`:
+
+```python
+print(0.1 + 0.2 == 0.3)   # False!
+```
+
+Compare floats by checking the difference is small enough instead: `abs((0.1 + 0.2) - 0.3) < 1e-9`. AI-generated code comparing floats with `==` is common enough to watch for specifically — it looks completely correct and fails only on certain values.
+
+</Pitfall>
+
+---
+
+<Quiz question="Why does `10 / 2` print `5.0` instead of `5` in Python 3, and how would you get a plain integer result instead?">
+
+<div>
+
+In Python 3, the `/` operator is **true division** and always returns a `float`, regardless of whether the inputs are integers or whether the result is a whole number — this is a deliberate design choice so that division never loses precision silently. To get an integer result when you know you want whole-number division — like counting full groups — use the **floor division** operator `//` instead, e.g. `10 // 2` returns `5` as an `int`. The two operators exist for different purposes: `/` for precise division, `//` for whole-number division with any remainder discarded.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You now have Python's basic vocabulary: variables, the four core types, and the operators that combine them. Lesson 2 puts that vocabulary into motion with control flow — `if`/`elif`/`else`, `while` and `for` loops — and closes with this module's signature exercise, the **Diff Sprint**, where you'll compare two AI-generated implementations of the same logic and decide, by reasoning it through yourself, whether they actually behave the same.

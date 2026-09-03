@@ -1,0 +1,178 @@
+---
+title: "Design-First Verification"
+description: "Sketch a class's responsibilities before AI writes a line of it, then verify the generated code against your sketch instead of your gut."
+module: 7
+moduleTitle: "Classes"
+lesson: 2
+duration: "35 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Quiz from '@components/Quiz.astro';
+
+## The Order Problem, Reversed
+
+Ask an AI assistant to "write a class for a shipment" and it will produce something — fast, syntactically correct, and confidently wrong about what you actually needed. Not wrong in the sense of buggy code; wrong in the sense that it guessed at requirements you never stated, and guessed differently than you would have. Given a vague prompt, AI tends to fill the gap with *more* — an extra method here, a validation check there, a convenience property nobody asked for. This is sometimes called scope creep, and it's the class-design equivalent of the over-eager helper who "improves" your document without asking first.
+
+**Design-First Verification** flips the usual order of operations. Instead of prompting AI and then reading the result to see what you got, you decide what you want *first* — on paper, in prose, before any code exists — and then treat the AI's output as a draft to be checked against that decision, not the decision itself. This lesson walks through the full exercise once, end to end, so you can repeat the pattern on your own designs from here on.
+
+---
+
+## Step 1: The Sketch
+
+Before writing or requesting any code, answer three questions about the class in plain language:
+
+1. **What data does it hold?** (attributes)
+2. **What behaviors does it need?** (methods)
+3. **What should it explicitly *not* be responsible for?** (the boundary)
+
+That third question is the one people skip, and it's the one that does the most work. A class without a stated boundary is a class an AI assistant will happily expand — because from its side, more functionality looks like more helpfulness.
+
+Here's a sketch for an `Invoice` class in a small accounting tool:
+
+> **Data:** invoice ID, customer name, list of line items (each with a description and amount), a paid/unpaid status flag.
+>
+> **Behaviors:** add a line item, calculate the total, mark as paid.
+>
+> **Boundary:** the `Invoice` class does not send emails, does not know about payment processing, and does not format itself for printing or PDF export. Those are separate concerns that some other part of the program handles — `Invoice` only tracks what's owed and whether it's been paid.
+
+Notice the boundary line is doing something specific: it's naming things the class will *not* do, precisely because those are the things a reasonable-sounding AI prompt might accidentally invite in.
+
+---
+
+## Step 2: Generate
+
+With the sketch written, the prompt to AI becomes narrow and specific instead of open-ended:
+
+> "Write a Python class called `Invoice` with an `invoice_id`, `customer_name`, a list of line items, and a `paid` boolean defaulting to `False`. Include an `add_line_item(description, amount)` method, a `calculate_total()` method, and a `mark_paid()` method. Don't include anything related to sending emails, payment processing, or export/printing formatting."
+
+Here's a plausible AI response to that prompt:
+
+```python
+class Invoice:
+    def __init__(self, invoice_id, customer_name):
+        self.invoice_id = invoice_id
+        self.customer_name = customer_name
+        self.line_items = []
+        self.paid = False
+
+    def add_line_item(self, description, amount):
+        if amount <= 0:
+            raise ValueError("Line item amount must be positive")
+        self.line_items.append({"description": description, "amount": amount})
+
+    def calculate_total(self):
+        return sum(item["amount"] for item in self.line_items)
+
+    def mark_paid(self):
+        self.paid = True
+        self.payment_date = datetime.today()
+
+    def send_receipt(self, email_address):
+        print(f"Receipt sent to {email_address} for invoice {self.invoice_id}")
+```
+
+This looks solid at a glance — clean structure, reasonable names, a validation check that seems responsible. That's exactly the problem with reading it at a glance.
+
+---
+
+## Step 3: Verify Against the Sketch, Line by Line
+
+Go back to the sketch and check each item against the generated code, in both directions — does everything in the sketch appear, and does anything appear that *isn't* in the sketch.
+
+**Data — matches.** `invoice_id`, `customer_name`, `line_items`, `paid` are all present.
+
+**`add_line_item` — matches, with an addition.** The method exists as specified, but it added a validation check (`if amount <= 0: raise ValueError`) that wasn't in the sketch. This is a judgment call, not an automatic fail: input validation is often good practice, so the question isn't "reject it," it's "did I mean to leave this out, or did I just not think of it?" If validation belongs here, keep it — but now it's a decision you made, not one that snuck in unnoticed.
+
+**`calculate_total` — matches.** Does exactly what was asked, no more.
+
+**`mark_paid` — deviation.** The sketch asked for setting `paid = True`. The generated method also sets `self.payment_date = datetime.today()` — a new attribute that was never in the sketch, using a `datetime` module that was never imported, which means this code will crash with a `NameError` the first time it runs. This is scope creep with a bug riding along on top of it: the AI decided invoices should track a payment date, a reasonable-sounding feature, without being asked, and didn't even wire up the import to make it work.
+
+**`send_receipt` — clear violation of the boundary.** The sketch explicitly ruled out email sending, and the AI added a method that does exactly that. This is the scope-creep pattern in its purest form: a vague underlying need ("manage invoices") pulled in an adjacent feature ("notify the customer") that the sketch had deliberately fenced out.
+
+**The fix**, applying the sketch as the standard:
+
+```python
+class Invoice:
+    def __init__(self, invoice_id, customer_name):
+        self.invoice_id = invoice_id
+        self.customer_name = customer_name
+        self.line_items = []
+        self.paid = False
+
+    def add_line_item(self, description, amount):
+        self.line_items.append({"description": description, "amount": amount})
+
+    def calculate_total(self):
+        return sum(item["amount"] for item in self.line_items)
+
+    def mark_paid(self):
+        self.paid = True
+```
+
+`send_receipt` is gone entirely — that's a different class's job. The validation check was kept in this version as a judgment call, but a defensible answer either way exists; what matters is that it's now a decision, not an accident. `mark_paid` no longer references an undefined `datetime`.
+
+---
+
+## Why the Sketch Has to Come First
+
+If you generate the code first and *then* try to decide what the class should do, you're reasoning backward — the code you're looking at anchors your sense of what's "normal," and scope creep is much harder to spot once it's already sitting in front of you looking plausible. Writing the sketch first gives you an independent standard to check against, one the AI's output can't quietly redefine. This is the same discipline as **Debug the AI** and **Structural Reverse-Engineer** from earlier modules, aimed one step earlier in the process: instead of catching a bug in code that already exists, you're preventing the class from acquiring responsibilities it never should have had in the first place.
+
+---
+
+<CodeLab title="Design-First Verification — a Shipment Class">
+
+Write your own sketch before looking at the generated code below.
+
+**Your sketch, filled in for a `Shipment` class in a logistics system:**
+
+> **Data:** shipment ID, origin port, destination port, list of container IDs, current status (`"pending"`, `"in_transit"`, `"delivered"`).
+>
+> **Behaviors:** add a container, update status, get the container count.
+>
+> **Boundary:** `Shipment` does not calculate shipping costs, does not track GPS coordinates, and does not notify customers of status changes.
+
+Now review this AI-generated version against your sketch:
+
+```python
+class Shipment:
+    def __init__(self, shipment_id, origin, destination):
+        self.shipment_id = shipment_id
+        self.origin = origin
+        self.destination = destination
+        self.containers = []
+        self.status = "pending"
+
+    def add_container(self, container_id):
+        self.containers.append(container_id)
+
+    def update_status(self, new_status):
+        self.status = new_status
+
+    def container_count(self):
+        return len(self.containers)
+
+    def estimated_cost(self):
+        return len(self.containers) * 1200  # flat rate per container
+```
+
+Find the deviation yourself before reading on: `estimated_cost()` was never in the sketch — cost calculation was explicitly ruled out as a boundary item, and it showed up anyway, complete with a hardcoded rate that has no obvious source. Delete it, and note in one sentence why a "reasonable-looking helpful addition" is still a defect when it crosses a boundary you set on purpose.
+
+</CodeLab>
+
+---
+
+<Quiz question="Why does a stated boundary ('what this class should NOT do') catch more problems in AI-generated class code than a list of required attributes and methods alone?">
+
+<div>
+
+**A list of required features only tells you whether something is missing — it can't tell you whether something extra was added, because nothing on the list rules anything out.** AI assistants given an open-ended prompt tend to add plausible-sounding functionality that wasn't requested, and without an explicit boundary, there's no way to distinguish "helpful extra feature" from "scope creep that doesn't belong here" — both look equally reasonable sitting in the generated code.
+
+A stated boundary gives you a specific, checkable standard: if the code does something the boundary explicitly excluded, that's an automatic finding, not a judgment call you have to make from scratch while staring at code that already looks done. It's the difference between checking "is everything I asked for here" and checking "is everything here something I asked for" — the second question is the one scope creep hides from, and it's the one a boundary makes answerable.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You've now practiced deciding a class's responsibilities before generating it, and catching the gap between what you specified and what AI actually built. Module 8 builds directly on this foundation with **Object-Oriented Programming** — inheritance, polymorphism, and a close relative of this exercise, the **Inheritance vs. Composition Evaluation**, where the judgment call shifts from "what belongs in this one class" to "how should multiple related classes be structured relative to each other."

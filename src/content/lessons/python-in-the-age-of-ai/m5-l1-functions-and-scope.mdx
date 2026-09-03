@@ -1,0 +1,294 @@
+---
+title: "Functions & Scope"
+description: "Write reusable functions with parameters, defaults, and return values — and learn why the scope a variable lives in is one of the most common sources of bugs, AI-written or otherwise."
+module: 5
+moduleTitle: "Functions"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+You've spent four modules writing code that runs top to bottom, once, in one file. Functions are the first tool in this course that let you write a piece of logic *once* and reuse it — across a script, across a project, across the exact kind of AI-generated snippet you're about to start pasting into your own code constantly.
+
+That last part matters. Ask an AI assistant for "a function that calculates shipping cost" and it will hand you something that runs. Whether it handles a negative weight, a missing destination, or a zero-item order the way *you* need it to is a separate question — and it's a question only you can answer, because the AI doesn't know your requirements, it's guessing at them. This lesson gives you the vocabulary — parameters, defaults, return values, scope — to read a function critically instead of just trusting that it compiles.
+
+---
+
+## Defining a Function
+
+A function is a named, reusable block of code. You define it once with `def`, then *call* it as many times as you want.
+
+```python
+def greet_customer():
+    print("Welcome back!")
+
+greet_customer()
+greet_customer()
+```
+
+Two calls, same output twice. Nothing you couldn't do with two `print()` lines — the value shows up once the function actually *does* something worth reusing, and once it can take input.
+
+---
+
+## Parameters and Arguments
+
+A **parameter** is a named input a function expects. An **argument** is the actual value you pass in when you call it.
+
+```python
+def greet_customer(name):
+    print(f"Welcome back, {name}!")
+
+greet_customer("Priya")
+greet_customer("Tomás")
+```
+
+`name` is the parameter; `"Priya"` and `"Tomás"` are arguments. A function can take several:
+
+```python
+def calculate_discount(subtotal, percent_off):
+    discount = subtotal * (percent_off / 100)
+    return subtotal - discount
+
+final_price = calculate_discount(84.00, 15)
+print(final_price)  # 71.4
+```
+
+### Positional vs. Keyword Arguments
+
+Arguments matched by order are **positional**. You can also pass them by name — **keyword arguments** — which is clearer and order-independent:
+
+```python
+calculate_discount(84.00, 15)                       # positional
+calculate_discount(subtotal=84.00, percent_off=15)   # keyword
+calculate_discount(percent_off=15, subtotal=84.00)   # keyword, reordered — same result
+```
+
+Keyword arguments matter most once a function has several parameters of the same type — `calculate_discount(15, 84.00)` would silently swap subtotal and discount percentage, and nothing would error. Reading the call site, not just the function definition, is part of reviewing AI-generated code: an AI assistant will happily generate a call with arguments in the wrong order if your prompt was ambiguous about which number meant what.
+
+---
+
+## Default Parameter Values
+
+A parameter can have a **default value**, used when the caller doesn't supply one:
+
+```python
+def calculate_shipping(weight_kg, rate_per_kg=4.50):
+    return round(weight_kg * rate_per_kg, 2)
+
+calculate_shipping(10)          # 45.0 — uses the default rate
+calculate_shipping(10, 6.00)    # 60.0 — overrides it
+```
+
+Defaults let a function cover the common case with a short call, while still allowing a caller to override it. Parameters with defaults must come *after* parameters without them:
+
+```python
+# Valid:
+def f(a, b=1): ...
+
+# Invalid — Python will raise a SyntaxError:
+def f(a=1, b): ...
+```
+
+---
+
+## `return` vs. Printing
+
+These two functions look similar but behave completely differently:
+
+```python
+def discount_a(subtotal, percent_off):
+    print(subtotal * (1 - percent_off / 100))   # prints, returns nothing
+
+def discount_b(subtotal, percent_off):
+    return subtotal * (1 - percent_off / 100)   # returns a usable value
+```
+
+```python
+result_a = discount_a(100, 10)   # prints 90.0, but result_a is None
+result_b = discount_b(100, 10)   # prints nothing, but result_b is 90.0
+```
+
+`print()` is for a human looking at a terminal. `return` is for handing a value back to whatever code called the function, so it can be stored, passed to another function, or used in a calculation. A function that only prints is a dead end — you can't do anything further with what it "produced," because it didn't produce anything the program can use. This trips people up constantly in AI-generated code: a snippet that prints the right-looking number can still be useless if your program actually needed that number returned.
+
+---
+
+## Docstrings
+
+A **docstring** is a string literal placed as the first line inside a function, documenting what it does:
+
+```python
+def calculate_shipping(weight_kg, rate_per_kg=4.50):
+    """Return shipping cost in dollars for a package of the given weight."""
+    return round(weight_kg * rate_per_kg, 2)
+```
+
+Docstrings aren't just comments — tools (including your editor and AI assistants) read them to generate hover-help and autocomplete. Write one whenever a function's purpose, inputs, or return value aren't obvious from its name alone.
+
+---
+
+## Local vs. Global Scope
+
+A variable created *inside* a function is **local** — it exists only while that function is running, and disappears afterward. It's invisible outside the function:
+
+```python
+def process_order(total):
+    tax = total * 0.08
+    return total + tax
+
+process_order(50)
+print(tax)   # NameError: tax is not defined
+```
+
+A variable created *outside* any function, at the top level of a script, is **global** — visible everywhere, including inside functions:
+
+```python
+TAX_RATE = 0.08
+
+def process_order(total):
+    return total + (total * TAX_RATE)   # reads the global TAX_RATE just fine
+```
+
+Reading a global from inside a function works. **Writing** to one is where trouble starts:
+
+```python
+running_total = 0
+
+def add_order(amount):
+    running_total = running_total + amount   # UnboundLocalError
+    return running_total
+```
+
+This raises an error, not a silent bug — Python sees the assignment to `running_total` inside the function and treats it as a *local* variable for the entire function body, which means the `running_total` on the right side of `+` is referenced before it's been given a local value. Relying on global variables inside functions like this is a common source of bugs precisely because it *looks* like it should work. The fix is almost always to pass the value in and return the new one:
+
+```python
+def add_order(running_total, amount):
+    return running_total + amount
+
+running_total = add_order(running_total, amount)
+```
+
+This version is also easier to test, easier to reason about, and easier for an AI assistant (or a teammate) to understand in isolation — everything the function needs comes in through its parameters, and everything it produces comes out through `return`.
+
+---
+
+## A Brief Word on Recursion
+
+A function can call itself — this is **recursion**. It's a natural fit for problems defined in terms of smaller versions of themselves, like computing a factorial:
+
+```python
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+print(factorial(5))   # 120
+```
+
+Every recursive function needs a **base case** (here, `n <= 1`) that stops the recursion — without one, it calls itself forever until Python raises a `RecursionError`. You won't use recursion heavily in this course, but you'll see it in AI-generated solutions occasionally, and it's worth being able to recognize what it's doing.
+
+---
+
+## Code Lab: Building a Shipping Cost Function, One Requirement at a Time
+
+<CodeLab title="Refining a Shipping Cost Calculator">
+
+**Step 1 — Start simple.**
+
+```python
+def shipping_cost(weight_kg):
+    return weight_kg * 4.50
+```
+
+Works, but every shipment pays the same per-kilogram rate regardless of distance.
+
+**Step 2 — Add a distance-based rate.**
+
+```python
+def shipping_cost(weight_kg, distance_km):
+    rate_per_kg = 4.50 if distance_km <= 500 else 7.00
+    return weight_kg * rate_per_kg
+```
+
+**Step 3 — Add a default for local shipments and a docstring.**
+
+Most calls in the system turn out to be for local, short-distance shipments — so give `distance_km` a default that reflects the common case:
+
+```python
+def shipping_cost(weight_kg, distance_km=500):
+    """Return shipping cost in dollars based on weight and distance."""
+    rate_per_kg = 4.50 if distance_km <= 500 else 7.00
+    return round(weight_kg * rate_per_kg, 2)
+```
+
+**Step 4 — Handle a requirement an AI-generated first draft would probably miss.**
+
+What happens with `weight_kg=0` or a negative weight? The function above would happily return `0.0` or a negative cost — neither makes sense for a real shipment. Add a guard:
+
+```python
+def shipping_cost(weight_kg, distance_km=500):
+    """Return shipping cost in dollars based on weight and distance.
+
+    Raises ValueError for a non-positive weight.
+    """
+    if weight_kg <= 0:
+        raise ValueError("weight_kg must be positive")
+    rate_per_kg = 4.50 if distance_km <= 500 else 7.00
+    return round(weight_kg * rate_per_kg, 2)
+```
+
+This is the pattern you'll use constantly: get something running, then add the edge cases a real system needs — the same edge cases an AI's first draft tends to skip unless you specifically ask for them.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Mutable Default Arguments">
+
+**Common mistake:** using a mutable object — a list or dictionary — as a default parameter value.
+
+```python
+def add_item(item, cart=[]):
+    cart.append(item)
+    return cart
+
+print(add_item("apple"))    # ['apple']
+print(add_item("banana"))   # ['apple', 'banana'] — not ['banana']!
+```
+
+That second call should arguably return just `['banana']` if you expected a fresh empty cart each time. It doesn't, because **default values are created once, when the function is defined — not each time it's called.** Every call that doesn't supply its own `cart` shares the exact same list object, and mutations (like `.append()`) stick around between calls.
+
+The fix is to default to `None` and create the mutable object inside the function body:
+
+```python
+def add_item(item, cart=None):
+    if cart is None:
+        cart = []
+    cart.append(item)
+    return cart
+```
+
+This is a classic real Python gotcha — one that shows up in AI-generated code regularly, because `cart=[]` looks perfectly reasonable at a glance and runs without error. It only misbehaves the second time you call the function without an explicit `cart`, which is exactly the kind of bug that slips past a quick read.
+
+</Pitfall>
+
+---
+
+<Quiz question="A function processes a list of financial transactions and needs to raise the running balance as it goes. A teammate writes it using a global variable `balance` that the function updates directly with `balance += amount`. What goes wrong, and what's the better design?">
+
+<div>
+
+Assigning to `balance` inside the function makes Python treat it as a local variable for the whole function body, so `balance += amount` raises an `UnboundLocalError` — Python sees the assignment and refuses to also read the global by the same name without being told to. Even if you worked around this with a `global balance` declaration, the design is still fragile: the function's behavior now depends on outside state instead of its inputs, so it's harder to test, harder to reuse, and easy to get wrong once more than one function touches `balance`. The better design passes the current balance in as a parameter and returns the updated value: `def apply_transaction(balance, amount): return balance + amount`, called as `balance = apply_transaction(balance, amount)`.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You can now write functions with parameters, defaults, and return values, and you know why leaning on global state inside a function invites bugs. Lesson 2 puts this to work on a harder problem than syntax: given a vague one-paragraph request, how do you extract the actual spec — inputs, outputs, edge cases, constraints — *before* you or an AI assistant writes a single line? That's the Requirements-Gathering Roleplay, this module's core exercise, and it's the skill that determines whether the functions you write actually solve the problem you were asked to solve.

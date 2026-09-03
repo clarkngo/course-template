@@ -1,0 +1,226 @@
+---
+title: "Image Manipulation & Automation Basics"
+description: "Open, resize, crop, and convert images with Pillow, then scale a single operation across an entire folder — the pattern behind most real-world automation scripts."
+module: 10
+moduleTitle: "Image Manipulation, Automation & Capstone"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+This is the last new tool before the capstone, and it's a fitting one: image manipulation and batch automation are where a lot of Python's practical, everyday value shows up outside of "software engineering" in the strict sense. Resizing five hundred product photos by hand is a task nobody wants to do manually; writing ten lines of Python to do it in seconds is one of the most immediately satisfying things this language is good for.
+
+An AI assistant will write that ten-line script instantly. What it won't do is know your folder structure, know whether you meant to overwrite the originals or write copies, or catch that your path pattern also matches a file you didn't mean to touch. Automation scripts are unusually easy to get *mostly* right and catastrophically wrong at the same time — a bug in a script that processes one file is an inconvenience; the same bug in a script that processes a thousand files is a disaster. That asymmetry is the real subject of this lesson.
+
+---
+
+## Opening and Inspecting an Image With Pillow
+
+`Pillow` (imported as `PIL`) is Python's standard image-manipulation library.
+
+```python
+from PIL import Image
+
+img = Image.open("product_photo.jpg")
+print(img.size)      # (width, height) in pixels, e.g. (1600, 1200)
+print(img.format)    # 'JPEG'
+print(img.mode)      # 'RGB'
+```
+
+`Image.open()` doesn't load the whole file into memory eagerly — it reads just enough to get the metadata, and loads pixel data as needed for whatever operation you perform next.
+
+---
+
+## Basic Operations
+
+### Resizing
+
+```python
+resized = img.resize((800, 600))
+resized.save("product_photo_small.jpg")
+```
+
+`.resize()` takes an exact `(width, height)` — it will stretch or squash the image to fit if the ratio doesn't match the original. To resize proportionally, compute the new height from the aspect ratio yourself, or use `.thumbnail()`, which resizes in place while preserving proportions and only ever shrinks:
+
+```python
+img.thumbnail((800, 800))   # fits within 800x800, keeps aspect ratio
+img.save("product_photo_thumb.jpg")
+```
+
+### Cropping
+
+`.crop()` takes a box as `(left, upper, right, lower)` pixel coordinates:
+
+```python
+cropped = img.crop((100, 100, 500, 400))   # a 400x300 region
+cropped.save("product_photo_cropped.jpg")
+```
+
+### Rotating
+
+```python
+rotated = img.rotate(90, expand=True)
+rotated.save("product_photo_rotated.jpg")
+```
+
+`expand=True` grows the canvas to fit the rotated image instead of clipping it to the original dimensions — without it, rotating a non-square image by 90 degrees crops off part of the picture.
+
+### Converting Format
+
+```python
+img.save("product_photo.png")   # Pillow infers format from the file extension
+```
+
+Saving with a different extension converts formats automatically. One exception worth knowing: converting a PNG with transparency to JPEG (which has no transparency channel) needs an explicit mode conversion first, or Pillow will raise an error:
+
+```python
+img = Image.open("logo.png").convert("RGB")
+img.save("logo.jpg")
+```
+
+---
+
+## Automating Across a Folder
+
+The real power shows up once you stop processing one image and start processing all of them. `pathlib` is the modern, preferred way to work with file paths and directories in Python.
+
+```python
+from pathlib import Path
+from PIL import Image
+
+input_folder = Path("product_photos")
+output_folder = Path("product_photos_resized")
+output_folder.mkdir(exist_ok=True)   # create it if it doesn't already exist
+
+for photo_path in input_folder.glob("*.jpg"):
+    img = Image.open(photo_path)
+    img.thumbnail((800, 800))
+    img.save(output_folder / photo_path.name)
+
+print(f"Resized {len(list(input_folder.glob('*.jpg')))} photos.")
+```
+
+A few things worth noticing:
+
+- `.glob("*.jpg")` returns every file in `input_folder` matching that pattern — only files ending in `.jpg`, not subfolders or other file types.
+- `output_folder / photo_path.name` uses `pathlib`'s `/` operator to join paths, which works correctly on every operating system (no manual `"\\"` vs `"/"` handling).
+- The output goes to a **separate folder**, not back over the originals. That's not an accident — it's the subject of this lesson's Pitfall.
+
+### Renaming a Batch of Files
+
+The same loop structure handles renaming just as easily:
+
+```python
+for i, photo_path in enumerate(sorted(input_folder.glob("*.jpg")), start=1):
+    new_name = f"product_{i:03d}.jpg"
+    photo_path.rename(output_folder / new_name)
+```
+
+`f"product_{i:03d}"` zero-pads the number to three digits (`001`, `002`, ... `042`), which keeps files sorting in the right order in a file browser — a small detail, but one that matters once there are more than nine files.
+
+---
+
+## Beyond Scripts: A Preview of Desktop Automation
+
+Everything so far operates on files directly — no application windows involved. Python can go further: libraries exist for driving mouse clicks, keyboard input, and application windows programmatically, automating repetitive tasks in software that has no scripting interface of its own (clicking through a form, copying data between two desktop apps, and so on). That's a deeper topic than this course covers, but it's worth knowing it's there — the same instinct you're building here, "find the repetitive part and automate it," extends well past file processing once you need it.
+
+---
+
+## Code Lab: A Batch Photo-Resizing Script
+
+<CodeLab title="Resizing and Logging a Batch of Product Photos">
+
+Build a script for an e-commerce team that resizes every photo in a folder to a web-friendly size and logs what it did — a smaller, safer version of one of the capstone options in the next lesson.
+
+```python
+from pathlib import Path
+from PIL import Image
+import csv
+
+def resize_batch(input_folder, output_folder, max_size=(1000, 1000)):
+    input_path = Path(input_folder)
+    output_path = Path(output_folder)
+    output_path.mkdir(exist_ok=True)
+
+    log_rows = []
+    for photo_path in input_path.glob("*.jpg"):
+        img = Image.open(photo_path)
+        original_size = img.size
+        img.thumbnail(max_size)
+        destination = output_path / photo_path.name
+        img.save(destination)
+        log_rows.append({
+            "filename": photo_path.name,
+            "original_size": f"{original_size[0]}x{original_size[1]}",
+            "new_size": f"{img.size[0]}x{img.size[1]}",
+        })
+
+    log_path = output_path / "resize_log.csv"
+    with open(log_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["filename", "original_size", "new_size"])
+        writer.writeheader()
+        writer.writerows(log_rows)
+
+    return len(log_rows)
+
+count = resize_batch("product_photos", "product_photos_web")
+print(f"Resized {count} photos. See product_photos_web/resize_log.csv for details.")
+```
+
+Notice the log: every automation script that modifies files in bulk is easier to trust — and easier to debug when something goes wrong — if it records what it actually did, not just that it finished. This is the same instinct as the exception handling from Module 6: fail (and succeed) with information, not silently.
+
+</CodeLab>
+
+---
+
+<Pitfall title="A Batch Script That Overwrites Its Own Input">
+
+**Common mistake:** writing (and testing) a batch operation that saves results back over the original files, in the original folder.
+
+```python
+# Dangerous — overwrites every original photo, permanently
+for photo_path in input_folder.glob("*.jpg"):
+    img = Image.open(photo_path)
+    img.thumbnail((800, 800))
+    img.save(photo_path)   # same path as the original!
+```
+
+Run this once, and every original, full-resolution photo in `input_folder` is gone — replaced by a smaller version, with no undo. This is exactly the kind of code an AI assistant will produce if your prompt didn't specify where output should go, because "resize the images in this folder" is genuinely ambiguous between "produce resized copies" and "resize them in place." The AI picks one interpretation and doesn't flag the ambiguity, because it has no way to know which one matters to you — or how expensive guessing wrong would be.
+
+The fix is procedural, not just a code change: **always write batch output to a separate folder, at least until the logic is verified.**
+
+```python
+output_folder = Path("product_photos_resized")
+output_folder.mkdir(exist_ok=True)
+
+for photo_path in input_folder.glob("*.jpg"):
+    img = Image.open(photo_path)
+    img.thumbnail((800, 800))
+    img.save(output_folder / photo_path.name)   # never touches the original
+```
+
+Test any destructive-*sounding* batch operation — resize, rename, delete, overwrite — against a copy of your data first, and only point it at the real thing once you've confirmed the output is correct. A script that processes one file wrong is a quick fix. A script that processes a thousand files wrong, in place, with no backup, is often unrecoverable.
+
+</Pitfall>
+
+---
+
+<Quiz question="A teammate asks an AI assistant to 'write a script that renames all the files in this folder to lowercase.' The AI produces a loop using `path.rename(path.with_name(path.name.lower()))`, run directly against the working folder with no output shown before the rename happens. What's the risk, independent of whether the renaming logic itself is correct?">
+
+<div>
+
+Even if `.lower()` and the renaming logic are completely correct, running any bulk rename or overwrite operation directly against the only copy of the data — with no dry run, no preview of what will change, and no backup — is risky procedure regardless of code correctness. A single unexpected file (one already lowercase, one with an extension that matters being case-sensitive elsewhere, one that's actually a folder) can produce a result that's hard to reverse. The safer pattern is to first print or log what the script *would* rename without executing the rename, review that output, and only then run it for real — or run it against a copied test folder first. This is a process safeguard, separate from and in addition to reviewing the renaming logic itself.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You've now touched every major category of tool this course set out to cover — data structures, files, classes, scraping, spreadsheets, and now images and batch automation. One lesson remains: the Capstone, where you'll pick a real automation problem, gather requirements before writing code, pair with AI to build it, and apply the judgment skills from across this entire course to something you design yourself.

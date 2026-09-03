@@ -1,0 +1,144 @@
+---
+title: "The Error-Handling Diff Sprint"
+description: "Two AI-generated versions of the same data-processing function handle errors differently. Under a time limit, determine which one is actually safe to ship — and name exactly how the other one fails."
+module: 6
+moduleTitle: "Files & Exceptions"
+lesson: 2
+duration: "35 min"
+---
+
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+Two functions can both "work" — both run without crashing, both return a number that looks reasonable — and only one of them is telling the truth about the data it processed. That gap is invisible from the outside. You can't spot it by running the function once on a clean test file and checking that the output looks plausible; you have to actually read how it handles the row it *doesn't* expect.
+
+This is where error handling stops being a syntax topic and becomes a judgment call, and it's exactly the kind of call an AI assistant won't reliably make for you — it will generate error handling that satisfies "wrap this in a try/except" without knowing whether your situation calls for "skip bad data and keep going" or "stop everything and tell someone." The **Error-Handling Diff Sprint** is built to train the muscle: given two plausible-looking versions of the same function, decide fast which one is safe, and say precisely why the other one isn't.
+
+---
+
+## The Exercise
+
+You've done a Diff Sprint before, in Module 2 — two AI-generated snippets, a short time limit, decide which one is correct and why. This version narrows the focus specifically to error handling. You'll be shown two versions of a function that reads a CSV and processes its rows. Both run without crashing on the same test file. Your job, in a few minutes:
+
+1. Read both versions closely — specifically, what happens on a row that has bad data.
+2. Determine which version is actually safe to ship to production.
+3. Name the specific failure mode of the flawed version — not "it's bad," but exactly what goes wrong and under what condition.
+
+The time limit is part of the exercise. In real work, you often don't get to sit with a diff for twenty minutes before deciding whether to merge it — you need to be fast *and* right, which means knowing exactly which few lines of an error handler to check first.
+
+---
+
+## Worked Example: Two Versions of an Order-Validation Function
+
+Both functions read a CSV of e-commerce orders and return the total value of all **valid** orders — an order is valid if its `total` field is a positive number.
+
+### Version A
+
+```python
+import csv
+
+def total_valid_orders(filepath):
+    running_total = 0.0
+    try:
+        with open(filepath, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    total = float(row["total"])
+                    if total > 0:
+                        running_total += total
+                except:
+                    pass
+    except FileNotFoundError:
+        return None
+    return running_total
+```
+
+### Version B
+
+```python
+import csv
+
+def total_valid_orders(filepath):
+    running_total = 0.0
+    skipped_rows = []
+    try:
+        with open(filepath, "r") as f:
+            reader = csv.DictReader(f)
+            for row_number, row in enumerate(reader, start=2):  # header is row 1
+                try:
+                    total = float(row["total"])
+                except (ValueError, KeyError):
+                    skipped_rows.append(row_number)
+                    continue
+                if total > 0:
+                    running_total += total
+                else:
+                    skipped_rows.append(row_number)
+    except FileNotFoundError:
+        print(f"Error: {filepath} not found.")
+        return None
+
+    if skipped_rows:
+        print(f"Warning: skipped {len(skipped_rows)} invalid row(s): {skipped_rows}")
+
+    return running_total
+```
+
+### Running the Diff
+
+Test file, `orders.csv`:
+
+```
+order_id,total
+1001,84.50
+1002,120.00
+1003,not_a_number
+1004,-15.00
+1005,0.00
+1006,60.25
+```
+
+Run both against this file. **Both return the same number**: `264.75` (the sum of rows 1001, 1002, and 1006 — the only rows with a valid positive total). On this test alone, they look identical. This is exactly why "it ran and gave a reasonable-looking number" is not enough evidence that a function is correct — you have to read *how* each one got there, not just *what* it returned.
+
+### The Reasoning
+
+Look at what each version does with rows 1003, 1004, and 1005 — the three invalid rows.
+
+**Version A** wraps the per-row logic in a bare `except: pass`. Rows 1003 (bad number), 1004 (negative), and 1005 (zero) are all silently dropped from the total with zero record that they existed. The function's return value is indistinguishable whether the file had 3 bad rows or 300 — there's no signal anywhere that anything was skipped. Worse: the bare `except` doesn't just catch the `ValueError` from `float("not_a_number")` — it would just as silently catch a `TypeError` from a genuine bug in this function's own logic, or a `KeyError` if someone renames the `total` column upstream. Every one of those looks identical from the outside: a quietly lower total, no error, no warning.
+
+**Version B** catches specific exceptions (`ValueError`, `KeyError`) for the "bad number" case, separately checks for non-positive totals, and **records every skipped row number**, then reports a warning with the count and the specific rows. If the `total` column got renamed tomorrow, every single row would raise `KeyError`, get logged as skipped, and the warning would immediately show `skipped 6 invalid row(s)` — loud, specific, impossible to miss. A genuinely unexpected exception type not caught here would still propagate up and crash loudly, which is correct: an error nobody anticipated should be seen, not absorbed.
+
+### The Verdict
+
+**Version B is the one safe to ship.** Version A's specific failure mode: *it silently produces a lower total than the real one whenever the input data contains bad rows, with no indication to the caller that anything was skipped — including in the case where an upstream schema change (a renamed or missing column) would make every row invalid.* That's not a hypothetical edge case; malformed rows in real-world CSVs — from manual exports, upstream bugs, partial writes — are routine, not rare. A finance or operations system built on Version A would report wrong numbers indefinitely, with nothing in the logs to reveal it.
+
+---
+
+## What to Check First, Under Time Pressure
+
+When you're doing this fast, check these three things in order:
+
+1. **What exception types does each `except` clause name?** A bare `except:` or `except Exception:` with no re-raise is an immediate red flag — it's a smell worth investigating even if the function passes your test file.
+2. **Does anything report what got skipped?** A function that silently drops data is different from one that reports it, even if both return the same number on your test case.
+3. **What happens on a systemic failure**, like every row being bad (a renamed column, an empty file, a completely wrong file format)? A version that silently returns `0.0` in that case is far more dangerous than one that loudly reports "skipped all 500 rows" — the first looks like a legitimate answer (zero orders today, maybe?) and the second is unmistakably a problem.
+
+This is also a genuinely useful prompt to run against your own AI-generated error handling before you ship it: *"What does this function return if every row in the input is invalid, and how would I know that happened?"* If the honest answer is "a plausible-looking number, with no way to tell," that's the version to rewrite.
+
+---
+
+<Quiz question="Two AI-generated functions both read a CSV of shipping records and both return a valid-looking total weight. Version 1 catches `(ValueError, KeyError)` per row and logs a count of skipped rows. Version 2 wraps the whole function body in one outer `try / except Exception: return 0.0`. On your test file, both return the same number. What's the specific risk with Version 2 that the matching output doesn't rule out?">
+
+<div>
+
+Version 2's outer `except Exception: return 0.0` catches every possible failure at the function level — a bad row, a missing file, a typo in the code, a completely malformed CSV — and responds identically to all of them: silently returning `0.0` with no distinction and no record of what happened. On a clean-ish test file it may never actually hit that except clause, which is why the outputs match. But the moment something in the input changes — a renamed column, a genuinely empty file, an unexpected data type on every row — Version 2 would return `0.0` indistinguishably from "there were legitimately no valid records," while Version 1 would report specifically what and how much was skipped. Matching output on one test file doesn't rule out this failure mode; it just means the test file never exercised it.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You can now tell the difference between error handling that protects a program and error handling that only protects it from *looking* broken — a distinction that matters everywhere data crosses a boundary you don't fully control. Module 7 moves to Classes: bundling data and behavior together into your own custom types, and the Design-First Verification exercise, where you'll practice deciding what a class's structure *should* be before letting an AI assistant generate one for you.

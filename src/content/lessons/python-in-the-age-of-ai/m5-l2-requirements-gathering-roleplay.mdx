@@ -1,0 +1,146 @@
+---
+title: "Requirements-Gathering Roleplay"
+description: "Before you prompt an AI assistant to write a function, learn to interrogate a vague request for its real inputs, outputs, edge cases, and constraints — the step that determines whether the code it generates is actually right."
+module: 5
+moduleTitle: "Functions"
+lesson: 2
+duration: "35 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+Here's what happens if you take a vague request straight to an AI assistant: it writes something. It compiles, it runs, it even produces a plausible-looking answer on the one example you tried. And it's quietly wrong for at least one case you didn't think to test — because the request never specified that case, and the AI filled the gap with its own guess instead of yours.
+
+This isn't a flaw you can prompt your way around. A vague request has more than one reasonable interpretation, and an AI assistant will pick *one* and generate confidently, without flagging the ambiguity unless you ask it to. The fix isn't a better prompt — it's a spec, written by you, before the prompt exists. That's the skill this lesson builds: the **Requirements-Gathering Roleplay**, where you "interview" a stakeholder brief the way you'd interview an actual stakeholder, and turn a paragraph of vague wants into inputs, outputs, edge cases, and constraints an AI (or you) can build against without guessing.
+
+---
+
+## Why Gathering Requirements Is Its Own Skill
+
+Functions are only as good as the spec behind them. You already know how to write `def calculate_shipping(weight_kg, distance_km=500)` — but nothing about *that* syntax tells you what a shipment weighing `0` should do, or whether `distance_km` can be negative, or what happens when it's missing entirely. Those decisions come from requirements, and requirements almost never arrive fully formed. They arrive as a sentence from a stakeholder who knows what they want in their head but hasn't translated it into anything precise.
+
+An AI assistant is extremely good at translating a *precise* spec into working code. It's much weaker at *noticing what's missing* from an imprecise one — it will generate something for "check if an order qualifies for free shipping" without pausing to ask what happens when the order total is exactly at the threshold, or when the cart is empty, because generating an answer is what it's optimized to do. Your job, before you write that prompt, is to make sure the ambiguity isn't still sitting in it.
+
+---
+
+## The Four Questions
+
+For any vague request, ask:
+
+1. **Inputs** — What data does this function actually receive, and in what form? A number? A string? A list of items, each with their own fields?
+2. **Outputs** — What exactly should come back? A number, a boolean, a formatted string, a dictionary with several fields?
+3. **Edge cases** — What happens at the boundaries: zero, negative numbers, an empty list, a missing field, duplicate entries?
+4. **Constraints / out of scope** — What is this function explicitly *not* responsible for? What can it assume is already true about its input?
+
+Skipping any one of these is where a spec — and the code built from it — quietly diverges from what was actually needed.
+
+---
+
+## Worked Example: "Free Shipping" Eligibility
+
+### The Vague Request
+
+> "We need something that checks if an order qualifies for free shipping. Basically if the order is big enough, shipping should be free. Can you whip that up?"
+
+Read that again as a function signature and you'll see the problem: there isn't enough here to write one line of correct code. "Big enough" by what measure — total dollar amount? item count? weight? "Order" — what does that object look like in our system? Handing this straight to an AI assistant gets you *a* function. It will not reliably be *the* function.
+
+### Clarifying Questions
+
+Before writing a spec, these are the questions worth asking — of a real stakeholder if one's available, or worked out from context and reasonable defaults if not:
+
+- Is "big enough" measured by order subtotal, total item count, or total weight?
+- Is there a specific dollar threshold, and does the *current* order total count toward it, or only prior purchases?
+- What does an "order" look like as data — a number, or a structure with a list of items and their prices?
+- What should happen for an order with a subtotal of exactly the threshold — does it qualify, or does it need to exceed it?
+- What about an empty order (no items)? Should that even be evaluated, or is it out of scope — orders always have at least one item by the time this runs?
+- Are there exclusions — items that don't count toward the threshold, like gift cards or already-discounted products?
+- What should the function return — just `True`/`False`, or also the amount still needed to qualify (useful for a "spend $12 more for free shipping" message)?
+
+### The Resulting Spec
+
+After getting answers (or, absent a real stakeholder, making the most reasonable assumptions and writing them down explicitly):
+
+**Inputs:** `subtotal` (float, the pre-tax, pre-shipping dollar total of the order, gift cards already excluded upstream), `threshold` (float, defaults to `75.00`, the company's current free-shipping minimum).
+
+**Output:** a dictionary — `{"qualifies": bool, "amount_remaining": float}` — so the caller can both gate the free-shipping logic and show a "spend $X more" message when it doesn't qualify.
+
+**Edge cases:**
+- `subtotal` exactly equal to `threshold` → qualifies (meets-or-exceeds, not strictly-exceeds).
+- `subtotal` of `0` → does not qualify; `amount_remaining` equals the full threshold.
+- Negative `subtotal` → invalid input; raise `ValueError` rather than silently returning a result — a negative order total indicates a bug upstream, not a real order.
+
+**Out of scope:** this function doesn't look up the threshold from a config system, doesn't know about gift cards or discounts (those are already netted out of `subtotal` before this runs), and doesn't handle currency conversion.
+
+### The AI-Generated Function, Checked Against the Spec
+
+With that spec in hand, a prompt like *"write a Python function `check_free_shipping(subtotal, threshold=75.00)` that returns a dict with `qualifies` and `amount_remaining`, per this spec: [paste spec]"* produces something close to this:
+
+```python
+def check_free_shipping(subtotal, threshold=75.00):
+    """Return free-shipping eligibility and amount remaining to qualify."""
+    if subtotal < 0:
+        raise ValueError("subtotal cannot be negative")
+
+    qualifies = subtotal >= threshold
+    amount_remaining = 0.0 if qualifies else round(threshold - subtotal, 2)
+
+    return {"qualifies": qualifies, "amount_remaining": amount_remaining}
+```
+
+Check it line by line against the spec: negative input raises rather than silently proceeding — matches. `>=` rather than `>` — matches the "exactly at threshold qualifies" decision. `amount_remaining` is `0.0`, not negative, once qualified — matches the intent even though the spec didn't spell out that exact detail, which is worth flagging back into the spec for next time.
+
+### Where the Ungathered Version Would Have Broken
+
+Compare that to what a direct, spec-less prompt — *"write a function that checks if an order qualifies for free shipping"* — tends to produce:
+
+```python
+def check_free_shipping(order_total):
+    return order_total > 100
+```
+
+Two silent divergences from what was actually needed: `>` instead of `>=`, so an order at exactly the threshold — a real, common case, not an edge case anyone would call rare — incorrectly fails to qualify. And a hardcoded `100` instead of the actual `75.00` threshold, because the AI had no way to know the real number and picked a plausible-sounding one. Nothing about this function *looks* wrong. It runs, it returns a boolean, and it would ship straight into production with a bug that only shows up on orders between $75 and $100 — exactly the range the business most wants to convert into free-shipping qualifiers.
+
+That gap is the entire argument for gathering requirements first. The bug isn't a syntax error an AI would catch on its own. It's a business decision the AI never had access to, because nobody had written it down yet.
+
+---
+
+## Practicing the Interview
+
+<CodeLab title="Interviewing a Second Vague Request">
+
+Try this on your own before checking the discussion below.
+
+**The vague request:** *"Can you build something that flags a patient's blood pressure reading as high?"*
+
+Work through the four questions yourself:
+
+- **Inputs** — A single reading, or systolic and diastolic separately? As two numbers, or one string like `"120/80"`?
+- **Outputs** — A boolean? A category (`"normal"`, `"elevated"`, `"high"`, `"crisis"`)? Clinical flagging systems usually need more than yes/no.
+- **Edge cases** — Systolic normal but diastolic high, or vice versa (real readings often disagree between the two numbers, and clinical guidelines specify which one governs). A reading of `0/0` (sensor error, not a real measurement) — should this raise an error rather than being classified at all?
+- **Constraints** — Is this function responsible for *storing* the reading, alerting a clinician, or purely classifying a number? Where's the boundary?
+
+Notice the pattern: the biggest risk in this domain isn't a crash, it's a *silent misclassification* — a "high" reading recorded as "normal" because the function guessed wrong about which number governs. That's exactly the kind of thing a spec catches and a vague prompt doesn't.
+
+A reasonable spec: **Inputs** — `systolic` (int), `diastolic` (int). **Output** — a string category using standard clinical thresholds. **Edge cases** — non-positive values raise `ValueError` (sensor error, not a real reading); category is determined by whichever of systolic/diastolic falls into the more severe band, per standard guidance that the higher-severity number governs. **Out of scope** — no storage, no alerting, no trend analysis across multiple readings — this function classifies one reading at a time.
+
+</CodeLab>
+
+---
+
+<Quiz question="A stakeholder asks for 'a function that flags a customer as high-risk for churn if their order count has dropped.' Why is it risky to hand this directly to an AI assistant as a prompt, and what's the first clarifying question worth asking?">
+
+<div>
+
+It's risky because "dropped" is undefined in at least three ways: dropped compared to *what* — the customer's own prior average, a fixed threshold, or a percentage change? Dropped over what time window — the current period versus the one right before it, or a longer trend? An AI assistant will pick one interpretation and generate a working function around it, and that guess has no more claim to being correct than any other interpretation — it just happens to be the one that got shipped. The first clarifying question is which comparison "dropped" refers to and over what time window, since that decision determines the entire structure of the function's inputs (a single count, two counts to compare, or a full order history) before any code gets written.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You now have a repeatable process for turning a vague request into a spec precise enough to hand to an AI assistant — or to write yourself — without the ambiguity turning into a bug later. Module 6 moves to Files & Exceptions: reading and writing real data, and handling the things that go wrong when that data isn't what you expected. It closes with the Error-Handling Diff Sprint, where the judgment you just practiced — deciding what a function *should* do when things aren't clean — gets applied to deciding whether an AI-written error handler actually protects your program or just hides its mistakes.

@@ -1,0 +1,143 @@
+---
+title: "Ethical & Legal Constraints Analysis"
+description: "AI will generate a working scraper for almost any target without asking whether it's allowed to. Learn the constraint checklist that catches what the code review from Module 1 doesn't."
+module: 9
+moduleTitle: "Web Scraping & Spreadsheets"
+lesson: 2
+duration: "35 min"
+---
+
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+Everything you verified in the last lesson was about correctness: does the scraper find the right elements, does it handle a missing field, does it write a clean CSV. This lesson is about a different question entirely, one correctness checks don't touch: **should this code run against this target at all?**
+
+An AI assistant, asked for a scraper, will produce one. It doesn't check the site's `robots.txt`. It doesn't reason about the site's Terms of Service. It doesn't rate-limit its requests by default, and it has no way to distinguish data that's technically loadable in a browser from data that's private, regulated, or simply not meant to be collected in bulk. Those aren't bugs in the AI's code — they're questions outside the scope of "does this run correctly," and nobody's going to ask them for you. That's the gap this module's exercise, the **Ethical & Legal Constraints Analysis**, exists to close.
+
+---
+
+## The Constraint Checklist
+
+Before a scraping or automation script is reasonable to run — let alone ship — check it against these:
+
+1. **Does it respect `robots.txt`?** Most sites publish a `robots.txt` file (e.g. `example.com/robots.txt`) declaring which paths automated tools may and may not access, and sometimes a preferred crawl delay. It isn't legally binding by itself, but ignoring it is a clear signal of bad-faith scraping and a strong first thing to check.
+2. **Does it rate-limit?** Hitting a server with rapid, back-to-back requests can degrade the site for real users, and looks identical to a denial-of-service attempt from the server's side. A pause between requests is the minimum courtesy.
+3. **Does it identify itself?** A reasonable `User-Agent` header naming your script (and ideally contact info) is standard practice. The default `requests` behavior sends a generic user agent that offers the site operator no way to know who's hitting their server or why.
+4. **Does the data raise privacy concerns?** Personally identifiable information (PII), health records, financial details — even when technically reachable (a page with no login wall, a misconfigured endpoint), collecting and storing it in bulk carries privacy obligations, and in some jurisdictions and contexts, legal ones. "I could load it" is not the same question as "I should collect and keep it."
+5. **Is there a Terms of Service concern?** Many sites' ToS explicitly prohibit automated scraping, regardless of what's technically accessible. This doesn't always carry the force of law, but it's a real constraint on what's *appropriate*, and ignoring it is a decision, not an oversight — one you should be making consciously, not by default.
+6. **What needs to be added before this could reasonably ship?** Usually some combination of: a `robots.txt` check, `time.sleep()` between requests, a proper `User-Agent`, and — if PII or sensitive data is involved — a hard second look at whether the tool should exist in its current form at all.
+
+None of these questions have a single universal answer that applies to every site and every dataset. That's exactly why they require judgment rather than a syntax check — which is the whole point of an exercise like this one.
+
+---
+
+## Worked Example: An AI-Generated Scraper, Missing All of It
+
+**Scenario:** A team lead asks for "a script that scrapes our competitor's public product catalog page every hour and logs price changes to a CSV, so we can track their pricing." An AI assistant, given roughly that prompt, produces this:
+
+```python
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+from datetime import datetime
+
+def scrape_prices(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, "html.parser")
+    products = []
+    for item in soup.find_all("div", class_="product"):
+        name = item.find("h2").get_text()
+        price = item.find("span", class_="price").get_text()
+        products.append({
+            "name": name,
+            "price": price,
+            "scraped_at": datetime.now().isoformat(),
+        })
+    df = pd.DataFrame(products)
+    df.to_csv("prices.csv", mode="a", index=False)
+
+# Intended to run once per hour, indefinitely
+scrape_prices("https://competitor-example.com/catalog")
+```
+
+It's syntactically fine and would probably run. Run the constraint checklist against it:
+
+- **`robots.txt`?** Never checked. The script has no idea whether `/catalog` is disallowed for bots.
+- **Rate limiting?** None inside a single run, and worse — nothing in the *hourly recurrence* accounts for what happens if the page is slow, redirects, or the run overlaps the previous one.
+- **User-Agent?** Not set, so `requests` sends its default, generic identifier — the site operator has no way to know who's hitting their catalog on a schedule.
+- **Privacy concern?** Low here — public product names and prices aren't personal or sensitive data — but this is exactly the kind of judgment call that changes completely if the target page were, say, a directory exposing customer names or a records portal exposing appointment data instead of a product catalog.
+- **ToS concern?** Unknown and unchecked — a real version of this task requires actually reading the target site's ToS before running anything on a recurring schedule, not just before the first run.
+
+### A Fixed Version
+
+```python
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+from datetime import datetime
+import time
+
+HEADERS = {
+    "User-Agent": "PriceTrackerBot/1.0 (contact: data-team@ourcompany.example)"
+}
+
+def is_allowed(url, path):
+    """Minimal robots.txt check — real use should use a library like urllib.robotparser."""
+    robots_url = f"{url.rstrip('/')}/robots.txt"
+    response = requests.get(robots_url, headers=HEADERS, timeout=10)
+    if response.status_code != 200:
+        return True   # no robots.txt found; proceed cautiously
+    return f"Disallow: {path}" not in response.text
+
+def scrape_prices(base_url, path="/catalog"):
+    if not is_allowed(base_url, path):
+        raise PermissionError(f"{path} is disallowed by robots.txt — do not scrape.")
+
+    response = requests.get(base_url + path, headers=HEADERS, timeout=10)
+    if response.status_code != 200:
+        print(f"Request failed: {response.status_code}")
+        return
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    products = []
+    for item in soup.find_all("div", class_="product"):
+        name_tag = item.find("h2")
+        price_tag = item.find("span", class_="price")
+        if name_tag is None or price_tag is None:
+            continue
+        products.append({
+            "name": name_tag.get_text(),
+            "price": price_tag.get_text(),
+            "scraped_at": datetime.now().isoformat(),
+        })
+        time.sleep(1)   # be polite between per-item lookups if any follow-up requests occur
+
+    df = pd.DataFrame(products)
+    df.to_csv("prices.csv", mode="a", index=False, header=False)
+```
+
+Nothing about the *parsing logic* changed much — the fix is almost entirely the layer around it: a `robots.txt` check that can stop the script before it does anything, a real `User-Agent`, a timeout, and a pause. That layer is exactly what an AI assistant, prompted only for "a scraper," has no reason to include on its own — it answered the coding question it was asked, not the compliance question nobody asked it.
+
+---
+
+## Applying the Checklist Yourself
+
+When you're handed AI-generated scraping or automation code — whether from an assistant or a teammate — walk it against the six checklist items above before running it against a real target, and be honest about which ones the code actually satisfies versus which ones you're assuming are fine. A tool that fails the checklist isn't necessarily unusable — but it needs the missing pieces added, and in some cases, a direct conversation with whoever owns the target site or data before it runs at all. Treat "the AI didn't flag a problem" as exactly what it is: silence, not a green light. The AI has no visibility into the target site's policies or the legal context around the data — it can't check what it was never told.
+
+---
+
+<Quiz question="An AI-generated scraper collects names, appointment dates, and doctor notes from a public-facing but unauthenticated hospital scheduling portal. The code runs correctly and the data is technically reachable without logging in. Is that enough to conclude scraping it is fine?">
+
+<div>
+
+No. "Technically reachable without a login" answers only whether the request will succeed — it says nothing about whether the data is appropriate to collect and store in bulk. Names, appointment details, and medical notes are health-related PII, and collecting them at scale raises serious privacy and likely legal concerns (health data is specifically regulated in many jurisdictions) regardless of whether the page happened to be misconfigured or left open. The constraint checklist's privacy question exists precisely for cases like this: correct, working code and permissible code are two different judgments, and here the second one should stop the project — or at minimum trigger a real conversation with someone who can assess the legal exposure — well before an hourly cron job gets anywhere near this portal.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You now have a working checklist for the question an AI assistant will never ask on its own: not just *can* this code run, but *should* it, against this target, collecting this data. That closes out Module 9. Module 10 — the final module of this course — covers image manipulation and file automation, and ends with the Capstone: a project where you'll draw on everything from this course, including the judgment calls you just practiced here.

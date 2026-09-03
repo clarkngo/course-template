@@ -1,0 +1,236 @@
+---
+title: "Lists & Tuples"
+description: "Store, slice, and mutate ordered data with lists, and learn when immutability — tuples — is the feature, not a limitation."
+module: 3
+moduleTitle: "Lists & Tuples"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Beyond One Value at a Time
+
+Module 2 gave you variables that each hold one value. Real work rarely comes in singles — a shipment has a dozen container weights, an order has a cart full of line items, a patient record has a list of prescriptions. Python's answer to "many values, in order" is the **list**. Its quieter sibling, the **tuple**, holds ordered values too, but refuses to change once created — a constraint that turns out to be useful in its own right.
+
+Ask your AI assistant to write list-processing code and it will hand you something that runs on the happy path almost every time. What it won't reliably get right is the edge case you didn't think to mention — the empty list, the list with one item, the accidental duplicate. That's still your job, and this lesson is where the habit starts.
+
+---
+
+## Creating and Indexing Lists
+
+A list is an ordered, mutable collection, written with square brackets:
+
+```python
+shipment_weights = [1250, 890, 2100, 450, 1780]  # kg, per container
+```
+
+Access an element by its **index**, counting from zero:
+
+```python
+>>> shipment_weights[0]
+1250
+>>> shipment_weights[2]
+2100
+```
+
+Negative indices count backward from the end, which saves you from computing `len(...) - 1` every time you want the last item:
+
+```python
+>>> shipment_weights[-1]
+1780
+>>> shipment_weights[-2]
+450
+```
+
+**Slicing** pulls out a sub-list using `start:stop`, where `stop` is exclusive:
+
+```python
+>>> shipment_weights[1:3]
+[890, 2100]
+>>> shipment_weights[:2]      # first two
+[1250, 890]
+>>> shipment_weights[-2:]     # last two
+[450, 1780]
+```
+
+Use `len()` to get the count, and `in` to test membership without writing a loop yourself:
+
+```python
+>>> len(shipment_weights)
+5
+>>> 2100 in shipment_weights
+True
+>>> 9999 in shipment_weights
+False
+```
+
+---
+
+## Common List Methods
+
+Lists are **mutable** — methods change the list in place rather than returning a new one:
+
+```python
+orders = ["order-101", "order-102", "order-103"]
+
+orders.append("order-104")        # add to the end
+orders.insert(0, "order-100")     # insert at a specific position
+orders.remove("order-102")        # remove by value (first match)
+last = orders.pop()               # remove and return the last item
+orders.sort()                     # reorder in place
+orders.reverse()                  # flip the order in place
+orders.extend(["order-105", "order-106"])  # append multiple items
+```
+
+A distinction worth pausing on: `.append(x)` adds `x` as a single new element, while `.extend(iterable)` unpacks the iterable and adds each of its elements. `orders.append(["order-105", "order-106"])` would add one element that is itself a list — almost never what you want. AI assistants mix these up less than beginners do, but it's still worth checking generated code that touches both.
+
+`.sort()` reorders in place and returns `None` — a common trap:
+
+```python
+>>> weights = [3, 1, 2]
+>>> result = weights.sort()
+>>> print(result)
+None
+>>> print(weights)
+[1, 2, 3]
+```
+
+If you want a new sorted list *without* touching the original, use the built-in function `sorted()` instead, which returns a fresh list:
+
+```python
+>>> weights = [3, 1, 2]
+>>> sorted_weights = sorted(weights)
+>>> weights
+[3, 1, 2]
+>>> sorted_weights
+[1, 2, 3]
+```
+
+---
+
+## List Comprehensions
+
+A list comprehension builds a new list from an existing one in a single, readable line — a compressed `for` loop with an implicit `.append()`:
+
+```python
+weights_lbs = [w * 2.20462 for w in shipment_weights]
+
+heavy_only = [w for w in shipment_weights if w > 1000]
+```
+
+Read the second one right to left: for each `w` in `shipment_weights`, keep `w` only if `w > 1000`. This is one of the patterns AI tools generate constantly, and for good reason — it's genuinely more readable than the equivalent loop once you're fluent in the syntax:
+
+```python
+# The loop equivalent — same result, more lines
+heavy_only = []
+for w in shipment_weights:
+    if w > 1000:
+        heavy_only.append(w)
+```
+
+Prefer the comprehension when the logic fits on one clear line. Fall back to the loop when the body needs multiple steps — cramming too much into a comprehension trades readability for brevity, and readability wins in code other people (or future you) have to maintain.
+
+---
+
+## Tuples: Ordered but Immutable
+
+A tuple looks almost like a list but uses parentheses, and once created, it cannot be changed:
+
+```python
+port_coordinates = (1.264, 103.822)  # (latitude, longitude) of a port
+```
+
+Indexing and slicing work identically to lists:
+
+```python
+>>> port_coordinates[0]
+1.264
+```
+
+But mutation raises an error:
+
+```python
+>>> port_coordinates[0] = 1.3
+TypeError: 'tuple' object does not support item assignment
+```
+
+That refusal to change is the point, not a missing feature. Two places it matters directly:
+
+**Tuples as dictionary keys.** Dictionaries (Module 4) require keys to be immutable, so lists can't be keys — but tuples can. A `(container_id, port_code)` tuple makes a natural composite key for a lookup table; the equivalent list would raise a `TypeError` the moment you tried to use it as one.
+
+**Tuples for fixed-shape records.** When a value is a fixed bundle of related fields that shouldn't drift apart — an `(x, y)` coordinate, a `(year, month, day)` date, a `(sku, quantity)` pair — a tuple signals "this shape is fixed" both to Python and to the next person reading your code. A list of the same values doesn't carry that guarantee; nothing stops someone from appending a third element six months later and quietly breaking every place that unpacks it as a pair.
+
+```python
+order_line = ("SKU-4471", 3)          # (sku, quantity) — always exactly two
+sku, quantity = order_line             # unpacking works the same as with lists
+```
+
+---
+
+<CodeLab title="Processing Order Totals">
+
+You're given a list of order totals (in dollars) for an e-commerce store and need a small report: the total revenue, the highest single order, and every order over $100.
+
+```python
+order_totals = [45.99, 129.50, 12.00, 87.25, 210.00, 33.40]
+
+total_revenue = sum(order_totals)
+highest_order = max(order_totals)
+big_orders = [amount for amount in order_totals if amount > 100]
+
+print(f"Total revenue: ${total_revenue:.2f}")
+print(f"Highest order: ${highest_order:.2f}")
+print(f"Orders over $100: {big_orders}")
+```
+
+Run it, then extend it: add a line that computes the *average* order value using `sum(order_totals) / len(order_totals)`, and a line that finds the number of orders under $50 using `len([a for a in order_totals if a < 50])`. Notice how much of this reads as "describe the answer" rather than "describe the steps" — that's the list-comprehension style paying off.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Aliasing: b = a Doesn't Copy a List">
+
+This is the single most common list bug, and AI-generated code has been known to walk right into it too:
+
+```python
+# Wrong — b is not a copy, it's another name for the same list
+original = [1250, 890, 2100]
+backup = original
+backup.append(9999)
+
+print(original)  # [1250, 890, 2100, 9999] — the "backup" changed the original too!
+```
+
+Assigning `backup = original` doesn't create a new list — it makes `backup` a second name pointing at the *same* list in memory. Mutating one mutates both, because there's only one list to mutate. To get an actual independent copy, be explicit:
+
+```python
+# Right — an actual copy
+backup = original.copy()      # or: original[:]  or  list(original)
+backup.append(9999)
+
+print(original)  # [1250, 890, 2100] — unaffected
+print(backup)     # [1250, 890, 2100, 9999]
+```
+
+This is exactly the kind of bug that's easy to miss when reading AI-generated code quickly — the line `backup = original` looks so much like "make a copy" in plain English that it reads as correct even when it isn't. Tuples sidestep this entire class of bug for their contents, since nothing can mutate them in the first place — one more reason immutability is a feature.
+
+</Pitfall>
+
+<Quiz question="You ask an AI assistant to write a function that removes all orders under $10 from a list, and it writes a for loop that calls list.remove() on the same list it's iterating over. What's wrong with this approach, and what should the fix look like?">
+
+<div>
+
+**Removing items from a list while iterating over it by index causes the loop to skip elements, because removal shifts every later element one position to the left while the loop's position counter keeps moving forward as if nothing changed.**
+
+Say the loop is at index 1 and removes the item there — the old index 2 slides into index 1, but the loop then advances to index 2, skipping what just moved into index 1 entirely. The safe fix is to build a *new* list of the items you want to keep, rather than deleting from the list you're reading: `kept = [order for order in orders if order >= 10]`, or equivalently a loop that appends survivors to a fresh list. Read from one collection, write to another — never mutate the collection you're currently looping over.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You now know how to build, slice, and mutate lists, and when a tuple's immutability is doing real work instead of just being a syntax choice. The next lesson puts this to use in the **Evaluation Brief** — you'll compare several AI-generated solutions to the same list problem and judge which one actually deserves to ship.

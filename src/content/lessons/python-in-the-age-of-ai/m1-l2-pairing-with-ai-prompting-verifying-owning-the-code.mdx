@@ -1,0 +1,163 @@
+---
+title: "Pairing With AI: Prompting, Verifying, and Owning the Code"
+description: "Learn what an AI coding assistant is actually good at, where it silently fails, and the two habits — Debug the AI and Structural Reverse-Engineer — that carry through the rest of this course."
+module: 1
+moduleTitle: "Setup & AI Pair-Programming Basics"
+lesson: 2
+duration: "30 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+You almost certainly have an AI coding assistant available right now — in your editor, in a browser tab, or both. That's not a distraction from learning Python; it's the actual working environment you're learning Python *in*. Pretending otherwise would leave you unprepared for how programming is done today, in this course and after it.
+
+But there's a shift in responsibility that comes with it. When an AI writes your first draft, your job stops being "recall the correct syntax" and becomes "decide whether this is correct, catch what it isn't, and take ownership of what ships." That's a different skill than memorizing syntax, and it's the one this lesson exists to start building.
+
+---
+
+## What AI Assistants Are Genuinely Good At
+
+Treat these as reliable strengths — things you can lean on without re-deriving them yourself every time:
+
+- **Boilerplate.** Reading a file, setting up a loop skeleton, writing the repetitive parts of a class — an AI produces this instantly and correctly almost all the time.
+- **Syntax recall.** "What's the syntax for a dictionary comprehension" or "how do I catch multiple exception types" — this is exactly what these models were trained on, and they're fast and reliable at it.
+- **First drafts.** Given a clear description of what a function should do, an AI can produce a reasonable starting point far faster than you writing it from a blank file.
+- **Explaining unfamiliar code.** Pasting in a snippet and asking "what does this do, line by line" is one of the best uses of an AI assistant while you're still building fluency.
+
+---
+
+## Where AI Assistants Silently Fail
+
+This is the part that matters more, because these failures don't look like failures — the code runs, looks clean, and is often *wrong in a way you won't notice unless you check*:
+
+- **Subtle logic bugs.** An off-by-one error in a loop, a condition that's backward, a comparison that should be `>=` but is written `>`. The code executes without crashing; it just gives the wrong answer for some inputs.
+- **Wrong or missing edge-case handling.** What happens with an empty list? A negative number? A missing dictionary key? AI-generated code frequently handles the "normal" case well and skips the edge case entirely.
+- **Security and privacy assumptions.** Code that logs sensitive data, trusts user input without checking it, or stores something in plain text that shouldn't be — an AI won't necessarily flag this unless you ask.
+- **Hallucinated APIs.** The AI confidently uses a function, method, or library argument that doesn't actually exist — because it "looks like" something that should exist based on patterns it's seen elsewhere. This is one of the most common failure modes, and it's often invisible until you run the code and get an error, or worse, until it runs but does something other than what the name implies.
+
+None of this means avoid AI tools. It means: **every line of AI-generated code is a claim, not a fact, until you've checked it.**
+
+---
+
+## Writing a Good Prompt for a Coding Task
+
+A vague prompt gets a plausible-sounding but under-specified answer. A good prompt for a coding task typically includes:
+
+- **The exact inputs and outputs.** Not "sort a list" but "take a list of dictionaries, each with a `name` and a `weight_kg` key, and return them sorted by `weight_kg` ascending."
+- **Constraints.** What should happen with empty input? Should it modify the original list or return a new one? Are there performance requirements?
+- **A request to explain its reasoning.** Asking "explain what edge cases you considered" turns a black-box answer into something you can actually evaluate — and often surfaces a gap the AI itself glosses over if you don't ask.
+
+Compare:
+
+> "Write a function to calculate shipping cost."
+
+against:
+
+> "Write a Python function `shipping_cost(weight_kg, distance_km)` that returns a float cost in USD, using a base rate of $2/kg plus $0.10/km. Raise a `ValueError` if either argument is negative. What edge cases did you consider?"
+
+The second version gives the AI — and you — something concrete to verify against. Specificity is not extra effort you're spending for no reason; it's what makes the output checkable at all.
+
+---
+
+## The Habit: Read Every Line Before You Run It
+
+This is the single habit that matters more than any other in this course: **before you run AI-generated code, read it, line by line, as if you'd written it yourself and need to explain it to someone else.** Not skim — read. If you can't explain what a line does, that's exactly the line to ask about before moving on, not after something breaks.
+
+---
+
+## Debug the AI
+
+Starting now, and recurring through nearly every module in this course, you'll see exercises labeled **Debug the AI**. You're given AI-generated code that looks reasonable — it might even run without error — but has a subtle bug, an edge case it mishandles, or an oversimplification. Your job: find it, fix it, and write a sentence or two explaining *why* the AI got it wrong.
+
+**Worked example.** Here's AI-generated code, in response to the prompt "write a function that returns the average of a list of numbers":
+
+```python
+def average(numbers):
+    total = 0
+    for n in numbers:
+        total += n
+    return total / len(numbers)
+```
+
+This looks correct, and for any non-empty list, it is. Try it with an empty list, though:
+
+```python
+average([])
+# ZeroDivisionError: division by zero
+```
+
+**The bug:** the function never considers what happens when `numbers` is empty — `len(numbers)` is `0`, and dividing by it crashes the program. The fix:
+
+```python
+def average(numbers):
+    if not numbers:
+        return 0.0
+    total = 0
+    for n in numbers:
+        total += n
+    return total / len(numbers)
+```
+
+(Or raise a `ValueError` instead of returning `0.0` — a design decision depending on what the caller should expect, which is exactly the kind of judgment call this course keeps coming back to.)
+
+**Why the AI got it wrong:** the prompt only specified the "normal" case — a list with numbers in it. The AI produced code that's correct for the examples it implicitly assumed, but "a list of numbers" includes the empty list, and nothing in the code acknowledges that possibility. This is the single most common shape of AI coding bug you'll encounter: correct for the common case, silent about the edge case.
+
+---
+
+## Structural Reverse-Engineer
+
+The second recurring exercise is **Structural Reverse-Engineer**. Here, you're given a finished piece of AI-generated code — no prompt shown — and asked to work backward: what requirement or design decision was this code actually solving for? Then, judge whether that was the right call.
+
+**Worked example.** Here's a snippet:
+
+```python
+def get_customer_email(customer):
+    email = customer.get("email")
+    if email is None:
+        return "no-email@example.com"
+    return email
+```
+
+What was this solving for? Reading the code: it's pulling an `email` field out of a `customer` dictionary using `.get()` rather than `customer["email"]` — a deliberate choice, since `.get()` returns `None` instead of raising a `KeyError` when the key is missing. Then it checks for that `None` and substitutes a placeholder address instead.
+
+**Reconstructed requirement:** whoever wrote this (or prompted for it) needed the function to *never* fail, even when a customer record has no email on file — probably because it feeds into something downstream, like a mailing list export, that expects every record to have a usable string in that field.
+
+**Was it the right decision?** Debatable, and that's the point of the exercise. Silently substituting a fake placeholder email means a downstream system might actually try to send mail to `no-email@example.com`, or a report might undercount how many customers are missing contact info — the gap gets hidden instead of surfaced. Depending on the actual use case, returning `None` and letting the caller decide, or logging a warning, might be the better design. There's no single right answer here — the exercise is about being able to articulate the trade-off, not memorize one correct response.
+
+---
+
+<CodeLab title="Verification Checklist — Run This Every Time">
+
+Before accepting AI-generated code into your project, run through this list:
+
+1. **Did I specify the task clearly enough for the answer to be checkable?** If not, the output can't really be trusted yet — tighten the prompt first.
+2. **Have I read every line?** Not skimmed — read, and can explain each line if asked.
+3. **What happens on empty input?** Empty list, empty string, empty dictionary — does the code handle it, or crash?
+4. **What happens on unexpected input?** Negative numbers where positive was assumed, `None` where a value was expected, a missing key.
+5. **Does every function, method, or library call actually exist?** Especially for less common libraries — check the documentation if you're not sure, rather than assuming the AI is right.
+6. **Does it do anything with data it shouldn't** — log something sensitive, trust input without checking it, store something insecurely?
+7. **Did I run it myself**, not just read it, with at least one normal case and one edge case?
+
+Keep this list nearby. You'll use a version of this thinking in every Debug the AI and Structural Reverse-Engineer exercise from here forward.
+
+</CodeLab>
+
+---
+
+<Quiz question="An AI assistant gives you a function that works perfectly on every input you tried, but you later find a case where it returns the wrong answer without crashing. What category of failure does this most likely represent?">
+
+<div>
+
+This is the classic shape of a **subtle logic bug or unhandled edge case** — the most common and most dangerous category of AI coding failure, precisely because the code doesn't crash or throw an obvious error. It runs, returns *something*, and looks fine unless you specifically test the input that exposes the flaw. This is exactly why "did it run without an error" is not the same as "is it correct," and why reading the logic and testing edge cases matters more than watching for crashes.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+From here on, most modules in this course close with a judgment exercise like the two you just practiced — not a simple knowledge-check quiz, but a task that asks you to read, evaluate, and decide the way you will on a real project. Module 2 starts with the fundamentals proper: variables, data types, operators, and control flow — and closes with the **Diff Sprint**, where you'll compare two AI-generated versions of the same function and decide, on your own and against the clock, which one actually holds up.
