@@ -1,0 +1,252 @@
+---
+title: "Introduction to Classes"
+description: "Bundle data and behavior together with classes — the shift from separate variables to objects that know how to act on their own state."
+module: 7
+moduleTitle: "Classes"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## From Loose Variables to Objects
+
+Every module so far has handled data one container at a time — a variable, a list, a dictionary. That works until the data and the logic that operates on it start drifting apart. A patient's name, date of birth, and prescription list end up as three separate variables (or three keys in a dictionary), and the function that calculates their age lives somewhere else entirely, hoping nobody passes it the wrong dictionary by mistake. Nothing enforces that the pieces belong together.
+
+A **class** is Python's way of saying "this data and this behavior belong together, permanently." Once you define one, you can create as many independent instances as you need — each with its own data, all sharing the same behavior. This lesson covers the mechanics: `class`, `__init__`, `self`, methods, and instances. It's syntax-heavy, and syntax is exactly the part your AI assistant will get right nearly every time — so the goal here is fluency, not memorization. You'll need that fluency in the next lesson, where the real work starts: deciding what a class should be responsible for *before* you let AI write it.
+
+---
+
+## Defining a Class
+
+```python
+class PatientRecord:
+    pass
+```
+
+That's a complete, if useless, class. The convention is `CapWords` for class names — `PatientRecord`, not `patient_record` — which is how you'll tell classes apart from variables and functions at a glance in any code you read, AI-generated or not.
+
+To make it useful, give it an `__init__` method — short for "initialize" — which runs automatically every time you create a new instance:
+
+```python
+class PatientRecord:
+    def __init__(self, name, date_of_birth):
+        self.name = name
+        self.date_of_birth = date_of_birth
+```
+
+Two things to notice immediately, because they trip up almost everyone the first time:
+
+**`self` is the first parameter of every method**, and it refers to the specific instance being created or acted on. You don't pass it explicitly when you call the method — Python supplies it automatically.
+
+**`self.name = name` creates an instance attribute.** The parameter `name` is a local variable that exists only inside `__init__`; `self.name` is what actually gets stored on the object and survives after `__init__` returns.
+
+---
+
+## Creating Instances
+
+```python
+patient_a = PatientRecord("Amara Okafor", "1990-03-14")
+patient_b = PatientRecord("Liam Chen", "1985-11-02")
+
+print(patient_a.name)   # Amara Okafor
+print(patient_b.name)   # Liam Chen
+```
+
+Calling `PatientRecord(...)` runs `__init__` behind the scenes and hands you back a new object — an **instance**. `patient_a` and `patient_b` are two completely independent objects; changing `patient_a.name` has no effect on `patient_b`. This is the payoff for the extra syntax: instead of two sets of loose variables (or two dictionaries you have to keep in sync by convention), you have two objects that are guaranteed to have the same shape because they came from the same class.
+
+---
+
+## Adding Methods
+
+A method is a function defined inside a class, and it automatically receives `self` as its first parameter so it can read and change the instance's own data:
+
+```python
+class PatientRecord:
+    def __init__(self, name, date_of_birth):
+        self.name = name
+        self.date_of_birth = date_of_birth
+        self.prescriptions = []
+
+    def add_prescription(self, medication):
+        self.prescriptions.append(medication)
+
+    def prescription_count(self):
+        return len(self.prescriptions)
+```
+
+```python
+patient_a = PatientRecord("Amara Okafor", "1990-03-14")
+patient_a.add_prescription("Lisinopril 10mg")
+patient_a.add_prescription("Metformin 500mg")
+
+print(patient_a.prescription_count())   # 2
+```
+
+Notice `self.prescriptions = []` in `__init__` — starting each patient with their own empty list. This matters more than it looks like it should; see the Pitfall below for what goes wrong if you get this part wrong.
+
+Each method calls on `self` to reach the instance's data — `self.prescriptions`, not some standalone `prescriptions` variable. That's the whole mechanism of a class in one sentence: methods are just functions that always have a specific instance's data within reach.
+
+---
+
+## Readable Printing with `__repr__`
+
+By default, printing an instance gives you something unhelpful:
+
+```python
+>>> print(patient_a)
+<__main__.PatientRecord object at 0x104b2a1d0>
+```
+
+Define `__repr__` (or `__str__`) to control what gets shown instead:
+
+```python
+class PatientRecord:
+    def __init__(self, name, date_of_birth):
+        self.name = name
+        self.date_of_birth = date_of_birth
+        self.prescriptions = []
+
+    def add_prescription(self, medication):
+        self.prescriptions.append(medication)
+
+    def __repr__(self):
+        return f"PatientRecord(name={self.name!r}, dob={self.date_of_birth!r})"
+```
+
+```python
+>>> print(patient_a)
+PatientRecord(name='Amara Okafor', dob='1990-03-14')
+```
+
+`__repr__` and `__str__` are two of a whole family of "dunder" (double-underscore) methods Python calls automatically in specific situations — `__init__` for construction, `__repr__` for printing, others for comparison, addition, and more. You'll meet a few more as the course goes on; for now, `__repr__` is worth adding to nearly every class you write, since debugging a class with no readable printed form is far more painful than it needs to be.
+
+---
+
+<CodeLab title="Building an Order Class Incrementally">
+
+Build this up in three steps, running the code after each one so you can see exactly what each addition changes.
+
+**Step 1 — attributes only:**
+
+```python
+class Order:
+    def __init__(self, order_id, customer_name, total):
+        self.order_id = order_id
+        self.customer_name = customer_name
+        self.total = total
+
+order = Order("ORD-2291", "Jamie Park", 87.50)
+print(order.order_id, order.total)
+```
+
+**Step 2 — add a method that uses the instance's data:**
+
+```python
+class Order:
+    def __init__(self, order_id, customer_name, total):
+        self.order_id = order_id
+        self.customer_name = customer_name
+        self.total = total
+        self.status = "pending"
+
+    def mark_shipped(self):
+        self.status = "shipped"
+
+order = Order("ORD-2291", "Jamie Park", 87.50)
+order.mark_shipped()
+print(order.status)   # shipped
+```
+
+**Step 3 — add a second method and a `__repr__`:**
+
+```python
+class Order:
+    def __init__(self, order_id, customer_name, total):
+        self.order_id = order_id
+        self.customer_name = customer_name
+        self.total = total
+        self.status = "pending"
+
+    def mark_shipped(self):
+        self.status = "shipped"
+
+    def apply_discount(self, percent):
+        self.total = self.total * (1 - percent / 100)
+
+    def __repr__(self):
+        return f"Order({self.order_id!r}, {self.status!r}, total={self.total:.2f})"
+
+order = Order("ORD-2291", "Jamie Park", 87.50)
+order.apply_discount(10)
+order.mark_shipped()
+print(order)   # Order('ORD-2291', 'shipped', total=78.75)
+```
+
+Ask your AI assistant to add a `days_since_order(order_date, today)` method to this class, then check: did it store `order_date` as an instance attribute in `__init__`, or did it just add a method that expects two arguments passed in every time? Both are defensible designs — but only one matches how the rest of this class already works. That judgment call is yours, not the AI's.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Forgetting self, or Confusing Instance vs. Class Attributes">
+
+Two closely related mistakes show up constantly, including in AI-generated code:
+
+**Forgetting `self` as the first parameter:**
+
+```python
+class Order:
+    def mark_shipped():          # missing self!
+        self.status = "shipped"
+```
+
+```python
+>>> order = Order()
+>>> order.mark_shipped()
+TypeError: mark_shipped() takes 0 positional arguments but 1 was given
+```
+
+Python automatically passes the instance as the first argument to every method call, whether you named a parameter to receive it or not. Leave `self` off and Python still tries to pass it, and the call blows up on an argument-count mismatch that has nothing obviously to do with `self` in the error message — which is exactly why this one is easy to misdiagnose when you're skimming AI output.
+
+**Confusing instance attributes with class attributes:**
+
+```python
+class Order:
+    items = []   # defined on the CLASS, not per instance — a shared trap
+
+    def __init__(self, order_id):
+        self.order_id = order_id
+
+    def add_item(self, item):
+        self.items.append(item)   # mutates the SHARED list
+```
+
+```python
+>>> a = Order("ORD-1")
+>>> b = Order("ORD-2")
+>>> a.add_item("Widget")
+>>> b.items
+['Widget']   # b's items list picked up a's item — they're the same list!
+```
+
+`items = []` written directly in the class body creates one list shared by every instance, because it's an attribute of the class itself, not of any particular order. The fix is the same one you saw in this lesson's `PatientRecord` example: assign mutable defaults inside `__init__` with `self.items = []`, so each instance gets its own list. Class-level attributes have real uses — a constant shared by every instance, like a tax rate — but a mutable default almost never belongs there.
+
+</Pitfall>
+
+<Quiz question="An AI assistant writes a ShippingContainer class where __init__ takes container_id and max_weight_kg, and a load(weight) method that does self.current_weight += weight without ever initializing self.current_weight in __init__. What happens, and why is this a bug rather than just a style choice?">
+
+<div>
+
+**This raises an `AttributeError` the first time `load()` is called on a new container, because `self.current_weight` doesn't exist yet — there's nothing for `+=` to add to.** `self.current_weight += weight` is shorthand for `self.current_weight = self.current_weight + weight`, which requires reading `self.current_weight` before it can write a new value, and no attribute by that name was ever created.
+
+This is a genuine bug, not a style preference, because every instance of the class is broken in the same way — there's no valid input that avoids the crash. The fix is to set `self.current_weight = 0` in `__init__` alongside `container_id` and `max_weight_kg`, so every new container starts from a defined state. It's a good example of why reading AI-generated `__init__` methods line-by-line matters: the bug is invisible when you only look at `load()` in isolation, and only shows up when you trace back to what `__init__` actually set up.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You can now define a class, build instances, and give them methods that read and change their own data. The next lesson introduces this module's main exercise, **Design-First Verification** — instead of asking AI to generate a class from a vague prompt and hoping it guesses your intent, you'll sketch the class's responsibilities yourself first, then verify the AI's output against that sketch line by line.

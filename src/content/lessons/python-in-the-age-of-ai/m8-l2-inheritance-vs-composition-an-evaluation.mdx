@@ -1,0 +1,188 @@
+---
+title: "Inheritance vs. Composition: An Evaluation"
+description: "AI defaults to inheritance more often than the relationship calls for. Learn to spot a forced is-a hierarchy and rewrite it as composition."
+module: 8
+moduleTitle: "Object-Oriented Programming"
+lesson: 2
+duration: "35 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Quiz from '@components/Quiz.astro';
+
+## AI's Favorite Hammer
+
+Ask an AI assistant to "model" a set of related types in Python, and inheritance is very often the first tool it reaches for — subclass this, override that, done. It's not a wrong instinct exactly; inheritance is genuinely the right call when one type truly *is a* more specific version of another. The problem is that AI tends to apply it past that boundary, to relationships that are really "this object *uses* that object" or "this object *has* that object" — has-a and uses-a relationships that don't need or benefit from a class hierarchy at all, and are often better served by **composition**: one object simply holding a reference to another and calling its methods.
+
+The **Inheritance vs. Composition Evaluation** is this module's exercise: given an AI-generated design that used inheritance, decide whether the relationship it modeled is a genuine is-a relationship or a has-a/uses-a relationship wearing an is-a costume, and rewrite it with composition where that's the better fit. This is a close cousin of Structural Reverse-Engineer — you're reconstructing the actual requirement behind a piece of generated code and judging whether the design decision it embodies was the right one, applied specifically to how classes relate to each other.
+
+---
+
+## The Test: Is It Really "Is-A"?
+
+A clean way to check: state the relationship as a sentence using "is a" and see if it survives being said out loud without sounding strained.
+
+- "A `CargoShip` **is a** `Shipment`." True, direct, no strain. Inheritance fits.
+- "A `Manager` **is a** kind of `Employee`." True. Inheritance fits.
+- "An `EmailNotifier` **is a** `Report`." Immediately strange — an email notifier is not a kind of report, it's a tool a report might *use* to get sent somewhere. That sentence not holding up is the signal.
+
+The second kind of relationship is better stated as "has a" or "uses a": a `Report` *has a* notifier it delegates the sending to. That phrasing points straight at composition instead of inheritance.
+
+---
+
+## The Flawed Version: Inheritance Forced Onto a Uses-A Relationship
+
+Here's a prompt you might give an AI assistant: "I have a `Report` that needs to be sent either by email or by SMS. Write the classes." And here's a plausible response:
+
+```python
+class Report:
+    def __init__(self, title, content):
+        self.title = title
+        self.content = content
+
+    def send(self):
+        raise NotImplementedError("Subclasses must implement send")
+
+
+class EmailNotifier(Report):
+    def __init__(self, title, content, email_address):
+        super().__init__(title, content)
+        self.email_address = email_address
+
+    def send(self):
+        print(f"Emailing '{self.title}' to {self.email_address}")
+
+
+class SMSNotifier(Report):
+    def __init__(self, title, content, phone_number):
+        super().__init__(title, content)
+        self.phone_number = phone_number
+
+    def send(self):
+        print(f"Texting '{self.title}' summary to {self.phone_number}")
+```
+
+```python
+report = EmailNotifier("Q3 Revenue", "Revenue up 12%...", "cfo@example.com")
+report.send()
+```
+
+This runs without error. It's also a design that will actively fight you the moment requirements get slightly more realistic — which is exactly the point of walking through it.
+
+---
+
+## Evaluating It
+
+Apply the is-a test: "An `EmailNotifier` is a `Report`." That's false — an email notifier isn't a kind of report, it's a delivery mechanism *for* a report. The inheritance here isn't modeling a real is-a relationship; it's using inheritance purely as a way to share the `title` and `content` attributes and to get a `send()` method attached to the object, which is a reuse mechanism being pressed into service as a modeling mechanism. Three concrete problems fall out of that mismatch:
+
+**A report can only ever have one delivery method.** Because "how it sends" is baked into which class you instantiate, a report that needs to go out by both email *and* SMS has no clean home in this design — you'd need a third class that inherits from both, or duplicates both `send()` implementations.
+
+**The data and the delivery mechanism are tangled together.** `EmailNotifier` and `SMSNotifier` both carry `title` and `content` as inherited attributes, meaning any change to what a report *is* — adding a `generated_at` timestamp, say — means touching a class whose actual job is sending things, not defining what a report contains.
+
+**Adding a third delivery method means adding a third subclass**, each one a full parallel implementation of `send()` that happens to also inherit reporting data it doesn't conceptually need. The hierarchy grows every time delivery grows, even though delivery and reporting are genuinely separate concerns.
+
+This is the same failure Design-First Verification (Module 7) was built to catch, one level up: instead of a class acquiring responsibilities it shouldn't have, here it's a *hierarchy* acquiring a shape — is-a — that doesn't match the real relationship — has-a.
+
+---
+
+## The Rewrite: Composition
+
+The fix inverts the relationship: `Report` holds a `notifier`, and delegates the actual sending to it, instead of a notifier subclassing a report.
+
+```python
+class EmailNotifier:
+    def __init__(self, email_address):
+        self.email_address = email_address
+
+    def send(self, title, content):
+        print(f"Emailing '{title}' to {self.email_address}")
+
+
+class SMSNotifier:
+    def __init__(self, phone_number):
+        self.phone_number = phone_number
+
+    def send(self, title, content):
+        print(f"Texting '{title}' summary to {self.phone_number}")
+
+
+class Report:
+    def __init__(self, title, content, notifier):
+        self.title = title
+        self.content = content
+        self.notifier = notifier   # composition: Report HAS a notifier
+
+    def send(self):
+        self.notifier.send(self.title, self.content)
+```
+
+```python
+report = Report("Q3 Revenue", "Revenue up 12%...", EmailNotifier("cfo@example.com"))
+report.send()   # Emailing 'Q3 Revenue' to cfo@example.com
+```
+
+Every problem from the inheritance version resolves cleanly here. Multiple delivery methods for one report is now just a list:
+
+```python
+report.notifiers = [EmailNotifier("cfo@example.com"), SMSNotifier("+15551234567")]
+for notifier in report.notifiers:
+    notifier.send(report.title, report.content)
+```
+
+`Report` and the notifiers can each change independently — adding a `generated_at` field to `Report` touches nothing about how notifiers work, and adding a `SlackNotifier` touches nothing about `Report` at all, as long as it implements the same `send(title, content)` shape. Neither class inherits from the other, because neither actually is a version of the other — one *uses* the other, which is precisely what composition is for.
+
+---
+
+<CodeLab title="Evaluate: Discount Strategies on an Order">
+
+Here's another AI-generated design, this time for applying discounts to an e-commerce order. Run the is-a test on it before reading the analysis below.
+
+```python
+class Order:
+    def __init__(self, subtotal):
+        self.subtotal = subtotal
+
+    def final_total(self):
+        return self.subtotal
+
+
+class PercentageDiscountOrder(Order):
+    def __init__(self, subtotal, percent_off):
+        super().__init__(subtotal)
+        self.percent_off = percent_off
+
+    def final_total(self):
+        return self.subtotal * (1 - self.percent_off / 100)
+
+
+class FlatDiscountOrder(Order):
+    def __init__(self, subtotal, amount_off):
+        super().__init__(subtotal)
+        self.amount_off = amount_off
+
+    def final_total(self):
+        return max(0, self.subtotal - self.amount_off)
+```
+
+Say the sentence: "A `PercentageDiscountOrder` is an `Order`." It technically doesn't fail the way `EmailNotifier` did — but ask what happens the moment a single order needs *both* a percentage discount and a flat discount stacked together, or a promotional code that changes at checkout without the order being re-created as a different class. The same problem resurfaces: "how the discount is calculated" is a strategy the order *uses*, not a category the order permanently *belongs to*.
+
+Rewrite it with composition: an `Order` holding a `discount_strategy` object with a `calculate(subtotal)` method, so `PercentageDiscount` and `FlatDiscount` become small standalone classes an `Order` can be handed, swapped, or even stacked — instead of the order's type being locked in at construction time.
+
+</CodeLab>
+
+---
+
+<Quiz question="What's the concrete cost of using inheritance for a has-a/uses-a relationship, beyond the fact that the is-a sentence doesn't sound right?">
+
+<div>
+
+**The concrete cost is inflexibility: inheritance fixes a "one of these" choice at the moment an object is constructed, and changing it later means creating a different object of a different class — while composition lets you swap, combine, or reassign the related object at any time, because it's just an attribute holding a reference.** In the `EmailNotifier`/`SMSNotifier` example, an order that starts out email-only can never also become SMS-notified without becoming a different class entirely; in the composition version, adding a second notifier is a one-line change to a list.
+
+This is why "does the is-a sentence sound strained" is useful as a first check but the real test is behavioral: could this thing need to change, combine with another option, or vary independently at runtime? If yes, that's a strategy or a capability being wired in — a has-a/uses-a relationship — even when a plausible-sounding is-a class hierarchy could technically be built around it. AI tends to reach for the hierarchy anyway, because it's a valid syntax pattern for sharing code, even when it's the wrong pattern for modeling the relationship.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You've now got both halves of Module 8: how to build inheritance hierarchies correctly when the relationship genuinely is is-a, and how to catch and rewrite the cases where AI reached for inheritance and composition was the better fit. Module 9 moves outward from class design into **Web Scraping & Spreadsheets**, where you'll apply the same critical-evaluation habit to a new kind of question — not "is this class designed well," but "is this data collection even legal and ethical to do."

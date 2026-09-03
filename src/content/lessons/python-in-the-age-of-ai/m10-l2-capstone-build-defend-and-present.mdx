@@ -1,0 +1,122 @@
+---
+title: "Capstone: Build, Defend, and Present"
+description: "The final project. Choose a real automation problem, gather requirements before writing code, pair with AI to build it, and defend one design decision you made differently than the AI's first draft."
+module: 10
+moduleTitle: "Image Manipulation, Automation & Capstone"
+lesson: 2
+duration: "45 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+
+## The Capstone
+
+Ten modules ago, this course opened with a simple claim: an AI assistant can write correct-looking Python faster than you can. Everything since has been about the skill that claim leaves out — deciding what should be built, catching what the AI gets wrong, and taking ownership of what ships. The capstone is where you do all of that at once, on a problem of real size, without a lesson walking you through each step.
+
+There's no new syntax in this lesson. There's no quiz. This is a project brief — read it as one.
+
+---
+
+## Choose Your Problem
+
+Pick one of the following, or adapt one to a domain you find more interesting. Each is small enough to finish, but real enough to require actual judgment calls along the way:
+
+- **Shipping manifest auditor.** Build a tool that scans a folder of shipping manifests (CSV files) and flags any container over its stated weight limit, producing a summary report.
+- **Product photo batch processor.** Build a tool that resizes and renames a batch of product photos for an online store, and logs what it did — filenames, original and new dimensions, timestamp — so the operation is auditable after the fact.
+- **Appointment conflict checker.** Build a tool that reads a CSV of patient appointment records and flags scheduling conflicts — double-bookings for a provider, or a room booked twice at once.
+- **Personal budget tracker.** Build a small tool that reads transactions from a CSV, categorizes spending (groceries, rent, subscriptions, etc.) by a rule set you define, and reports totals by category and month.
+
+Any of these can be built small (a single script) or larger (multiple functions, maybe a class or two, error handling for malformed input). Scope it to what you can finish and defend well, not to what sounds impressive.
+
+---
+
+## The Process
+
+### 1. Requirements-Gathering First
+
+Before you or an AI assistant writes a line of code, write down the actual spec — the way you practiced in Module 5's Requirements-Gathering Roleplay. At minimum:
+
+- What are the inputs, precisely? (File format, expected columns, rough size of the data.)
+- What counts as a valid record, and what should happen to an invalid one — skip it, flag it, halt the whole run?
+- What's the actual output? A printed summary? A new CSV? Both?
+- What are the edge cases specific to *this* domain? (A shipping manifest with a missing weight. A budget CSV with a transaction in a currency your categorizer doesn't expect. An appointment record with no end time.)
+
+If a data schema is involved — records with multiple fields, or data you'll structure as dictionaries — sketch it before you build, the way you did in Module 4's Schema Design exercise. A few lines of a comment block or a short markdown note is enough:
+
+```python
+# Record schema:
+# {
+#   "container_id": str,
+#   "weight_kg": float,
+#   "weight_limit_kg": float,
+#   "destination": str,
+# }
+```
+
+### 2. Pair With AI to Build It
+
+Now bring in your AI assistant — this is exactly the collaborative workflow Module 1 introduced. Give it your requirements, not just a vague task description; a well-specified prompt produces a meaningfully better first draft than "write me a budget tracker." Then apply the verification habits from that same lesson to whatever it hands back: run it, check it against a normal case and at least one edge case, and read the logic line by line rather than trusting that it runs.
+
+### 3. Apply a Higher-Order Check
+
+Pick at least one check from earlier in the course and apply it deliberately to your own capstone code — not to a supplied example this time, but to code you're actually about to ship:
+
+- **Debug the AI** — if something in the AI's draft looks subtly off, don't just fix it silently. Document what was wrong and why the AI likely got there.
+- **Structural Reverse-Engineer** — if the AI made a design choice you didn't explicitly ask for (a particular error-handling strategy, a particular data structure), reconstruct what it was optimizing for and judge whether that was right for your use case.
+- **An Evaluation Brief** (Module 3) — if you generated more than one candidate solution to a sub-problem, compare them against explicit criteria before picking one.
+- **A constraints analysis** (Module 9) — if your tool touches external data, personal information, or anything with a privacy or usage dimension (a budget tracker touching real transaction data is a good candidate here), run it against that checklist.
+
+Whichever you choose, it should leave a visible trace in your final submission — a comment, a short note, a paragraph — not just happen silently in your head.
+
+### 4. Write Your Defense
+
+In a short paragraph, describe **one design decision you made differently than what the AI first proposed, and why.** This is the single most important artifact of the capstone. It's not enough that your tool works — the defense is where you demonstrate that you understood it well enough to disagree with part of it and explain the disagreement in terms of the actual requirements, not just taste.
+
+A strong defense names the AI's original approach specifically, states what you changed it to, and ties the change back to a requirement, an edge case, or a tradeoff — not a vague "I thought this was better."
+
+---
+
+## Capstone Checklist
+
+<CodeLab title="What a Strong Capstone Submission Includes">
+
+Before you consider the capstone finished, check it against this list:
+
+**Requirements & design**
+- [ ] A written spec (inputs, outputs, validity rules, edge cases) exists and was written *before* the bulk of the code
+- [ ] Any structured data has a documented schema, however brief
+- [ ] The scope is small enough to have actually been finished and tested, not left half-working
+
+**Code quality**
+- [ ] Functions have clear names, sensible parameters, and docstrings where the purpose isn't obvious
+- [ ] At least one edge case identified in the requirements is explicitly handled (not just the happy path)
+- [ ] Errors are handled deliberately — a clear message or graceful skip, not a silent failure or a bare `except:`
+- [ ] The code was run and tested on more than one input, including at least one that should trigger the edge-case handling
+
+**Judgment, not just execution**
+- [ ] At least one higher-order check (Debug the AI, Structural Reverse-Engineer, an Evaluation Brief, or a constraints analysis) was applied and is visibly documented
+- [ ] The written defense names a specific decision, the AI's original approach, and the reasoning for the change
+- [ ] If the tool touches personal, financial, health, or scraped data, the relevant constraints were actually considered — not assumed away
+
+A submission that checks every code-quality box but skips the defense hasn't demonstrated the thing this course was actually teaching. A submission with a thoughtful defense wrapped around thin, untested code hasn't either. Both halves matter, and they're supposed to.
+
+</CodeLab>
+
+---
+
+## Closing: What This Course Was Actually About
+
+You started, ten modules ago, learning where a variable lives and what `if` does. You're finishing having built something that reads real-world data, does something useful with it, and includes a written record of a moment where you looked at AI-generated code, decided it wasn't quite right for your situation, and changed it — with reasons.
+
+Here's the arc in brief:
+
+- **Modules 1–2** gave you the AI pair-programming habits and the core syntax — variables, types, control flow — everything else sits on top of.
+- **Modules 3–4** covered lists, tuples, dictionaries, and sets, alongside your first evaluation and schema-design judgment calls.
+- **Modules 5–6** added functions and file/exception handling — the tools for structuring logic and surviving contact with messy real input.
+- **Modules 7–8** built up classes and object-oriented design, where you practiced verifying a design *before* generating code, and weighing inheritance against composition.
+- **Module 9** turned outward, toward data that starts outside Python entirely — scraped HTML and spreadsheets — and the constraint analysis that governs whether collecting it is actually appropriate.
+- **Module 10** closed with images, batch automation, and this capstone, where every earlier skill had to work together on a problem you scoped yourself.
+
+The thesis underneath all of it hasn't changed since Module 1, and it's worth saying plainly one last time: **Python fluency and the judgment to direct and check AI are not substitutes for each other.** Fluency without judgment ships code you can't defend. Judgment without fluency has nothing to direct. You've spent this course building both, on purpose, at the same time — and that combination, not either half alone, is what makes you useful in a room where AI can already write the first draft of almost anything.
+
+You know how to read code critically, not just run it. You know how to specify what you want before you generate it. You know how to disagree with a plausible-looking AI suggestion and say precisely why. That's the job now. Go build something.

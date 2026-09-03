@@ -1,0 +1,275 @@
+---
+title: "Web Scraping & Working With Spreadsheets"
+description: "Pull structured data out of raw HTML with requests and BeautifulSoup, then load, filter, and write spreadsheet data with pandas — the two most common ways Python touches data that didn't start out as Python."
+module: 9
+moduleTitle: "Web Scraping & Spreadsheets"
+lesson: 1
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+You're two modules from the end of this course, and the pattern by now should feel familiar: a new tool, a new class of AI-generated code to read critically. This module's tool is data that lives outside a clean Python object — a web page's HTML, or a spreadsheet someone emailed you — and the job is getting it into a shape your program can actually use.
+
+An AI assistant is genuinely fast at this. Ask for "a scraper that pulls product names and prices off this page" or "code to load this CSV and filter it by region," and you'll get something that runs in seconds. What it won't do on its own is notice that the page's structure is fragile, that a column name has a trailing space, or that half the rows have a missing price field. That's still your job, and it's a bigger job than it sounds — real HTML and real spreadsheets are messier than the neat examples in a tutorial.
+
+---
+
+## Making an HTTP Request
+
+The `requests` library fetches a web page's raw content over HTTP:
+
+```python
+import requests
+
+response = requests.get("https://example.com/inventory")
+print(response.status_code)   # 200 means success
+print(response.text[:200])    # the raw HTML, as a string
+```
+
+`response.status_code` tells you whether the request actually succeeded — `200` for OK, `404` for not found, `403` for forbidden, `500` for a server error. Every request you make in real code should check this before doing anything with `response.text`, because a failed request still returns a `Response` object; it just doesn't contain the page you wanted.
+
+```python
+response = requests.get("https://example.com/inventory")
+if response.status_code == 200:
+    html = response.text
+else:
+    print(f"Request failed with status {response.status_code}")
+```
+
+---
+
+## Parsing HTML with BeautifulSoup
+
+Raw HTML is just a string — `BeautifulSoup` parses it into a navigable structure you can search by tag, class, or attribute.
+
+**A note on the examples below:** rather than scraping a real live site (whose structure could change the moment you read this, and which may not want to be scraped at all — more on that in the next lesson), we'll practice against a mock HTML string. This is a safe, repeatable way to learn the mechanics before you ever point a scraper at a real URL.
+
+```python
+from bs4 import BeautifulSoup
+
+mock_html = """
+<html>
+  <body>
+    <div class="product">
+      <h2 class="name">Wireless Mouse</h2>
+      <span class="price">$24.99</span>
+    </div>
+    <div class="product">
+      <h2 class="name">USB-C Hub</h2>
+      <span class="price">$39.99</span>
+    </div>
+    <div class="product">
+      <h2 class="name">Laptop Stand</h2>
+      <span class="price">$45.00</span>
+    </div>
+  </body>
+</html>
+"""
+
+soup = BeautifulSoup(mock_html, "html.parser")
+```
+
+### Finding Elements
+
+`.find()` returns the first match; `.find_all()` returns every match as a list:
+
+```python
+first_product = soup.find("div", class_="product")
+all_products = soup.find_all("div", class_="product")
+
+print(len(all_products))   # 3
+```
+
+### Extracting Text and Attributes
+
+Once you have an element, `.get_text()` (or `.text`) pulls its text content, and `[]`-style indexing pulls an attribute value:
+
+```python
+for product in soup.find_all("div", class_="product"):
+    name = product.find("h2", class_="name").get_text()
+    price = product.find("span", class_="price").get_text()
+    print(f"{name}: {price}")
+```
+
+```
+Wireless Mouse: $24.99
+USB-C Hub: $39.99
+Laptop Stand: $45.00
+```
+
+For an attribute — say, an `<a href="...">` link — you'd write `link_tag["href"]` instead of `.get_text()`. Both patterns cover the vast majority of scraping tasks: find an element, then either read its text or read one of its attributes.
+
+---
+
+## Turning Scraped Data Into Something Usable
+
+Printed strings aren't useful on their own — the real goal is usually a list of structured records:
+
+```python
+products = []
+for product in soup.find_all("div", class_="product"):
+    name = product.find("h2", class_="name").get_text()
+    price_text = product.find("span", class_="price").get_text()
+    price = float(price_text.replace("$", ""))
+    products.append({"name": name, "price": price})
+
+print(products)
+# [{'name': 'Wireless Mouse', 'price': 24.99}, ...]
+```
+
+Notice the `price_text.replace("$", "")` step — the price on the page is text, not a number, and it has a currency symbol attached. Converting scraped text into the right type (here, `float`) is a step it's easy to forget, and one an AI-generated first draft sometimes skips, leaving you with a list of prices you can't sort or sum.
+
+---
+
+## Reading and Writing Spreadsheet Data With pandas
+
+`pandas` is the standard library for tabular data in Python — CSV files, Excel files, and the kind of structured records you just scraped all fit naturally into a **DataFrame**, pandas' table-like data structure.
+
+### Reading a CSV
+
+```python
+import pandas as pd
+
+df = pd.read_csv("orders.csv")
+print(df.head())        # first 5 rows
+print(df.columns)       # column names
+print(df.shape)         # (rows, columns)
+```
+
+### Selecting and Filtering
+
+```python
+# Select one column (returns a Series)
+totals = df["order_total"]
+
+# Select multiple columns (returns a DataFrame)
+subset = df[["customer_name", "order_total"]]
+
+# Filter rows by a condition
+large_orders = df[df["order_total"] > 100]
+
+# Combine conditions with & (and) or | (or) — note the parentheses
+regional_large_orders = df[(df["order_total"] > 100) & (df["region"] == "West")]
+```
+
+The parentheses around each condition aren't optional style — `&` and `|` bind tighter than comparison operators in this context, so `df["order_total"] > 100 & df["region"] == "West"` without them raises an error or, worse, silently misbehaves.
+
+### Writing Data Back Out
+
+```python
+large_orders.to_csv("large_orders.csv", index=False)
+```
+
+`index=False` skips writing pandas' internal row-numbering column into the file — without it, you'd get an unwanted extra column of `0, 1, 2, ...` in the output. You can build a DataFrame directly from scraped data too, using the same `products` list from earlier:
+
+```python
+products_df = pd.DataFrame(products)
+products_df.to_csv("scraped_products.csv", index=False)
+```
+
+That last pattern — scrape into a list of dictionaries, load it straight into a DataFrame, write it out — is the most common shape this module's skills take in practice: pull messy data in, get a clean spreadsheet out.
+
+---
+
+## Code Lab: From HTML to CSV
+
+<CodeLab title="Scraping Mock Shipment Records Into a Spreadsheet">
+
+You're given a mock HTML string representing a maritime shipping company's internal manifest page. Build a script that scrapes it and writes the results to a CSV.
+
+```python
+from bs4 import BeautifulSoup
+import pandas as pd
+
+manifest_html = """
+<html><body>
+  <div class="shipment">
+    <span class="container-id">MSCU-7741</span>
+    <span class="weight-kg">18400</span>
+    <span class="destination">Rotterdam</span>
+  </div>
+  <div class="shipment">
+    <span class="container-id">MSCU-7742</span>
+    <span class="weight-kg">21500</span>
+    <span class="destination">Singapore</span>
+  </div>
+  <div class="shipment">
+    <span class="container-id">MSCU-7743</span>
+    <span class="weight-kg">19980</span>
+    <span class="destination">Rotterdam</span>
+  </div>
+</body></html>
+"""
+
+soup = BeautifulSoup(manifest_html, "html.parser")
+
+records = []
+for shipment in soup.find_all("div", class_="shipment"):
+    container_id = shipment.find("span", class_="container-id").get_text()
+    weight_kg = int(shipment.find("span", class_="weight-kg").get_text())
+    destination = shipment.find("span", class_="destination").get_text()
+    records.append({
+        "container_id": container_id,
+        "weight_kg": weight_kg,
+        "destination": destination,
+    })
+
+df = pd.DataFrame(records)
+rotterdam_bound = df[df["destination"] == "Rotterdam"]
+print(rotterdam_bound)
+
+df.to_csv("manifest.csv", index=False)
+```
+
+Try extending it: add a filter for containers over 20,000 kg, and write just those to a separate `overweight.csv`. This is exactly the shape of task you'll build on in this module's next lesson — and it's close to one of the capstone options in Module 10.
+
+</CodeLab>
+
+---
+
+<Pitfall title="A Scraper That Fails Silently When the Page Changes">
+
+**Common mistake:** writing a scraper that assumes today's HTML structure will still be there tomorrow, with no check for whether it actually found what it expected.
+
+```python
+# Fragile — no error if the structure changes
+name = product.find("h2", class_="name").get_text()
+```
+
+If the site redesigns and `class="name"` becomes `class="product-name"`, `.find()` returns `None` instead of raising an exception. The next line, `.get_text()`, then throws `AttributeError: 'NoneType' object has no attribute 'get_text'` — which is *better* than nothing, but it's a crash deep in your data-processing loop rather than a clear signal at the source. Worse, in code that wraps the extraction in a broad `try/except` to "handle errors," it can fail *silently*: the row gets skipped or filled with a placeholder, and you don't find out your scraper has been collecting garbage for a week.
+
+AI-generated scrapers tend to write the happy path — `.find(...).get_text()` chained together — because that's what the working example looks like. It's on you to add the check:
+
+```python
+name_tag = product.find("h2", class_="name")
+if name_tag is None:
+    print(f"Warning: couldn't find product name in {product}")
+    continue
+name = name_tag.get_text()
+```
+
+The same applies to `response.status_code` from earlier in this lesson — always check it before parsing `response.text`. A scraper that fails loudly and immediately, at the exact point something unexpected happened, is far easier to fix than one that fails quietly three steps downstream.
+
+</Pitfall>
+
+---
+
+<Quiz question="An AI-generated scraper calls .get_text() directly on the result of soup.find(), with no check on what find() returns. What's the risk, and what should be added?">
+
+<div>
+
+If the target element isn't present — because the page's HTML changed, the item is out of stock and the price element was omitted, or the selector was simply wrong — `.find()` returns `None` rather than raising an error immediately. Calling `.get_text()` on `None` then raises an `AttributeError`, but depending on how the surrounding code handles exceptions, that failure can surface far from its real cause, or get swallowed entirely by an overly broad `try/except`. The fix is to check the result before using it: assign `.find(...)` to a variable, confirm it isn't `None`, and only then call `.get_text()` — logging or skipping cleanly when it is, so a structural change in the page produces a clear signal instead of a silent gap in your data.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You can now pull structured data out of raw HTML and move it through pandas into a clean spreadsheet. The next lesson doesn't add new syntax — it adds a filter you have to apply *before* any of this code runs: is scraping this target actually okay to do? That's the Ethical & Legal Constraints Analysis, this module's core exercise, and the last new skill before the course's final module.

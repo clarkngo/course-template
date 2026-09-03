@@ -1,0 +1,154 @@
+---
+title: "Schema Design With Dictionaries"
+description: "Sketch the shape of your data before any code gets written — because AI will happily guess at structure you never specified, and that guess compounds."
+module: 4
+moduleTitle: "Dictionaries & Sets"
+lesson: 2
+duration: "35 min"
+---
+
+import Quiz from '@components/Quiz.astro';
+
+## The Decision That Happens Before the Code
+
+Ask an AI assistant to "write a Python data model for a shipping manifest" with no further detail, and it will produce something — nested dicts, sensible-looking field names, code that runs. What it can't do is know whether *your* manifest needs multiple containers per shipment, whether an item can appear in more than one container, whether a container without any items yet is a valid state your program needs to handle. It will guess. And because the guess compiles and runs cleanly, it's easy to accept without noticing that a structural decision just got made on your behalf.
+
+This lesson introduces this module's exercise, **Schema Design**: before writing or generating any code, you sketch the *shape* of the data — what fields exist, what's nested inside what, what type each field is, what's required versus optional. This is a small amount of upfront thinking that prevents a much larger amount of downstream pain, because a bad structural decision made in the first prompt tends to compound through every function, loop, and comprehension built on top of it. Fixing a wrong data shape after fifty lines of code depend on it is a much bigger job than getting it right before line one.
+
+---
+
+## Why Schema Comes Before Syntax
+
+Consider two structurally different ways to model "a campaign with multiple ad variants," both syntactically valid Python:
+
+```python
+# Shape A: list of dicts — variants are items in a sequence
+campaign = {
+    "name": "Fall Sale",
+    "variants": [
+        {"id": "V1", "headline": "20% Off Everything", "clicks": 340},
+        {"id": "V2", "headline": "Last Chance: Fall Sale", "clicks": 512},
+    ],
+}
+```
+
+```python
+# Shape B: dict of dicts — variants are keyed by their own id
+campaign = {
+    "name": "Fall Sale",
+    "variants": {
+        "V1": {"headline": "20% Off Everything", "clicks": 340},
+        "V2": {"headline": "Last Chance: Fall Sale", "clicks": 512},
+    },
+}
+```
+
+Both represent the same information. But they support different operations naturally. Shape A makes "iterate over every variant" trivial (`for v in campaign["variants"]`) but "find variant V2 directly" requires a search. Shape B makes "look up V2 directly" trivial (`campaign["variants"]["V2"]`) but iterating still works fine, and it also *prevents* two variants from accidentally sharing an id, since dict keys are automatically unique — a list of dicts has no such guarantee built in.
+
+Neither shape is universally "correct." The right one depends on how the data will actually be used — and that's a question about your program's requirements, not a question Python or an AI assistant can answer for you. This is the same class of judgment as choosing between a list, set, and dict in the previous lesson, just applied one level up: to the shape of a whole record, not a single collection.
+
+---
+
+## Sketching a Schema in Prose First
+
+Before writing any Python, write the schema in plain language or simple pseudocode. Here's a worked example: modeling a patient intake record for a small clinic system.
+
+**Requirements, gathered from the scenario:**
+- Every patient has a name, date of birth, and a unique patient ID.
+- A patient can have zero or more known allergies (just names, as a list — no extra detail needed for this system).
+- A patient can have zero or more prescriptions; each prescription has a drug name, a dosage, and a prescribing date — three related fields that always travel together.
+- Insurance information is optional — some patients are self-pay — and when present, has a provider name and a policy number.
+
+**Prose sketch:**
+
+```
+patient:
+  id: string, required, unique
+  name: string, required
+  date_of_birth: string (YYYY-MM-DD), required
+  allergies: list of strings, may be empty
+  prescriptions: list of records, may be empty
+    each prescription:
+      drug: string, required
+      dosage: string, required
+      prescribed_on: string (YYYY-MM-DD), required
+  insurance: record or absent
+    provider: string, required if insurance present
+    policy_number: string, required if insurance present
+```
+
+Notice what this sketch pins down that plain code wouldn't make explicit on its own: which fields can be empty versus must always be present, which fields form a bundle that should stay together (a prescription's drug/dosage/date, not three parallel lists that could drift out of sync — the same fragility Module 3 called out for parallel lists), and that insurance is genuinely optional rather than "present with blank values."
+
+---
+
+## From Sketch to AI-Generated Code
+
+Now hand that sketch to an AI assistant and ask it to implement it as nested Python dicts and lists. A reasonable result:
+
+```python
+patient = {
+    "id": "PT-00842",
+    "name": "Jordan Reyes",
+    "date_of_birth": "1991-06-14",
+    "allergies": ["penicillin"],
+    "prescriptions": [
+        {"drug": "Lisinopril", "dosage": "10mg", "prescribed_on": "2026-01-10"},
+        {"drug": "Metformin", "dosage": "500mg", "prescribed_on": "2026-02-03"},
+    ],
+    "insurance": {
+        "provider": "Harbor Health Plan",
+        "policy_number": "HH-55219",
+    },
+}
+
+patient_self_pay = {
+    "id": "PT-00843",
+    "name": "Alex Kim",
+    "date_of_birth": "1988-11-02",
+    "allergies": [],
+    "prescriptions": [],
+    "insurance": None,
+}
+```
+
+---
+
+## Critiquing the AI's Structural Choices
+
+This is the actual exercise: check the generated code against your sketch, field by field, and ask whether each structural choice was the right call.
+
+**Prescriptions as a list of dicts, not a dict of dicts.** The AI chose a list, keyed by nothing. Is that right? Prescriptions don't have a natural unique short identifier the way ad variants had `V1`/`V2` — you'd have to invent one, and "the third prescription in the list" is genuinely how a clinician would think about "most recent prescriptions first." A list is the right call here, unlike the campaign example where a dict of dicts made more sense.
+
+**Insurance as `None` for self-pay, not an empty dict `{}`.** The AI represented "no insurance" as `None` rather than `{"provider": "", "policy_number": ""}`. This matches the sketch's "record or absent" — `None` makes "this patient has no insurance" checkable with a single `if patient["insurance"] is None:`, whereas an empty-but-present dict would force every piece of downstream code to also check whether the fields inside it are blank. This is a good structural decision, and it's exactly the kind of choice the AI could just as easily have gotten wrong without an explicit sketch to generate against — nothing about the plain-English prompt "self-pay patient" forces this choice; a differently-prompted generation might well have produced the empty-dict version instead.
+
+**Allergies as a flat list of strings, not a list of dicts.** The sketch specified "just names, no extra detail needed," and the AI matched that — it didn't over-engineer `{"allergy": "penicillin", "severity": ...}` when severity was never asked for. This is worth noticing precisely because AI models sometimes *do* over-elaborate a schema with plausible-looking extra fields nobody requested; here, it correctly kept things flat because the sketch was explicit about scope.
+
+**What's missing that the sketch implied but didn't state outright:** the sketch never said what happens if `id` collides between two patients — nothing in this dict-based structure enforces uniqueness on its own. That's a real gap between "sketch" and "structure that actually enforces the sketch's rules" — dicts and lists alone can't enforce a uniqueness constraint across separate top-level records; that would need to be handled by the surrounding code (or, later in your programming path, a real database). Flagging that gap out loud is exactly the kind of thing a schema critique is for.
+
+---
+
+## Try This: Sketch Before You Generate
+
+Before generating any code, sketch a schema in prose for one of these on paper or in a text file:
+
+- A marketing campaign with multiple ad variants and, for each variant, a list of daily click/impression metrics over time.
+- A personal finance app's model of a single bank account with a list of transactions, each with an amount, category, and date.
+
+Pin down: what's required versus optional, what's a flat field versus a nested record, what should be a list versus a dict, and what a natural "empty" state looks like (zero transactions, a brand-new account). Only after the sketch is written, generate the AI implementation and check it line by line against what you wrote — same process as the patient record above.
+
+---
+
+<Quiz question="An AI assistant generates a schema for a shipping manifest where each container is a dict with an 'items' key holding a list of item names as plain strings. Your sketch called for each item to have both a name and a weight. Whose fault is the mismatch, and what does it tell you about prompting AI for data structures?">
+
+<div>
+
+**It's on the prompt, not the AI — an AI assistant can only structure data according to what it's told, and an unstated requirement (item weight) simply won't appear, because there was nothing in the request for it to reflect.**
+
+The AI's output isn't wrong given what it was asked; a list of plain item-name strings is a completely reasonable structure for "items in a container" when weight was never mentioned. This is exactly why schema design happens *before* prompting for code, not after: writing the prose sketch first — "each item has a name and a weight" — forces you to notice and state every field you actually need, so the generation request itself carries the full requirement instead of leaving gaps for the AI to fill with its own reasonable-but-wrong guess.
+
+</div>
+</Quiz>
+
+## What's Next
+
+You've now practiced designing a data shape deliberately, before any code exists to lock it in. Module 5 moves to functions — where the same instinct to specify requirements up front reappears as its own exercise, the Requirements-Gathering Roleplay, applied to behavior instead of data.

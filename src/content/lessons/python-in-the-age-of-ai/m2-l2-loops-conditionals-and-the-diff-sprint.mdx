@@ -1,0 +1,214 @@
+---
+title: "Loops, Conditionals & the Diff Sprint"
+description: "Master if/elif/else, while, and for loops, then practice the Diff Sprint — comparing two AI-generated functions by hand to decide whether they truly behave the same."
+module: 2
+moduleTitle: "Variables, Data Types, Operators & Control Flow"
+lesson: 2
+duration: "40 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+Control flow is where a script stops being a straight list of instructions and starts making decisions — which is also exactly where subtle bugs like to hide. An AI assistant can generate a loop or a conditional in seconds, and it will usually be *close*. Whether it's *exactly* right for every input your program will actually see is a judgment call, and judgment calls are what this lesson — and this module's closing exercise — are built to practice.
+
+---
+
+## Conditionals: `if` / `elif` / `else`
+
+```python
+order_total = 42.00
+
+if order_total >= 100:
+    discount_pct = 0.15
+elif order_total >= 50:
+    discount_pct = 0.08
+else:
+    discount_pct = 0.0
+
+print(f"Discount: {discount_pct:.0%}")
+```
+
+Python checks conditions top to bottom and runs the **first** branch that's `True` — the rest are skipped entirely, even if they'd also evaluate to `True`. Indentation marks what belongs inside each branch, exactly as it did with `print()` in Lesson 1 of Module 1.
+
+---
+
+## `while` Loops
+
+A `while` loop repeats as long as a condition stays `True`:
+
+```python
+containers_remaining = 5
+
+while containers_remaining > 0:
+    print(f"Loading container {containers_remaining}")
+    containers_remaining -= 1
+
+print("All containers loaded.")
+```
+
+`while` loops are the right tool when you don't know in advance how many times you'll repeat — waiting for a condition to change, retrying until something succeeds, processing input until a sentinel value appears. The risk: if nothing inside the loop ever makes the condition `False`, you get an infinite loop.
+
+---
+
+## `for` Loops
+
+A `for` loop is the right tool when you're iterating over a known sequence — a range of numbers, or the items in a list, string, or other collection:
+
+```python
+for container_number in range(1, 6):
+    print(f"Loading container {container_number}")
+```
+
+`range(1, 6)` produces `1, 2, 3, 4, 5` — note that it stops *before* the second number, not at it. This is a very common source of off-by-one mistakes, and you'll see one in this lesson's Diff Sprint below.
+
+Looping directly over a sequence:
+
+```python
+patient_names = ["J. Alvarez", "K. Osei", "R. Chen"]
+
+for name in patient_names:
+    print(f"Checking in: {name}")
+```
+
+---
+
+## `break`, `continue`, and Nesting
+
+`break` exits a loop immediately. `continue` skips the rest of the current iteration and moves to the next one.
+
+```python
+transactions = [42.00, -15.00, 0.00, 88.50, -3.25]
+
+flagged_total = 0
+for amount in transactions:
+    if amount == 0:
+        continue          # skip zero-amount entries entirely
+    if amount < 0:
+        print(f"Refund detected: ${amount:.2f} — stopping review")
+        break              # stop processing as soon as a refund is found
+    flagged_total += amount
+
+print(f"Flagged total before refund: ${flagged_total:.2f}")
+```
+
+Conditionals nest inside loops constantly in real code — checking a condition on every item as you iterate:
+
+```python
+orders = [120.00, 45.00, 300.00, 12.00]
+
+for amount in orders:
+    if amount >= 100:
+        print(f"${amount:.2f} — qualifies for free shipping")
+    else:
+        print(f"${amount:.2f} — standard shipping applies")
+```
+
+---
+
+## Common Patterns
+
+Three shapes show up constantly once you start combining loops and conditionals:
+
+- **Accumulator** — building up a running total or result across iterations (`flagged_total` above).
+- **Counter** — tallying how many items meet some condition.
+- **Early exit** — stopping a loop as soon as some condition is met, via `break`, instead of processing everything and checking afterward.
+
+```python
+order_amounts = [12.50, 89.00, 45.75, 210.00, 6.00]
+
+count_over_50 = 0                       # counter
+for amount in order_amounts:
+    if amount > 50:
+        count_over_50 += 1
+
+print(f"Orders over $50: {count_over_50}")
+```
+
+---
+
+## The Diff Sprint
+
+This module's named exercise is the **Diff Sprint**. Here's the format: you're shown **two AI-generated versions of the same function**, given a short time limit — a few minutes, working alone — and asked to determine two things:
+
+1. **Do the two versions actually behave identically for every reasonable input?** Not just the input shown in an example — think about the empty case, the single-item case, the boundary case.
+2. **Which one is preferable, and why** — readability, correctness, performance, or handling of edge cases?
+
+You work this out **by hand, on your own, without re-prompting an AI to check the diff for you.** That's deliberate: the entire point of the exercise is building the ability to trace logic and spot a behavioral difference *yourself*, quickly. If you outsource the comparison back to an AI, you've practiced prompting, not reasoning — and re-prompting an AI to check its own (or another AI's) work is often slower than just reading eleven lines of Python once you've built the skill. That skill is exactly what pays off later, when you're the one who has to catch a bug before it ships and there's no time to wait on a round trip to a chat window.
+
+### Worked Diff Sprint: Two Versions of the Same Function
+
+**Task given to the AI:** "Write a function that returns the running total after each purchase in a list of purchase amounts, e.g. `[10, 20, 30]` → `[10, 30, 60]`."
+
+**Version A:**
+
+```python
+def running_totals(amounts):
+    totals = []
+    total = 0
+    i = 0
+    while i < len(amounts) - 1:
+        total += amounts[i]
+        totals.append(total)
+        i += 1
+    return totals
+```
+
+**Version B:**
+
+```python
+def running_totals(amounts):
+    totals = []
+    total = 0
+    for amount in amounts:
+        total += amount
+        totals.append(total)
+    return totals
+```
+
+**Do they behave identically?** Trace Version A by hand with `[10, 20, 30]`: the `while` condition is `i < len(amounts) - 1`, i.e. `i < 2`. So `i` runs `0, 1` — only two iterations — and the loop stops *before* processing the last item. Result: `[10, 30]`. It's missing the final `60`.
+
+Trace Version B with the same input: the `for` loop runs once per item with no manual index, so all three items are processed. Result: `[10, 30, 60]` — correct.
+
+**They do not behave identically.** Version A has an **off-by-one error**: the `- 1` in `i < len(amounts) - 1` was presumably intended to keep the manual index `i` from running out of bounds, but it's one iteration too conservative — the loop should run `while i < len(amounts)`, not `len(amounts) - 1`. Try Version A on an empty list, too: `len([]) - 1` is `-1`, so `0 < -1` is `False` and the loop never runs — that part happens to be harmless here, but only by luck, not by design.
+
+**Which is preferable?** Version B — and not narrowly. It's correct where Version A isn't, and it's also simpler: no manual index to track or get wrong, no off-by-one risk, and it reads closer to "for each amount, do this," which is exactly what's happening. Version A's manual `while` with an index is a classic shape for exactly this kind of subtle bug — every manually managed index is one more place an off-by-one error can hide. When a `for` loop over the sequence directly can do the job, it usually should.
+
+---
+
+<CodeLab title="Practice: Run Your Own Diff Sprint">
+
+Try this one yourself before checking the reasoning above against it a second time. Two AI-generated versions of "return True if the list is empty":
+
+```python
+# Version 1
+def is_empty(items):
+    return len(items) == 0
+
+# Version 2
+def is_empty(items):
+    return not items
+```
+
+Set a two-minute timer. Trace both with an empty list `[]`, a list with one item `[5]`, and — if you want to push further — think about whether both would behave the same on *any* input Python considers "falsy" in the same way an empty list is, not just lists. Decide which you'd keep in a real codebase, and why, before moving on.
+
+</CodeLab>
+
+---
+
+<Quiz question="In a Diff Sprint, why is it more effective to trace the logic yourself than to paste both versions back into an AI and ask which is correct?">
+
+<div>
+
+Re-prompting an AI to compare two snippets adds a round trip and still leaves you dependent on trusting its judgment — the same category of risk covered in Debug the AI, where AI-generated output can look plausible while being subtly wrong. Tracing the logic by hand, with a couple of concrete inputs including edge cases (empty, single-item, boundary), is usually **faster** than writing a good comparison prompt and reviewing the answer — and it's the skill that actually transfers: the ability to look at two implementations and know, quickly and on your own, whether they diverge. That's a skill you need in the room during a code review or an incident, not one you can outsource in the moment.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You now have the full toolkit for this module: variables, types, operators, conditionals, and loops, plus practice tracing subtle behavioral differences between two implementations under time pressure. Module 3 moves to **lists and tuples** — Python's core sequence types — and introduces this course's next named exercise, the **Evaluation Brief**, where you'll judge which of several AI-proposed approaches to a data problem is actually the right one to ship.

@@ -1,0 +1,164 @@
+---
+title: "Environment Setup & Your First Python Program"
+description: "Install Python, set up an editor, and write, run, and read your first real script — the groundwork every later lesson in this course builds on."
+module: 1
+moduleTitle: "Setup & AI Pair-Programming Basics"
+lesson: 1
+duration: "35 min"
+---
+
+import CodeLab from '@components/CodeLab.astro';
+import Pitfall from '@components/Pitfall.astro';
+import Quiz from '@components/Quiz.astro';
+
+## Why This Lesson Matters
+
+Every skill in this course — from control flow to classes to the AI-collaboration habits that make this course different from a standard intro — depends on being able to write a file, run it, and read what came back. That loop, edit-run-read, is the whole job. Get it comfortable now and everything after this lesson gets easier. Get it wrong — a broken install, a script that silently runs the wrong file — and you'll spend your first week debugging your environment instead of your code.
+
+You'll also have an AI assistant (ChatGPT, Claude, Copilot, whatever your editor ships with) available from day one. That's fine — use it to explain an error message or suggest a fix. But this first lesson is deliberately AI-light. You need to know what "correct" looks like with your own eyes before you're in a position to judge whether an AI's suggestion is any good — that's the whole premise of this course, and it starts here.
+
+---
+
+## Installing Python
+
+Head to [python.org/downloads](https://www.python.org/downloads/) and grab the current stable release for your operating system. A few notes that save people real time:
+
+- **On Windows**, check the box that says **"Add Python to PATH"** during install. Skipping it is the single most common reason `python` doesn't work afterward.
+- **On macOS**, you can use the official installer, or `brew install python` if you already use Homebrew.
+- **On Linux**, Python 3 is often preinstalled or one package-manager command away (`sudo apt install python3` on Debian/Ubuntu, for example).
+
+You want **Python 3**, not Python 2 — Python 2 stopped receiving updates in 2020 and nothing in this course targets it.
+
+### Verifying the Install
+
+Open a terminal (Command Prompt, PowerShell, or Terminal.app) and run:
+
+```bash
+python --version
+```
+
+On some systems — particularly macOS and Linux, where `python` may still point at a legacy Python 2 install — you'll need:
+
+```bash
+python3 --version
+```
+
+Either way, you're looking for output like `Python 3.12.4`. If you get a "command not found" error, the install didn't complete or wasn't added to your PATH — reinstall and make sure that box is checked.
+
+---
+
+## Choosing an Editor
+
+This course assumes **VS Code** (free, from Microsoft), because it's the most common editor in professional Python work and has excellent support for both Python and AI coding extensions. Install it from [code.visualstudio.com](https://code.visualstudio.com/), then install the **Python extension** (search "Python" in the Extensions panel — the one published by Microsoft).
+
+An AI coding extension — GitHub Copilot, the Claude extension, or similar — is optional at this stage but common enough that we'll assume you have *something* like it available by Lesson 2. You don't need it installed yet to finish this lesson.
+
+---
+
+## Running a Script From the Terminal
+
+A Python file is just a text file ending in `.py`. To run one, you `cd` into its folder and run:
+
+```bash
+python filename.py
+```
+
+(or `python3 filename.py`, matching whichever command worked when you checked your version above).
+
+Everything in this course happens in this loop: **write the file in your editor, save it, run it from the terminal, read the output, adjust, repeat.**
+
+---
+
+## Basic Syntax Rules
+
+Three things trip up almost everyone in their first week:
+
+1. **Indentation is not cosmetic.** Python uses indentation — spaces at the start of a line — to mark which lines belong inside a block (like the body of a loop or function). Two lines at different indentation levels are in *different* blocks, and Python will refuse to run code with inconsistent indentation.
+2. **Python is case-sensitive.** `print`, `Print`, and `PRINT` are three different names as far as Python is concerned, and only the first one is the built-in function.
+3. **`print()` needs parentheses.** If you've seen older tutorials or textbooks using `print "hello"` with no parentheses, that's Python 2 syntax. Python 3 always requires the parentheses.
+
+---
+
+## Code Lab: Your First Script
+
+Let's build something with a little more shape than `print("hello world")` — a small shipping-manifest report, the kind of thing a logistics tool might print to a terminal.
+
+<CodeLab title="Building a Shipping Manifest Report">
+
+**Step 1 — Print a single line.**
+
+Open VS Code, create a new file named `manifest.py`, and type:
+
+```python
+print("Manifest Report — Vessel: Pacific Voyager")
+```
+
+Save the file, open a terminal in that same folder, and run:
+
+```bash
+python manifest.py
+```
+
+You should see the line printed back to you.
+
+**Step 2 — Add more lines and a comment.**
+
+`print()` can be called as many times as you want, and each call starts on a new line. Comments start with `#` — Python ignores everything after it on that line, so use comments to leave notes for humans (including future you).
+
+```python
+# Shipping manifest report — generated for dock handoff
+print("Manifest Report — Vessel: Pacific Voyager")
+print("Port of Origin: Singapore")
+print("Port of Destination: Long Beach")
+print("Containers on board: 342")
+```
+
+Run it again. Four lines of output, in the order you wrote them — Python runs a script top to bottom, one line at a time.
+
+**Step 3 — Format one line for readability.**
+
+Add a blank `print()` call (prints an empty line) and a simple separator:
+
+```python
+# Shipping manifest report — generated for dock handoff
+print("Manifest Report — Vessel: Pacific Voyager")
+print("-" * 40)
+print("Port of Origin: Singapore")
+print("Port of Destination: Long Beach")
+print("Containers on board: 342")
+print()
+print("Status: Cleared for departure")
+```
+
+`"-" * 40` repeats the string `"-"` forty times — a preview of operators, which you'll cover properly in Module 2. Run it once more and confirm the separator line prints correctly.
+
+That's a complete, runnable Python program: comments, `print()`, and a first taste of string operations.
+
+</CodeLab>
+
+---
+
+<Pitfall title="Inconsistent Indentation">
+
+**Common mistake:** mixing tabs and spaces, or indenting a line by a different amount than the lines around it, especially when copy-pasting code from a website or PDF.
+
+Python will raise an `IndentationError` (or, worse, silently run code with a different meaning than you intended) if indentation isn't consistent within a block. VS Code's Python extension defaults to 4 spaces per indent level and will usually convert tabs automatically — but if you ever see an `IndentationError` and the code *looks* fine, check for invisible tab/space mixing by turning on "Render Whitespace" in VS Code's settings. This gets more important once you start writing loops and conditionals in Module 2, where indentation determines which lines run inside the block and which don't.
+
+</Pitfall>
+
+---
+
+<Quiz question="You copy a print statement from an old tutorial that has no parentheses around the text, and Python throws a SyntaxError. What's going on?">
+
+<div>
+
+That tutorial is written for **Python 2**, where `print` was a statement rather than a function and didn't require parentheses. Python 3 — what this course uses, and what current Python installs default to — made `print` a regular function, so it must always be called as `print(...)`. This is a good early example of why you read AI or tutorial output critically rather than pasting it blindly: a plausible-looking line of code can still be wrong for the version you're actually running.
+
+</div>
+</Quiz>
+
+---
+
+## What's Next
+
+You can now install Python, run a script, and read its output — the mechanical foundation for everything else in this course. Lesson 2 turns to the part that makes this course different from a standard intro: how to actually work *with* an AI coding assistant sitting next to you — what to trust it with, what to double-check every time, and the two recurring exercises, Debug the AI and Structural Reverse-Engineer, that will show up across nearly every module from here on.
