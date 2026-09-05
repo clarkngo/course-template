@@ -23,6 +23,13 @@
   ::-webkit-scrollbar-track { @apply bg-gray-100; }
   ::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
   ::-webkit-scrollbar-thumb:hover { @apply bg-gray-400; }
+
+  /* The native `hidden` attribute loses to a same-specificity Tailwind
+     display utility (grid/flex) on the same element because both are
+     author-origin rules — force it to win regardless of other classes. */
+  [hidden] {
+    display: none !important;
+  }
 }
 
 @layer components {
@@ -121,6 +128,15 @@
   .btn-ghost {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300
            text-gray-700 font-medium text-sm hover:bg-gray-100 transition-colors duration-150;
+  }
+
+  /* ── View switcher (home page course catalog) ────── */
+  .view-switcher-btn {
+    @apply px-3.5 py-1.5 rounded-md text-sm font-medium text-gray-500
+           hover:text-gray-800 transition-colors duration-150;
+  }
+  .view-switcher-btn[aria-pressed="true"] {
+    @apply bg-white text-gray-900 shadow-sm;
   }
 
   /* ── Module cards (dashboard) ────────────────────── */
