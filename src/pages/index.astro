@@ -1,6 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import CourseCard from '../components/CourseCard.astro';
 import { getCollection } from 'astro:content';
+import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const allCourses = await getCollection('courses');
 const allLessons = await getCollection('lessons');
@@ -15,6 +19,61 @@ const courses = allCourses.sort((a, b) => {
 function lessonCount(courseSlug: string) {
   return allLessons.filter(l => l.slug.startsWith(courseSlug + '/')).length;
 }
+
+// Git-derived created/modified dates per course, from the history of its
+// frontmatter file plus everything under its lessons directory. Falls back
+// to nulls (sorted last) if git isn't available in the build environment.
+function getGitDates(paths: string[]) {
+  const existing = paths.filter(p => fs.existsSync(path.join(process.cwd(), p)));
+  if (existing.length === 0) return { created: null as string | null, modified: null as string | null };
+  try {
+    const args = existing.map(p => JSON.stringify(p)).join(' ');
+    const out = execSync(`git log --format=%aI -- ${args}`, {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (!out) return { created: null, modified: null };
+    const dates = out.split('\n').filter(Boolean);
+    return { created: dates[dates.length - 1], modified: dates[0] };
+  } catch {
+    return { created: null, modified: null };
+  }
+}
+
+function timeAgo(isoDate: string | null): string {
+  if (!isoDate) return 'Unknown';
+  const diffSec = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+  const units: [string, number][] = [
+    ['year', 31536000], ['month', 2592000], ['week', 604800],
+    ['day', 86400], ['hour', 3600], ['minute', 60],
+  ];
+  for (const [name, secs] of units) {
+    const val = Math.floor(diffSec / secs);
+    if (val >= 1) return `${val} ${name}${val > 1 ? 's' : ''} ago`;
+  }
+  return 'Just now';
+}
+
+const courseMeta = courses.map(course => {
+  const { created, modified } = getGitDates([
+    `src/content/courses/${course.slug}.md`,
+    `src/content/lessons/${course.slug}`,
+  ]);
+  return { course, created, modified };
+});
+
+const byModified = [...courseMeta].sort((a, b) => {
+  const ta = a.modified ? new Date(a.modified).getTime() : 0;
+  const tb = b.modified ? new Date(b.modified).getTime() : 0;
+  return tb - ta;
+});
+
+const byCreated = [...courseMeta].sort((a, b) => {
+  const ta = a.created ? new Date(a.created).getTime() : 0;
+  const tb = b.created ? new Date(b.created).getTime() : 0;
+  return tb - ta;
+});
 
 const availableCount = courses.filter(c => c.data.status === 'available').length;
 const totalCount = courses.length;
@@ -99,7 +158,7 @@ const coursesByCategory = categories.map(category => ({
     </section>
 
     <!-- ── Category jump nav ────────────────────────────── -->
-    <div class="sticky top-16 z-10 bg-white/95 backdrop-blur border-b border-gray-200 overflow-x-auto">
+    <div id="category-jump-nav" class="sticky top-16 z-10 bg-white/95 backdrop-blur border-b border-gray-200 overflow-x-auto">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 whitespace-nowrap">
         {coursesByCategory.map(({ name, slug, courses: catCourses }) => (
           <a
@@ -114,7 +173,7 @@ const coursesByCategory = categories.map(category => ({
 
     <!-- ── Course Catalog ────────────────────────────── -->
     <section class="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-10 sm:mb-14">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
         <div>
           <h2 class="text-2xl font-bold text-gray-900">All Courses</h2>
           <p class="text-gray-500 mt-1">{totalCount} courses across {categories.length} categories · built for complete beginners</p>
@@ -127,7 +186,21 @@ const coursesByCategory = categories.map(category => ({
         </div>
       </div>
 
-      <div class="space-y-14 sm:space-y-16">
+      <!-- View switcher -->
+      <div id="view-switcher" class="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-10 sm:mb-14">
+        <button type="button" data-view-btn="category" class="view-switcher-btn" aria-pressed="true">
+          By Category
+        </button>
+        <button type="button" data-view-btn="modified" class="view-switcher-btn" aria-pressed="false">
+          Recently Modified
+        </button>
+        <button type="button" data-view-btn="created" class="view-switcher-btn" aria-pressed="false">
+          Recently Created
+        </button>
+      </div>
+
+      <!-- Panel: By Category -->
+      <div data-view-panel="category" class="space-y-14 sm:space-y-16">
         {coursesByCategory.map(({ name, slug, courses: catCourses }) => (
           <div id={slug} class="scroll-mt-32">
             <div class="flex items-baseline gap-3 mb-6">
@@ -136,67 +209,63 @@ const coursesByCategory = categories.map(category => ({
             </div>
 
             <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {catCourses.map(course => {
-                const count = lessonCount(course.slug);
-                const isAvailable = course.data.status === 'available';
-                const href = isAvailable ? `${base}${course.slug}/` : undefined;
-
-                return (
-                  <div
-                    class={`module-card flex flex-col group ${isAvailable ? 'cursor-pointer' : 'opacity-75'}`}
-                    style={isAvailable ? `--card-color: ${course.data.color}` : ''}
-                  >
-                    <!-- Card top accent bar -->
-                    {isAvailable && (
-                      <div
-                        class="h-1 rounded-t-2xl -mt-6 -mx-6 mb-5"
-                        style={`background-color: ${course.data.color}`}
-                      ></div>
-                    )}
-
-                    <!-- Icon + status -->
-                    <div class="flex items-start justify-between mb-3">
-                      <span class="text-4xl">{course.data.icon}</span>
-                      {isAvailable ? (
-                        <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
-                          ✓ Available
-                        </span>
-                      ) : (
-                        <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-                          Coming Soon
-                        </span>
-                      )}
-                    </div>
-
-                    <!-- Title + description -->
-                    <h4 class={`text-lg font-bold mb-2 ${isAvailable ? 'text-gray-900 group-hover:text-brand-700 transition-colors' : 'text-gray-600'}`}>
-                      {course.data.title}
-                    </h4>
-                    <p class="text-sm text-gray-500 leading-relaxed flex-1 mb-5">
-                      {course.data.description}
-                    </p>
-
-                    <!-- Meta + CTA -->
-                    <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
-                      <span class="text-xs text-gray-400">
-                        {isAvailable && count > 0 ? `${count} lesson${count !== 1 ? 's' : ''}` : '🔒 In development'}
-                      </span>
-                      {isAvailable ? (
-                        <a href={href} class="btn-primary text-xs py-1.5 px-4">
-                          Start Course →
-                        </a>
-                      ) : (
-                        <span class="text-xs text-gray-400 font-medium">Notify me</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {catCourses.map(course => (
+                <CourseCard
+                  course={course}
+                  count={lessonCount(course.slug)}
+                  href={course.data.status === 'available' ? `${base}${course.slug}/` : undefined}
+                />
+              ))}
             </div>
           </div>
         ))}
       </div>
+
+      <!-- Panel: Recently Modified -->
+      <div data-view-panel="modified" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" hidden>
+        {byModified.map(({ course, modified }) => (
+          <CourseCard
+            course={course}
+            count={lessonCount(course.slug)}
+            href={course.data.status === 'available' ? `${base}${course.slug}/` : undefined}
+            dateBadge={`Updated ${timeAgo(modified)}`}
+          />
+        ))}
+      </div>
+
+      <!-- Panel: Recently Created -->
+      <div data-view-panel="created" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" hidden>
+        {byCreated.map(({ course, created }) => (
+          <CourseCard
+            course={course}
+            count={lessonCount(course.slug)}
+            href={course.data.status === 'available' ? `${base}${course.slug}/` : undefined}
+            dateBadge={`Added ${timeAgo(created)}`}
+          />
+        ))}
+      </div>
     </section>
+
+    <script>
+      const buttons = document.querySelectorAll<HTMLButtonElement>('[data-view-btn]');
+      const panels = document.querySelectorAll<HTMLElement>('[data-view-panel]');
+      const jumpNav = document.getElementById('category-jump-nav');
+
+      function setView(view: string) {
+        panels.forEach(p => {
+          p.hidden = p.getAttribute('data-view-panel') !== view;
+        });
+        buttons.forEach(b => {
+          const active = b.getAttribute('data-view-btn') === view;
+          b.setAttribute('aria-pressed', String(active));
+        });
+        if (jumpNav) jumpNav.hidden = view !== 'category';
+      }
+
+      buttons.forEach(btn => {
+        btn.addEventListener('click', () => setView(btn.getAttribute('data-view-btn')!));
+      });
+    </script>
 
     <!-- ── Footer ────────────────────────────────────── -->
     <footer class="border-t border-gray-200 py-8 text-center text-sm text-gray-400">
